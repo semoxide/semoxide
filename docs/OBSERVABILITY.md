@@ -50,7 +50,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 | `-q` / `-qq` | `warn` / `error`; the final result line still prints |
 | `-v` / `-vv` | `semoxide=debug` / `trace`; live plugin output |
 | `--debug` | `semoxide=trace,git2=debug,reqwest=debug`, SpanTraces, span timings. Auto-on with `RUNNER_DEBUG=1` |
-| `SEMOXIDE_LOG=<EnvFilter>` | overrides the above |
+| `SEMOXIDE_LOG=<EnvFilter>` (fallback `RUST_LOG`; ADR 0013) | overrides the above |
 | `--log-format=auto\|pretty\|json\|github` | `auto` = `github` under `GITHUB_ACTIONS=true`, else `pretty` |
 | `--log-file <path>` | JSON at `trace`, own filter |
 | `--color=auto\|always\|never` | honors `NO_COLOR`, `CLICOLOR_FORCE` |
@@ -149,7 +149,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 
 ## Decisions needed
 
-1. Log env var: `SEMOXIDE_LOG` only, or also honor `RUST_LOG`.
+1. ~~Log env var~~: decided (ADR 0013): `SEMOXIDE_LOG`, falling back to `RUST_LOG`.
 2. ~~Logs on stderr, data on stdout~~: decided (ADR 0013).
 3. ~~Error-code naming~~: decided (ADR 0013).
 4. ~~Exit codes~~: decided (ADR 0013).
