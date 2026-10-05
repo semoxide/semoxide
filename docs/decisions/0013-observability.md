@@ -16,3 +16,7 @@ Status: accepted (2026-10-05). Decided step by step; details and remaining propo
 - **Masked forms:** upstream's forms (raw, the URL encodings) plus base64 of `user:token` and of the bare token (e.g. `Authorization: Basic` headers in `--debug` HTTP traces).
 - **Plugin log levels:** `Log` events keep the level the plugin sent. If a plugin logs at `error` but its step returns success, this breaks the contract: the core treats the step as failed (`core::plugin_error_on_success`) and normal failure handling applies, including `rollback` after the tag push ([ADR 0012](0012-partial-failure.md)). The conformance kit checks for it. Captured stdout/stderr lines are `debug` events tagged `stream=stdout|stderr`.
 - **Support bundle** (`semoxide doctor --bundle`): Markdown by default, paste-ready for an issue; `--bundle-format=json` optional. Contents are masked, and env vars appear by name only.
+- **Dry-run plan:**
+  - Read-only steps (`verify_conditions`, `analyze_commits`, `verify_release`, `generate_notes`) run for real, with `dry_run = true` in the context so plugins can adapt (e.g. no push-permission check, [ADR 0005](0005-dry-run.md)).
+  - Write steps (`prepare`, `publish`, `add_channel`, `success`, `fail`, `rollback`) are never called. semoxide calls the optional `plan` RPC instead and prints each plugin's "would do" lines; plugins without `plan` show "(no plan available)".
+  - Safety net: in a dry run the host `Git` service refuses every write.

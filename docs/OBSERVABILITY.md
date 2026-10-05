@@ -122,7 +122,7 @@ Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dote
 |---|---|
 | `semoxide explain [--commit <sha>]` | local read-only decision trace: branch → last release → per-commit bump → next version or reason |
 | `semoxide doctor [--online]` | repo, shallow, tags, CI vendor, token env **names**, plugin download/checksum lock, manifest, handshake, `describe` schema validation; `--online` adds auth probes, plus push/tag-delete rights ([ADR 0012](decisions/0012-partial-failure.md)) |
-| `--dry-run` | semantics per [ADR 0005](decisions/0005-dry-run.md) (no push rights, no network writes, `--verify-push` opt-in). Proposed plan output: version, tag, channel, per step × plugin "would do" lines, notes preview |
+| `--dry-run` | semantics per [ADR 0005](decisions/0005-dry-run.md) (no push rights, no network writes, `--verify-push` opt-in). Plan output (ADR 0013): version, tag, channel, per write step × plugin `plan` lines, notes preview |
 | `semoxide doctor --bundle <file>` | redacted support bundle: semoxide/OS facts, git facts (remote host only), CI env **names**, secret env set/unset, config with per-key source, plugins + versions + checksums + protocol version, last `--log-file` re-masked |
 
 ## 8. Errors and exit codes
@@ -160,7 +160,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 8. ~~Plugin log levels~~: decided (ADR 0013).
 9. ~~Support bundle format~~: decided (ADR 0013): Markdown default.
 10. ~~CI log formats~~: decided (ADR 0013), GitHub and GitLab automatic.
-11. Dry-run plan: per-plugin "would do" lines need a protocol call (`describe` today only returns the config schema).
+11. ~~Dry-run plan~~: decided (ADR 0013): read-only steps run, write steps → `plan` RPC, Git service write-locked.
 
 ## Ticket candidates
 
