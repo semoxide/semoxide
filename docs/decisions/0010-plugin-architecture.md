@@ -15,6 +15,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Embedders:** each Rust plugin repo publishes a library crate as well as its binary, both implementing the SDK `Plugin` trait. Embedders can link a plugin in-process and register it in the builder (no process, no socket), or use binaries like the CLI does. The conformance kit tests both paths.
 - **Version compatibility:** the protocol uses SemVer, and host and plugin must share the same major version. Within a major version only additive Protobuf changes are allowed (new fields, new optional RPCs), and both sides ignore what they don't know. A major bump breaks every plugin at once, so it must be rare.
 - **Environment and secrets:** a plugin gets the system variables (`PATH`, `SystemRoot`, `PATHEXT`, …) plus only the secret variables it declares in its manifest or handshake. Every declared secret is registered for log masking.
+- **Host services:** during a step, a plugin can call a small gRPC service offered by semoxide: `Log`, plus a narrow `Git` service (add, commit, push) backed by semoxide's git2 and credentials. semoxide enforces its rules there: only the release tag is pushed, existing tags are never moved, and commit-back follows [ADR 0009](0009-commit-back.md). Plugins get no generic access to the host.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
