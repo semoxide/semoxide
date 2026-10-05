@@ -56,7 +56,7 @@ Status: accepted (2026-10-05). Decided step by step.
   - Per-run token: semoxide passes a random one-time token to the plugin at start, in its environment. The plugin's first message must present it; connections without it are dropped while semoxide keeps listening.
   - Limit: a same-user process able to read process environments could steal the token, but it could equally read semoxide's own secrets.
 - **Wire data shapes:** the context, step results and host services are typed Protobuf messages (semoxide's contract). Each plugin's own config section travels as `google.protobuf.Struct`, validated against that plugin's schema. No JSON strings inside Protobuf.
-- **Optional `plan` RPC** for dry runs ([ADR 0013](0013-observability.md)): returns a plugin's "would do" lines for a write step. It is additive, so it needs no major protocol bump.
+- **Optional `plan` RPC** for dry runs ([ADR 0013](0013-observability.md)): returns typed "would do" actions for a write step ([ADR 0016](0016-agent-experience.md)). It is additive, so it needs no major protocol bump.
 
 ## Implementation notes (from the [gRPC PoC](../../poc/plugin-grpc/README.md); not decisions)
 - Windows: the Job Object is assigned right after spawn, so a grandchild started in that instant could escape. A full fix needs `CreateProcessW` / `raw_attribute`, which is still unstable.
