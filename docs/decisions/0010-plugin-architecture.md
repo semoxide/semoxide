@@ -1,5 +1,5 @@
 # 0010 Plugin architecture
-Status: accepted in part (2026-10-05). Decided step by step; open points are listed below.
+Status: accepted (2026-10-05). Decided step by step.
 
 ## Decided
 - **Separate repos:** each official plugin lives in its own repo with its own version and release cycle.
