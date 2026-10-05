@@ -15,3 +15,4 @@ Status: accepted (2026-10-05). Decided step by step; resolves the open items in 
   - Bump-rule values: `*` also matches `/` (fixes commit-analyzer #175).
   - Branches: a built-in matcher for the maintenance pattern (`N.x`, `N.N.x`), plus normal globs for user patterns.
   - No extended globs. `migrate` rewrites the ones it recognises and reports the rest.
+- **Versions and ranges (O5):** the `semver` crate parses versions, and comparison always uses `cmp_precedence` (build metadata ignored, [SemVer spec](../specs/SEMVER-SPEC.md)). semoxide has its own `Range { min, max_exclusive }` and bump functions (incl. prerelease increments), tested with cases ported from npm semver. No npm-range parser.
