@@ -15,3 +15,7 @@ Status: accepted (2026-10-05). Decided step by step: making semoxide easy and sa
   - Like `uv init` / `uv sync`.
   - `init` detects the forge (git remote), the ecosystem (`Cargo.toml`, `package.json`, …) and the release branch, then writes a short `semoxide.toml`: default branches, the matching forge plugin, and the analyzer/notes defaults. If a `.releaserc` exists, it offers `semoxide migrate` instead.
   - In a terminal, `init` asks to confirm or adjust the detections. Without a TTY it never prompts and uses flags and defaults.
+- **Non-interactive rule (C5):**
+  - Without a TTY, or with `--no-input`, semoxide never prompts, pages, opens an editor or shows spinners or progress bars. Anything that needs an answer fails fast, naming the flag to pass instead.
+  - Child processes get `GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, and BatchMode for `ssh`.
+  - A test runs every command without a TTY and fails on any prompt or hang.
