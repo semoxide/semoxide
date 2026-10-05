@@ -6,3 +6,10 @@ Status: accepted (2026-10-05). Decided step by step; details are in [TESTING.md]
 - **Sandbox credentials:** the real-remote tests run as a workflow **inside** the private `semoxide/semoxide-sandbox` repo, using its automatic `GITHUB_TOKEN` (scoped to that repo, lasting one run; permissions set in the workflow). SSH tests use a write deploy key on that repo only. A fine-grained PAT (created in the web UI, ideally owned by `semoxide-bot`) is added only when a test must run from outside GitHub Actions, e.g. cross-CI.
 - **npm tests: tentative, deferred.** Verdaccio only (a throwaway local npm registry in Docker); no real npmjs publishes. To be confirmed with the npm plugin ([ADR 0014](0014-porting-behaviour.md) O10).
 - **Comparison with upstream: development phase only.** A scheduled job runs a **pinned** semantic-release version in dry-run on the golden histories, with intentional differences configured on both sides, and compares next version and release type (not notes). Before the first release its outputs are frozen into our own golden fixtures and the job is removed; after release semoxide's ADRs and tests are the spec. Idea noted, not decided: `semoxide migrate --verify` on a user's repo.
+- **Test placement:**
+  - No inline `#[cfg(test)] mod tests { … }` blocks with a body in source files.
+  - Unit tests go in sibling files (`foo.rs` → `foo/tests.rs`, declared with `#[cfg(test)] mod tests;`).
+  - Integration tests go in `tests/`, compiled as **one binary**.
+  - Shared fixtures and builders live in a `publish = false` `semoxide-test-support` crate.
+  - Doc tests in `///` examples are allowed.
+  - Basis: ripgrep, uv, jj, just and cargo use one integration-test binary; uv, jj, ruff and cargo have test-support crates.
