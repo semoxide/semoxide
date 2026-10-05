@@ -31,6 +31,10 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - Each plugin uses `semoxide-plugin-<name>` for its repo, binary and crate (e.g. `sm-steel/semoxide-plugin-github`). Config uses the short name (`[plugins.github]`).
   - The protocol repo is `semoxide-plugin-protocol`. It holds the `.proto` spec, the SDK crate `semoxide-plugin-sdk` and the conformance kit `semoxide-plugin-conformance`.
 - **Timeouts and crashes:** each step has a default deadline (e.g. verify 2 min, publish 30 min), which config can override per plugin and step (`[plugins.github] timeouts.publish = "1h"`). On a timeout or crash, semoxide kills the plugin and everything it started (a Job Object on Windows, a process group on Unix), fails the step, and runs `rollback`/`fail`.
+- **Plugin output (stdout/stderr, including child processes such as `npm publish`):**
+  - semoxide captures it as masked log lines tagged with the plugin name. It is never parsed: results come only via gRPC.
+  - By default it is shown in full when that plugin's step fails, live with `-v`/`--debug`, and always written to `--log-file`.
+  - A per-plugin `show_output = true` shows that plugin's output live on every run.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
