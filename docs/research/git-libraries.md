@@ -96,6 +96,22 @@ flowchart TD
 | 10 | @sr/git commit | gix: HEAD tree + edited blobs → commit → index updated so `git status` is clean. Compare with git2 `Index::add_path`. |
 | 11 | Option E spike | Minimal send-pack on gix-transport/gix-pack: push lightweight tag, annotated tag and notes commit over HTTPS. Report LOC + edge cases. |
 
+## 2026-10 revisit (decided in [ADR 0011](../decisions/0011-git-backend.md))
+
+- **Why jj dropped git2** ([#5548](https://github.com/jj-vcs/jj/issues/5548), [#4979](https://github.com/jj-vcs/jj/issues/4979)): mostly SSH via libssh2. `~/.ssh/config` and `GIT_SSH_COMMAND` are ignored, FIDO/agent/key-type failures, Windows push failures. Packaging was a lesser reason. No libgit2 object/ref correctness bugs were cited. jj now uses gix + the `git` CLI for fetch and push.
+- **libssh2 on Windows (as git2 bundles it):** only PEM RSA key files work and ed25519 is disabled ([#2536](https://github.com/libssh2/libssh2/issues/2536)); there is an intermittent key-exchange failure ([#804](https://github.com/libssh2/libssh2/issues/804), fixed upstream 2026-09, unreleased). Reproduced in the [sandbox](../../poc/git2-ops/README.md).
+- **gix push:** still unimplemented, with no ETA. cargo still uses git2, plus an opt-in git CLI.
+- **CI needs SSH?** Almost never: HTTPS with a token can push on every major CI.
+
+| CI | Default checkout | Default credential can push? | SSH needed when |
+|---|---|---|---|
+| GitHub Actions | HTTPS ([checkout](https://github.com/actions/checkout/blob/main/README.md)) | yes, with `contents: write` | never strictly (protected branches use an App/PAT token, still HTTPS) |
+| GitLab CI | HTTPS, job token ([docs](https://docs.gitlab.com/ci/jobs/ci_job_token/)) | only if "Allow Git push requests" is on (GA 18.4) | a team uses deploy keys |
+| CircleCI | HTTPS (GitHub App) / **SSH** (legacy OAuth, GitLab, Bitbucket) ([docs](https://circleci.com/docs/guides/integration/add-ssh-key/)) | no | legacy integrations |
+| Bitbucket Pipelines | HTTPS ([docs](https://support.atlassian.com/bitbucket-cloud/docs/push-back-to-your-repository/)) | yes, except restricted branches | restricted branches |
+| Azure Pipelines | HTTPS ([docs](https://learn.microsoft.com/en-us/azure/devops/pipelines/scripts/git-commands)) | after settings | rarely |
+| Jenkins | as configured | not automatically | older setups |
+
 ## Ticket candidates
 
 - PoC gix read ops — merged tags, log ranges, HEAD, perf vs git on 10k+ commits.

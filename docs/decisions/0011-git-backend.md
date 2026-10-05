@@ -18,4 +18,4 @@ Status: accepted (2026-10-05); SSH section added the same day
   - the credential used is logged by name only
   - a warning is logged when the token won't trigger downstream CI (`GITHUB_TOKEN`, the GitLab job token)
 
-Why libssh2 was dropped: on Windows it only accepts PEM RSA key files, it hangs on others, and its handshake fails now and then (libssh2 #804). jj dropped git2 for the same SSH reasons ([revisit research](../research/git-libraries.md)).
+Why libssh2 was dropped: on Windows it only accepts PEM RSA key files, it hangs on others, and its handshake fails now and then (libssh2 #804). jj dropped git2 for the same SSH reasons ([revisit](../research/git-libraries.md#2026-10-revisit-decided-in-adr-0011)).
