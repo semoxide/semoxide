@@ -43,3 +43,9 @@ Status: accepted (2026-10-05). Decided step by step; details and remaining propo
   - All errors from a step are collected and shown together.
   - Every code has a docs-site page, and a test fails on any undocumented code.
 - **`fail` always runs** on a failed release. Each error in the context is marked `known` (has a namespaced code) or `unexpected`, so plugins can phrase it differently (e.g. "unexpected error, please report", with the support-bundle command). This differs from upstream, which skips `fail` unless a `SemanticReleaseError` is present.
+- **Implementation set** (accepted as proposed in [OBSERVABILITY.md](../OBSERVABILITY.md)):
+  - span tree run → step → plugin → operation (git ops tagged with their G-number, HTTP calls)
+  - `Secret<T>` config values (print `[secure]`, never serialized)
+  - untrusted `::` lines escaped in the `github` format (workflow-command injection guard)
+  - a masked panic hook (issue link and bundle command)
+  - the crates listed in §9

@@ -12,4 +12,4 @@
 - [0010](decisions/0010-plugin-architecture.md): plugins in separate repos; socket protocol in its own versioned repo 
 - [0011](decisions/0011-git-backend.md): git2 only, with tag and push-status guards
 - [0012](decisions/0012-partial-failure.md): tag first; `rollback` step on later failure
-- [0013](decisions/0013-observability.md): observability, decided step by step: the library never prints
+- [0013](decisions/0013-observability.md): observability (library never prints, masking, env snapshot, stderr/stdout, exit codes, error codes, CI formats, dry-run plan, diagnostics)

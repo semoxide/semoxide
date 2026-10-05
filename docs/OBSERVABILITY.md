@@ -40,7 +40,7 @@ flowchart LR
 
 Display of captured output: in full when that plugin's step fails, live with `-v`/`--debug`, always in `--log-file`; `[plugins.<name>] show_output = true` shows it live on every run. Captured lines are `debug` events with `stream="stdout|stderr"` (ADR 0013).
 
-Untrusted text (plugin output, commit subjects, notes) starting with `::` is escaped in `github` format (proposed).
+Untrusted text (plugin output, commit subjects, notes) starting with `::` is escaped in `github` format (decided, ADR 0013).
 
 ## 3. CLI flags and filters (decided: [ADR 0013](decisions/0013-observability.md))
 
@@ -58,7 +58,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 
 Targets: `semoxide::core`, `::config` (redacted values), `::git` (field `op` = G-number from [git ops](research/semantic-release.md#3-git-operations)), `::http` (no query/userinfo; bodies only on error, never for auth endpoints), `::plugin`. Per-plugin filtering uses the span field (`[plugin{name=github}]=trace`), since `tracing` targets must be `'static`. Dependencies (`git2`, `reqwest`, `hyper`, `tonic`) stay at `warn` unless `--debug`.
 
-## 4. Span tree (proposed)
+## 4. Span tree (decided: [ADR 0013](decisions/0013-observability.md))
 
 ```mermaid
 flowchart TD
@@ -92,7 +92,7 @@ flowchart TD
 | Secret env vars declared in each plugin's **manifest** | decided ([ADR 0010](decisions/0010-plugin-architecture.md) "Environment and secrets"); registered before spawn |
 | `Env` vars matching the upstream name/length rule ([spec §6](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth)) | decided (ADR 0013) |
 | User list `mask_env = [...]` in config | decided (ADR 0013) |
-| Config values typed `Secret<T>` (`secrecy::SecretBox`, `Debug` = `[secure]`, no `Serialize`) | proposed |
+| Config values typed `Secret<T>` (`secrecy::SecretBox`, `Debug` = `[secure]`, no `Serialize`) | decided (ADR 0013) |
 | Secrets a plugin derives at runtime (OIDC, GitHub App tokens) | decided (ADR 0013): `RegisterSecret` host call |
 
 Masked forms: raw, `encodeURI`, `encodeURIComponent`, `:`-preserving (as upstream). Plus base64 of `user:token` and of the bare token (decided, ADR 0013).
@@ -144,11 +144,13 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 | 101 | panic; hook prints issue link + bundle command |
 | 130 | interrupted |
 
-## 9. Crates (proposed)
+## 9. Crates (decided: [ADR 0013](decisions/0013-observability.md))
 
 `tracing`; `tracing-subscriber` (`env-filter`, `fmt`, `json`) in CLI / `observe` feature; `tracing-error`; `miette` (`fancy` CLI only, over `color-eyre`); `thiserror`; `secrecy`; `aho-corasick`; `percent-encoding` + `base64`; `anstream`/`anstyle`; `serde_json`; `reqwest-tracing` ([middleware stack](research/github.md#5-rust-port-notes), drops query + headers); `git2::trace_set`.
 
-## Decisions needed
+## Decisions
+
+All decided in [ADR 0013](decisions/0013-observability.md).
 
 1. ~~Log env var~~: decided (ADR 0013): `SEMOXIDE_LOG`, falling back to `RUST_LOG`.
 2. ~~Logs on stderr, data on stdout~~: decided (ADR 0013).
