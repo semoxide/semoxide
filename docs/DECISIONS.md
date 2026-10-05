@@ -10,7 +10,7 @@
 - [0008](decisions/0008-initial-version.md): first release 1.0.0, configurable
 - [0009](decisions/0009-commit-back.md): tags only by default; configuring the `git` plugin turns commit-back on
 - [0010](decisions/0010-plugin-architecture.md): plugins in separate repos; socket protocol in its own versioned repo 
-- [0011](decisions/0011-git-backend.md): git2 only, with tag and push-status guards
+- [0011](decisions/0011-git-backend.md): git2 only (HTTPS); SSH via a russh transport (default) or the system `ssh` (opt-in); no libssh2
 - [0012](decisions/0012-partial-failure.md): tag first; `rollback` step on later failure
 - [0013](decisions/0013-observability.md): observability (library never prints, masking, env snapshot, stderr/stdout, exit codes, error codes, CI formats, dry-run plan, diagnostics)
 - [0014](decisions/0014-porting-behaviour.md): porting behaviour (extends sources, user functions, presets, globs, ranges, regexes, bot identity, CI detection, npm (tentative), library API, sort order)
