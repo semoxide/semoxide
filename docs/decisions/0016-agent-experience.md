@@ -20,3 +20,4 @@ Status: accepted (2026-10-05). Decided step by step: making semoxide easy and sa
   - Child processes get `GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, and BatchMode for `ssh`.
   - A test runs every command without a TTY and fails on any prompt or hang.
 - **Retry hints on errors (C7):** every JSON error carries `retryable` (transient: network timeouts, rate limits, the SSH handshake flake) and `remote_writes_happened` (true once anything was pushed or published, [ADR 0012](0012-partial-failure.md)). Retrying is safe only when `retryable && !remote_writes_happened`.
+- **Output size limits (C8):** `--limit N` on list-like output (`explain` verdicts, `doctor` details), with `"truncated": true` and `"total"` in JSON when cut. Release notes are never cut in the release itself; only their preview in dry-run/explain output takes `--notes-preview`. Defaults are generous; nothing is ever truncated silently.
