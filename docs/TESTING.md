@@ -122,7 +122,7 @@ One named regression test per row.
 
 ## Sandbox repo
 
-**Planned, not created:** private `sm-steel/semoxide-sandbox` (approved) for layer 6 and the git2 PoC's real-remote items. Credentials: its own workflow `GITHUB_TOKEN` plus a write deploy key ([ADR 0015](decisions/0015-testing.md)).
+**Planned, not created:** private `semoxide/semoxide-sandbox` (approved) for layer 6 and the git2 PoC's real-remote items. Credentials: its own workflow `GITHUB_TOKEN` plus a write deploy key ([ADR 0015](decisions/0015-testing.md)).
 
 - Workflow on `schedule` + `workflow_dispatch` from `main` only, never fork PRs; one `concurrency` group.
 - Per-run `tag_format` prefix `e2e-<run_id>-v{version}`; an `if: always()` cleanup deletes releases, tags, notes refs and `e2e/*` branches with that prefix; a weekly sweep removes leftovers older than 7 days.

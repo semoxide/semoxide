@@ -36,7 +36,7 @@ Status: accepted (2026-10-05). Decided step by step.
 - **Bundled defaults:** commit-analyzer and release-notes live in their own repos (`semoxide-plugin-commit-analyzer`, `semoxide-plugin-release-notes`) like every plugin. semoxide depends on their crates and compiles them in, running them in-process and enabled by default. They are also released as binaries, so they can be replaced. They are the first users of the in-process crate path.
 - **First official plugins** (each in its own repo): github, cargo, exec, gitlab, changelog, git. npm is not in the first set.
 - **Naming:**
-  - Each plugin uses `semoxide-plugin-<name>` for its repo, binary and crate (e.g. `sm-steel/semoxide-plugin-github`). Config uses the short name (`[plugins.github]`).
+  - Each plugin uses `semoxide-plugin-<name>` for its repo, binary and crate (e.g. `semoxide/semoxide-plugin-github`). Config uses the short name (`[plugins.github]`).
   - The protocol repo is `semoxide-plugin-protocol`. It holds the `.proto` spec, the SDK crate `semoxide-plugin-sdk` and the conformance kit `semoxide-plugin-conformance`.
 - **Timeouts and crashes:** each step has a default deadline (e.g. verify 2 min, publish 30 min), which config can override per plugin and step (`[plugins.github] timeouts.publish = "1h"`). On a timeout or crash, semoxide kills the plugin and everything it started (a Job Object on Windows, a process group on Unix), fails the step, and runs `rollback`/`fail`.
 - **Plugin output (stdout/stderr, including child processes such as `npm publish`):**

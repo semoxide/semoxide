@@ -7,5 +7,5 @@ Hard requirements: [CLAUDE.md](../CLAUDE.md).
 - Project architecture and code architecture are separate docs.
 - Logging/debugging is planned up front: a debug flag, tooling, and secret masking ([Observability](OBSERVABILITY.md)).
 - Testing is planned up front: local repos, a CI sandbox repo, and dry runs ([Testing](TESTING.md)).
-- Repo: private `sm-steel/semoxide`.
+- GitHub: all repos live in the `semoxide` org (Free plan; owner `sm-steel`), private for now: `semoxide/semoxide`, the protocol repo, plugin repos and the sandbox. Free-plan private repos lack protected branches, rulesets, environments, attestations and Pages; all unlock when public.
 - A user documentation website is planned, and its tooling and hosting are decided in a later wave. It must document every intentional difference from semantic-release and the drawbacks of each opt-in behavior (e.g. [ADR 0009](decisions/0009-commit-back.md)).

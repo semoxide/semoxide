@@ -29,7 +29,7 @@ flowchart LR
 | GitHub Action | Composite (see below) | Main CI entry point |
 | npm wrapper | `semoxide` + `@semoxide/cli-<os>-<arch>` with `os`/`cpu` + `optionalDependencies` (biome/esbuild pattern). dist has an npm installer, but it downloads on postinstall, which breaks with `--ignore-scripts` and offline mirrors | `npx semoxide` is the migration path for semantic-release users |
 | Docker | `FROM scratch` or distroless/static + musl binary + CA certs; buildx amd64/arm64; GHCR | Works with no git CLI because gix is used ([git-libraries](git-libraries.md)). Covers GitLab CI and Jenkins |
-| Homebrew | dist `homebrew` installer to own tap `sm-steel/homebrew-tap` | homebrew-core needs notability first |
+| Homebrew | dist `homebrew` installer to own tap `semoxide/homebrew-tap` | homebrew-core needs notability first |
 | Scoop | Own bucket manifest with `autoupdate` (dist has no scoop installer) | |
 | winget / MSI | dist `msi` installer | |
 
@@ -217,7 +217,7 @@ Planned v2 approach: path-based attribution (release-plz / release-please style;
 - **binstall metadata check**: verify `cargo binstall semoxide` resolves dist artifacts and add a CI smoke test.
 - **npm wrapper packages**: `semoxide` + `@semoxide/cli-*` optional deps, generated and published from the release workflow.
 - **Docker image**: static musl, scratch/distroless, multi-arch, GHCR.
-- **Homebrew tap**: dist homebrew installer into `sm-steel/homebrew-tap`.
+- **Homebrew tap**: dist homebrew installer into `semoxide/homebrew-tap`.
 - **Scoop bucket**: manifest with autoupdate.
 - **Dogfooding workflow**: previous-release semoxide cuts the release, dist uploads to it, and a nightly HEAD dry-run.
 - **ADR: MSRV and edition policy**: edition 2024, stable minus 2, resolver v3, MSRV CI job.
