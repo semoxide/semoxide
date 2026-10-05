@@ -9,6 +9,7 @@ A Rust release tool inspired by semantic-release. Current phase: **research and 
 - Use no git CLI if feasible: a Rust git library, with every operation checked by a PoC.
 - Research, docs and PoCs come before any product code. Planning is discussed in waves.
 - Docs: short, technical, never repeated (link instead). Each index doc is a one-line-per-entry list.
+- **Docs: use Mermaid diagrams wherever they help**: flows, processes, sequences and timing, how code should work, and how things connect. Never use ASCII art.
 - Git commit email is the default global config. Never override it.
 
 ## Index
