@@ -16,3 +16,4 @@ Status: accepted (2026-10-05). Decided step by step; resolves the open items in 
   - Branches: a built-in matcher for the maintenance pattern (`N.x`, `N.N.x`), plus normal globs for user patterns.
   - No extended globs. `migrate` rewrites the ones it recognises and reports the rest.
 - **Versions and ranges (O5):** the `semver` crate parses versions, and comparison always uses `cmp_precedence` (build metadata ignored, [SemVer spec](../specs/SEMVER-SPEC.md)). semoxide has its own `Range { min, max_exclusive }` and bump functions (incl. prerelease increments), tested with cases ported from npm semver. No npm-range parser.
+- **User regexes (O6):** `fancy-regex` (0.19), so upstream patterns with lookaround or backreferences port unchanged. Patterns without such features are delegated to the `regex` crate and run in linear time. Backtracking patterns run with a `backtrack_limit`; exceeding it is an error naming the pattern and the commit (no hang).
