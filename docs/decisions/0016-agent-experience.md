@@ -12,4 +12,6 @@ Status: accepted (2026-10-05). Decided step by step: making semoxide easy and sa
 - **`init` and `sync` are separate commands:**
   - `semoxide init` creates a new `semoxide.toml`.
   - `semoxide sync` downloads the pinned plugins, verifies their checksums and writes or updates the lock file ([ADR 0010](0010-plugin-architecture.md)).
-  - Like `uv init` / `uv sync`. Details of `init` (what it generates, offering `migrate` when a `.releaserc` exists) are still to be decided.
+  - Like `uv init` / `uv sync`.
+  - `init` detects the forge (git remote), the ecosystem (`Cargo.toml`, `package.json`, …) and the release branch, then writes a short `semoxide.toml`: default branches, the matching forge plugin, and the analyzer/notes defaults. If a `.releaserc` exists, it offers `semoxide migrate` instead.
+  - In a terminal, `init` asks to confirm or adjust the detections. Without a TTY it never prompts and uses flags and defaults.
