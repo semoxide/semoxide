@@ -26,7 +26,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - Now: a checksum lock only. The sha256 recorded on first download is required on every later run.
   - Once the plugin repos are public: also verify GitHub artifact attestations (Sigstore, e.g. the `sigstore` crate) before first use. GitHub's Free, Pro and Team plans only offer attestations for public repos.
 - **Bundled defaults:** the commit analyzer and the release-notes generator implement the same plugin trait, but ship inside the semoxide binary as in-process plugins and are enabled by default. Like any plugin, they can be replaced. They are the only exceptions to "plugins live in separate repos".
-- **First official plugins** (each in its own repo): github, cargo, exec, gitlab, changelog. npm is not in the first set.
+- **First official plugins** (each in its own repo): github, cargo, exec, gitlab, changelog, git. npm is not in the first set.
 - **Naming:**
   - Each plugin uses `semoxide-plugin-<name>` for its repo, binary and crate (e.g. `sm-steel/semoxide-plugin-github`). Config uses the short name (`[plugins.github]`).
   - The protocol repo is `semoxide-plugin-protocol`. It holds the `.proto` spec, the SDK crate `semoxide-plugin-sdk` and the conformance kit `semoxide-plugin-conformance`.
@@ -35,6 +35,10 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - semoxide captures it as masked log lines tagged with the plugin name. It is never parsed: results come only via gRPC.
   - By default it is shown in full when that plugin's step fails, live with `-v`/`--debug`, and always written to `--log-file`.
   - A per-plugin `show_output = true` shows that plugin's output live on every run.
+- **Files changed by plugins:**
+  - As in semantic-release: plugins change files freely and the user sets the order. The `git` plugin commits and pushes its `assets` through the host `Git` service.
+  - semoxide compares the working tree before and after each plugin, so it knows which files each plugin changed.
+  - If a file matching git's `assets` changes after git has committed: during `prepare` this is an error by default (configurable down to a warning), so nothing is published with a stale commit; during `publish` it can only be a warning.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
