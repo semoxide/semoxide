@@ -105,15 +105,17 @@ Everything about the protocol, lifecycle, secrets, timeouts and trust is in [001
 
 ## 6. Distribution
 
-One `dist` build (6 targets) feeds every binary channel ([research](research/distribution-config.md#1-distribution)).
+One `dist` build feeds every binary channel ([research](research/distribution-config.md#1-distribution)). **Targets: Linux and Windows, x86_64 + aarch64. macOS is dropped for now**: semoxide's main use is CI, where releases don't run on macOS, and macOS users can run the Docker image.
 
 | When | Channels |
 |---|---|
 | v1 | GitHub Release binaries + shell/PowerShell installers; GitHub Action; `cargo binstall` / `cargo install`; Docker image (static musl, GHCR, amd64/arm64) |
-| v1.x | npm wrapper; Homebrew tap |
-| Later | Scoop; winget, Chocolatey |
-
-Under research: Python (uv/pipx), other JS runners, Java, PHP, macOS builds.
+| v1.x | npm wrapper (one package works with npx, pnpm dlx, yarn dlx, bunx, Deno: no postinstall, `preferUnplugged`, one static-musl Linux package per arch); Homebrew formula (Linux) |
+| next | own Scoop bucket, then winget |
+| next | PyPI wheels via maturin `bindings = "bin"` (`uvx` / `pipx`) |
+| next | AUR `semoxide-bin`; `.deb`/`.rpm` attached to releases; Nix (nixpkgs + `flake.nix`) |
+| on demand | Chocolatey; Maven Central + Maven/Gradle plugins (JReleaser is the competitor there); Composer download wrapper; Cloudsmith apt/rpm/apk repos |
+| skip | macOS binaries (for now), JSR, PHIVE, Flatpak, Snap, jbang; SDKMAN! unless it accepts non-JVM tools |
 
 ## 7. Cross-cutting rules
 
