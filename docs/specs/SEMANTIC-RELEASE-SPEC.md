@@ -269,7 +269,7 @@ See [research §6](../research/semantic-release.md#6-rust-port-notes).
 - **Plugin protocol/ABI**: hook set, `pluginConfig` + `context` schema, return-value validators, error model (`SemanticReleaseError` vs unexpected).
 - **Plugin pipeline semantics**: settleAll hooks, notes concatenation, prepare HEAD-change note regeneration, publish/addChannel release merging.
 - **`semoxide migrate`**: convert `.releaserc` to semoxide.toml ([ADR 0001](../decisions/0001-compatibility-stance.md)). No JS plugin bridge.
-- **Dry-run mode**: exact skip set; still verifies push permission; prints version and notes.
+- **Dry-run mode**: exact skip set; no push check unless `--verify-push` ([ADR 0005](../decisions/0005-dry-run.md)); prints version and notes.
 - **CLI**: flags `-b -r -t -p -e -d --ci/--no-ci --debug`, comma lists, `false` = empty; decide on per-step overrides.
 - **Library API**: `run(options, {cwd, env, stdout, stderr}) -> Result | NoRelease`, result types mirroring §8.
 - **Docs: decision record on documented-vs-source conflicts**: step order, analyzeCommits override, notes ref, lastRelease.channel(s).

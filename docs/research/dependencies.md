@@ -62,7 +62,7 @@ Purpose: commit message → `{type, scope, subject, merge, header, body, footer,
 7. Cleanup: trim newlines of body/footer/notes; dedupe references by `lower(action + raw)`.
 - Reference parse: per action-sentence, skip if it contains a URL; `repository` split on first `/` into `owner/repository`.
 
-Rust: `regex` crate has **no lookaround** (`referenceParts`, `references`, `fieldPattern`, no-match all use it) → `fancy-regex` or a hand-written tokenizer. Prior art: `git-conventional` (used by git-cliff), cocogitto; crate assessment in [CC spec §5](../specs/CONVENTIONAL-COMMITS-SPEC.md#5-implementation-notes-for-semoxide). Recommend own strict parser + explicit compat tests from upstream `*.spec.ts`.
+Rust: `regex` crate has **no lookaround** (`referenceParts`, `references`, `fieldPattern`, no-match all use it) → `fancy-regex` or a hand-written tokenizer. Prior art: `git-conventional` (used by git-cliff), cocogitto; crate assessment in [CC spec §5](../specs/CONVENTIONAL-COMMITS-SPEC.md#5-implementation-notes-for-semoxide). Wrap `git-conventional` first ([ADR 0006](../decisions/0006-cc-parser.md)); port compat tests from upstream `*.spec.ts`.
 
 Top issues:
 - [#415](https://github.com/conventional-changelog/conventional-changelog/issues/415) (10) `#` in body → false `closes` reference

@@ -128,7 +128,7 @@ Edge cases:
 - **Latest-release resolution by precedence** — select highest released version from tags using `cmp_precedence`, excluding/including pre-releases per channel.
 - **Bump engine** — `bump(Version, Level) -> Version` with resets, clears pre/build, overflow-safe (checked add → error).
 - **0.x bump policy** — define opinionated default for 0.y.z (breaking→minor?) plus config flag; document that SemVer is silent.
-- **Initial version policy** — default first release (`0.1.0` vs `1.0.0`) and explicit 1.0.0 graduation command/flag.
+- **Initial version option**: `initial_version`, default `1.0.0` ([ADR 0008](../decisions/0008-initial-version.md)), plus a 1.0.0 graduation flag.
 - **Pre-release channel numbering** — `-<channel>.N` increment rules, promotion of pre-release to stable, behaviour when core bump level changes mid-channel.
 - **Build metadata support** — optional `+meta` injection (e.g. commit SHA); ensure it never affects ordering or "already released" checks.
 - **Manual bump override** — allow forcing level/version (FAQ: breaking change shipped in patch, judgment call).

@@ -136,6 +136,6 @@ Recommendation: start by wrapping `git-conventional` behind a semoxide trait; re
 - **Fuzz/property tests for parser** — `cargo-fuzz` target, no panics, span round-trip.
 - **Revert commit handling** — detect `revert:` + `Refs:` and git-default `Revert "…"`/`This reverts commit <sha>`; cancel reverted bumps in range.
 - **Merge/fixup commit filtering** — skip multi-parent and `fixup!`/`squash!`/`amend!` commits by default.
-- **Configurable type→bump table** — defaults feat=minor, fix=patch, breaking=major, others=none.
+- **Configurable type→bump table** — defaults per [ADR 0007](../decisions/0007-bump-defaults.md).
 - **Pre-1.0 bump policy**: see [SEMVER-SPEC](SEMVER-SPEC.md#ticket-candidates) (0.x bump policy).
 - **Non-conventional commit reporting** — list ignored commits; optional fail-on-non-conventional flag.
