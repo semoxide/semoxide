@@ -9,6 +9,9 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **semoxide starts the plugin:** it creates the socket, starts the plugin with the socket address (e.g. `--socket <addr>`), and stops it when the run ends, together with any processes the plugin started.
 - **One process per run:** a plugin is started once, receives every step it implements, and can keep state between steps (e.g. its API client and rate-limit info).
 - **gRPC over the local socket (Protobuf).** The `.proto` file in the protocol repo is the spec: it defines both the messages and the plugin service. Client and server code is generated for any language (Rust: `tonic`). Protobuf's field-evolution rules govern compatibility, and gRPC provides calls, errors, deadlines, cancellation and streaming. This is the same model as HashiCorp go-plugin. Windows named pipes need a custom connector in tonic.
+- **Getting plugins:**
+  - By default, config pins a version (`[plugins.github] version = "1.4.2"`). semoxide downloads that binary from the plugin's GitHub release, checks its checksum (recorded in a lock file) and caches it.
+  - Override: an explicit `path = "..."` or PATH lookup of `semoxide-plugin-<name>`, for plugin development and offline/air-gapped CI.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
