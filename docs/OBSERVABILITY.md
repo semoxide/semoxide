@@ -42,16 +42,16 @@ Display of captured output: in full when that plugin's step fails, live with `-v
 
 Untrusted text (plugin output, commit subjects, notes) starting with `::` is escaped in `github` format (proposed).
 
-## 3. CLI flags and filters (proposed)
+## 3. CLI flags and filters (decided: [ADR 0013](decisions/0013-observability.md))
 
 | Flag / env | Effect |
 |---|---|
 | (default) | `semoxide=info`, deps `warn` |
 | `-q` / `-qq` | `warn` / `error`; the final result line still prints |
 | `-v` / `-vv` | `semoxide=debug` / `trace`; live plugin output |
-| `--debug` | `semoxide=trace,git2=debug,reqwest=debug`, SpanTraces, span timings. Auto-on with `RUNNER_DEBUG=1` |
+| `--debug` | `semoxide=trace,git2=debug,reqwest=debug`, SpanTraces, span timings. Auto-on with `RUNNER_DEBUG=1` or `CI_DEBUG_TRACE=true` |
 | `SEMOXIDE_LOG=<EnvFilter>` (fallback `RUST_LOG`; ADR 0013) | overrides the above |
-| `--log-format=auto\|pretty\|json\|github` | `auto` = `github` under `GITHUB_ACTIONS=true`, else `pretty` |
+| `--log-format=auto\|pretty\|json\|github\|gitlab` | `auto` = `github` under `GITHUB_ACTIONS=true`, `gitlab` under `GITLAB_CI=true` (collapsible sections, no annotations), else `pretty` |
 | `--log-file <path>` | JSON at `trace`, own filter |
 | `--color=auto\|always\|never` | honors `NO_COLOR`, `CLICOLOR_FORCE` |
 | `--output=text\|json` | `RunReport` format on stdout |
@@ -158,7 +158,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 7. Host API for secrets a plugin derives at runtime.
 8. Level clamp for plugin `Log` events; level of captured output lines.
 9. Support bundle format (markdown vs JSON default).
-10. GitHub log format as default under `GITHUB_ACTIONS`.
+10. ~~CI log formats~~: decided (ADR 0013), GitHub and GitLab automatic.
 11. Dry-run plan: per-plugin "would do" lines need a protocol call (`describe` today only returns the config schema).
 
 ## Ticket candidates
