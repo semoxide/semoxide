@@ -76,7 +76,9 @@ Decided in [0015](decisions/0015-testing.md): placement, kinds, how tests run.
 
 ## 7. Workspace config
 
-_To decide (lints: [0017](decisions/0017-code-quality.md))._
+- **Toolchain:** pinned in `rust-toolchain.toml` to the exact stable release; Renovate/Dependabot bumps it. **MSRV = latest minus 2**, checked with `cargo hack --rust-version` ([0015](decisions/0015-testing.md)).
+- **Every other tool is pinned too:** CI actions (to commit SHA), cargo tools (exact versions, e.g. nextest, insta, deny, shear, semver-checks, mutants, llvm-cov, hack), qlty and its plugins, typos, zizmor, and the hook config. Pins are bumped by automation, never floating.
+- Lints: [0017](decisions/0017-code-quality.md).
 
 ## 8. Where things go
 
