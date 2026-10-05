@@ -128,9 +128,11 @@ Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dote
 
 - Library: `thiserror` enums deriving `miette::Diagnostic` (`code`, `help`, `url`, TOML `labels`, `related` for collected plugin errors, [aggregation](research/semantic-release.md#error-aggregation)). Each code has a generated docs page; a test fails on undocumented codes. Plugin errors arrive as gRPC `Status`; timeout = `CANCELLED` or `DEADLINE_EXCEEDED` (ADR 0010 notes).
 - CLI: miette graphical on TTY, plain in CI, `error` object in `json`; `--debug` appends the SpanTrace (step → plugin → op).
-- Partial failure (decided, [ADR 0012](decisions/0012-partial-failure.md)): tag pushed, later step fails → `rollback` step, the core deletes only its own tag (missing delete rights → reported, run ends as partial failure), irreversible plugins warn. Reporting is **undecided**; proposal: summary lists what was written, undone and left behind.
+- Partial failure (decided, [ADR 0012](decisions/0012-partial-failure.md)): tag pushed, later step fails → `rollback` step, the core deletes only its own tag (missing delete rights → reported, run ends as partial failure), irreversible plugins warn. Reported with exit code 5 (ADR 0013); summary lists what was written, undone and left behind.
 
-| Exit (proposed) | Meaning |
+Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
+
+| Exit | Meaning |
 |---|---|
 | 0 | released, promoted, or no release |
 | 1 | failed before any remote write |
@@ -150,7 +152,7 @@ Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dote
 1. Log env var: `SEMOXIDE_LOG` only, or also honor `RUST_LOG`.
 2. ~~Logs on stderr, data on stdout~~: decided (ADR 0013).
 3. Error-code naming: upstream mnemonics (`ENOGITREPO`) or a new scheme.
-4. Exit codes, incl. partial failure (ADR 0012 leaves reporting open).
+4. ~~Exit codes~~: decided (ADR 0013).
 5. Base64 forms in masking.
 6. Env-pattern secret scan in addition to manifest-declared secrets.
 7. Host API for secrets a plugin derives at runtime.
