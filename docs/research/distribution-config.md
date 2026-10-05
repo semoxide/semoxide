@@ -175,17 +175,17 @@ Context object: `version`, `previous_version`, `tag`, `channel`, `branch`, `note
 ### Demand
 Measured 2026-10-05. npm download counts are CI-inflated, so treat them as relative signals.
 
-| Signal | Value |
-|---|---|
-| semantic-release [#193](https://github.com/semantic-release/semantic-release/issues/193) | 256 👍 (335 reactions in total), 159 comments. #1 issue by reactions; #2 has 138 |
-| [#1688](https://github.com/semantic-release/semantic-release/issues/1688), npm workspaces | 54 👍, #8 overall |
-| Issues mentioning "monorepo" across the semantic-release org | 119 |
-| npm per month: semantic-release | 12.8M |
-| semantic-release-monorepo | 649k |
-| multi-semantic-release (3 forks: original, `@qiwi`, `@anolilab`) | 249k |
-| `@semrel-extra/npm` (npm plugin fork for monorepos) | 192k |
-| changesets (monorepo-first) | 21.9M, 1.7× semantic-release |
-| release-please | 842k |
+| Signal                                                                                    | Value                                                                            |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| semantic-release [#193](https://github.com/semantic-release/semantic-release/issues/193)  | 256 👍 (335 reactions in total), 159 comments. #1 issue by reactions; #2 has 138 |
+| [#1688](https://github.com/semantic-release/semantic-release/issues/1688), npm workspaces | 54 👍, #8 overall                                                                |
+| Issues mentioning "monorepo" across the semantic-release org                              | 119                                                                              |
+| npm per month: semantic-release                                                           | 12.8M                                                                            |
+| semantic-release-monorepo                                                                 | 649k                                                                             |
+| multi-semantic-release (3 forks: original, `@qiwi`, `@anolilab`)                          | 249k                                                                             |
+| `@semrel-extra/npm` (npm plugin fork for monorepos)                                       | 192k                                                                             |
+| changesets (monorepo-first)                                                               | 21.9M, 1.7× semantic-release                                                     |
+| release-please                                                                            | 842k                                                                             |
 
 **Why upstream declined (from the maintainers' comments on [#193](https://github.com/semantic-release/semantic-release/issues/193)):** this was a scope choice, not an anti-monorepo stance. The docs ([supported-branching](https://github.com/semantic-release/docs/blob/main/src/content/docs/foundation/supported-branching.md#monorepos)) say "not officially supported at this time" and point to community plugins.
 - Commit filtering by path is "relatively trivial" (pvdlg, 2019). The blocker is **interdependent packages**: releases must run in dependency order, and dependents' manifests must be updated between publishes, otherwise broken packages get published. A path-filter-only feature was rejected for this reason.
