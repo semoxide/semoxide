@@ -55,7 +55,10 @@ Enforced in CI by:
 
 ## 4. Error and result types
 
-_To decide (base: [0013](decisions/0013-observability.md))._
+- Each crate has its own `thiserror` enum, marked `#[non_exhaustive]`.
+- Every error implements one small trait of ours, `ErrorInfo`: `code()` (namespaced), `help()`, `url()`, `retryable()`, `remote_writes_happened()`, `known()` ([0013](decisions/0013-observability.md), [0016](decisions/0016-agent-experience.md)).
+- The façade exposes a single `semoxide::Error` wrapping the crate errors; a step's collected errors stay a list.
+- **No miette in the libraries:** the CLI converts `ErrorInfo` into miette diagnostics for display (typed errors in libraries, report layer at the edge).
 
 ## 5. Public API surface
 
