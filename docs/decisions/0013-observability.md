@@ -5,3 +5,4 @@ Status: accepted (2026-10-05). Decided step by step; details and remaining propo
 - **The library never prints.** It only emits `tracing` events. It never sets up a log output and never writes to stdout or stderr. The CLI, or an embedding program, decides where logs go and how they look.
 - **Masking happens at the source, plus an output pass.** The core and the plugin host replace secret values before an event is created. The CLI's output writer masks again as a second pass, and embedders can use that writer too.
 - **Explicit env snapshot.** The builder takes an environment map (the CLI passes a copy of its own). The library reads only that map, never reads or changes the real process environment, and builds child-process environments from it.
+- **Logs on stderr, data on stdout.** All human-readable logs go to stderr. stdout carries only data (e.g. `--output=json`, the printed next version), so piping works.

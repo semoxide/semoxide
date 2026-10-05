@@ -9,7 +9,7 @@ Logging, debugging, secret masking, CI output and error reporting. Items backed 
 | P1 ✅ [ADR 0013](decisions/0013-observability.md) | The library emits `tracing` spans/events only. It never installs a subscriber or writes to stdout/stderr | signale + `debug` |
 | P2 ✅ [ADR 0013](decisions/0013-observability.md) | Secrets are masked **at the source** (core, plugin host) before emission; a writer-level mask is the second pass | `hook-std` stdout patching |
 | P3 ✅ [ADR 0013](decisions/0013-observability.md) | The library takes an explicit `Env` snapshot and never reads or mutates the process env | `Object.assign(process.env, …)` ([port notes](research/semantic-release.md#6-rust-port-notes)) |
-| P4 | Results are data (`RunReport`), not log lines. Logs on stderr, data on stdout/files | logs + dry-run notes mixed on stdout |
+| P4 ✅ [ADR 0013](decisions/0013-observability.md) | Results are data (`RunReport`), not log lines. Logs on stderr, data on stdout/files | logs + dry-run notes mixed on stdout |
 | P5 | No release is never silent: a typed reason is always reported | [top complaint](research/semantic-release.md#8-issue-history) |
 
 ## 2. Log flow
@@ -148,7 +148,7 @@ Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dote
 ## Decisions needed
 
 1. Log env var: `SEMOXIDE_LOG` only, or also honor `RUST_LOG`.
-2. Logs on stderr, data on stdout (P4).
+2. ~~Logs on stderr, data on stdout~~: decided (ADR 0013).
 3. Error-code naming: upstream mnemonics (`ENOGITREPO`) or a new scheme.
 4. Exit codes, incl. partial failure (ADR 0012 leaves reporting open).
 5. Base64 forms in masking.
