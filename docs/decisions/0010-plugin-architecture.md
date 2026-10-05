@@ -8,7 +8,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **The protocol repo contains:** the spec, a Rust SDK crate (message types, socket and handshake code, the `Plugin` trait, `serve()`), and a conformance kit. The kit is a test tool any plugin repo runs in CI to prove it follows the protocol, whatever language the plugin is written in.
 - **semoxide starts the plugin:** it creates the socket, starts the plugin with the socket address (e.g. `--socket <addr>`), and stops it when the run ends, together with any processes the plugin started.
 - **One process per run:** a plugin is started once, receives every step it implements, and can keep state between steps (e.g. its API client and rate-limit info).
-- **Encoding: Protobuf.** The `.proto` schema in the protocol repo is the wire spec; code for any language is generated from it, and Protobuf's field-evolution rules govern compatibility.
+- **gRPC over the local socket (Protobuf).** The `.proto` file in the protocol repo is the spec: it defines both the messages and the plugin service. Client and server code is generated for any language (Rust: `tonic`). Protobuf's field-evolution rules govern compatibility, and gRPC provides calls, errors, deadlines, cancellation and streaming. This is the same model as HashiCorp go-plugin. Windows named pipes need a custom connector in tonic.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
