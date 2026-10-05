@@ -151,7 +151,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 
 1. Log env var: `SEMOXIDE_LOG` only, or also honor `RUST_LOG`.
 2. ~~Logs on stderr, data on stdout~~: decided (ADR 0013).
-3. Error-code naming: upstream mnemonics (`ENOGITREPO`) or a new scheme.
+3. ~~Error-code naming~~: decided (ADR 0013).
 4. ~~Exit codes~~: decided (ADR 0013).
 5. Base64 forms in masking.
 6. Env-pattern secret scan in addition to manifest-declared secrets.
