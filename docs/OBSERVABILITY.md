@@ -114,9 +114,9 @@ Embedders get at-source masking regardless of subscriber; dependency events are 
 
 Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dotenv (GitLab `artifacts:reports:dotenv`). GitLab: collapsible sections, no annotations, no runtime masking (only predefined masked variables). Library: `run() -> Result<RunReport, Error>`, `RunReport { outcome: Released | Promoted | NoRelease(reason) | Partial{rollback}, … }`, serde-serializable (covers upstream [#753, #3877](research/semantic-release.md#8-issue-history)).
 
-## 7. Diagnostics (proposed)
+## 7. Diagnostics (decided: [ADR 0013](decisions/0013-observability.md))
 
-`NoReleaseReason`, always logged at `info` with a hint: `NotCi`/`PullRequest` ([env-ci](research/dependencies.md#5-env-ci)), `BranchNotConfigured` (closest glob), `NoCommitsSince`, `NoRelevantCommits` (per-commit verdicts at `-v`), `SkipReleaseMarker`, `TagsNotFound` (shallow / `tag_format` near-misses), `PathFiltered` ([ADR 0003](decisions/0003-monorepo-scope.md) units).
+`NoReleaseReason`, always logged at `info` with a hint: `NotCi`/`PullRequest` ([env-ci](research/dependencies.md#5-env-ci)), `BranchNotConfigured` (closest glob), `NoCommitsSince`, `NoRelevantCommits` (per-commit verdicts at `-v`), `AllCommitsSkipped` (every commit had `[skip release]`, ADR 0013), `TagsNotFound` (shallow / `tag_format` near-misses), `PathFiltered` ([ADR 0003](decisions/0003-monorepo-scope.md) units).
 
 | Command | Does |
 |---|---|

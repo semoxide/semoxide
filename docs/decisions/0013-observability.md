@@ -33,3 +33,7 @@ Status: accepted (2026-10-05). Decided step by step; details and remaining propo
     - outputs via a dotenv report (`--output-env <file>` → `artifacts:reports:dotenv`)
     - no annotations, and no runtime masking (GitLab only masks predefined variables), so semoxide's own masking is the only protection
   - Everywhere: `--output=json` prints the `RunReport`; the library returns the same struct.
+- **Diagnostic commands:**
+  - `semoxide explain [--commit <sha>]`: an offline, read-only trace of the decision (branch rule → last release → each commit's verdict → next version or reason).
+  - `semoxide doctor [--online]`: checks the setup without releasing (repo, shallow clone, tags, CI, token env names, plugin locks, manifests, handshakes, schemas). `--online` adds token auth, push rights and tag-delete rights.
+- **Skip marker:** commits containing `[skip release]` or `[release skip]` (any case) are excluded from both the bump decision **and** the release notes. That is upstream's marker without its notes bug (release-notes-generator #531). `explain` shows such commits as "skipped by marker". If every relevant commit is marked, the no-release reason is `AllCommitsSkipped`.
