@@ -105,7 +105,15 @@ Everything about the protocol, lifecycle, secrets, timeouts and trust is in [001
 
 ## 6. Distribution
 
-_Pending decisions._
+One `dist` build (6 targets) feeds every binary channel ([research](research/distribution-config.md#1-distribution)).
+
+| When | Channels |
+|---|---|
+| v1 | GitHub Release binaries + shell/PowerShell installers; GitHub Action; `cargo binstall` / `cargo install`; Docker image (static musl, GHCR, amd64/arm64) |
+| v1.x | npm wrapper; Homebrew tap |
+| Later | Scoop; winget, Chocolatey |
+
+Under research: Python (uv/pipx), other JS runners, Java, PHP, macOS builds.
 
 ## 7. Cross-cutting rules
 
