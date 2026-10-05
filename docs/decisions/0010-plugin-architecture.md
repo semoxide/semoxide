@@ -12,6 +12,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Getting plugins:**
   - By default, config pins a version (`[plugins.github] version = "1.4.2"`). semoxide downloads that binary from the plugin's GitHub release, checks its checksum (recorded in a lock file) and caches it.
   - Override: an explicit `path = "..."` or PATH lookup of `semoxide-plugin-<name>`, for plugin development and offline/air-gapped CI.
+- **Embedders:** each Rust plugin repo publishes a library crate as well as its binary, both implementing the SDK `Plugin` trait. Embedders can link a plugin in-process and register it in the builder (no process, no socket), or use binaries like the CLI does. The conformance kit tests both paths.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.

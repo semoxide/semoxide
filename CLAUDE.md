@@ -2,7 +2,12 @@
 
 A Rust release tool inspired by semantic-release. Current phase: **research and planning only. No product code.**
 
+# IMPORTANT
+
+- While making architecture decisions and any new functionality, including just starting a documentation do not assume or go into generic path - ask user.
+
 ## Hard requirements
+
 - Library first: the core is an embeddable crate, and the CLI is a thin wrapper around it.
 - Opinionated. Familiar but not compatible: migration tool, no JS bridge ([ADR 0001](docs/decisions/0001-compatibility-stance.md)).
 - Keep semantic-release's core ideas, including the plugin system.
@@ -13,6 +18,7 @@ A Rust release tool inspired by semantic-release. Current phase: **research and 
 - Git commit email is the default global config. Never override it.
 
 ## Index
+
 - [Requirements](docs/REQUIREMENTS.md): secondary requirements
 - [Specifications](docs/SPECIFICATIONS.md): external specs (semantic-release, SemVer, Conventional Commits)
 - [Research](docs/RESEARCH.md): code, issue, library and ecosystem research
