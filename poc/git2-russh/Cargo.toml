@@ -1,0 +1,32 @@
+[package]
+name = "git2-russh"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.89"
+publish = false
+
+# Standalone: not part of any parent workspace.
+[workspace]
+
+[features]
+default = []
+# Static OpenSSL for git2's https on Linux (used by the minimal-container build).
+vendored-openssl = ["git2/vendored-openssl"]
+
+[dependencies]
+# No `ssh` feature: libssh2 is not built at all. ssh:// and scp-style URLs go to our transport.
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2", "https"] }
+russh = { version = "0.64.1", default-features = false, features = ["flate2", "ring", "rsa"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "io-util", "sync"] }
+futures = { version = "0.3", default-features = false, features = ["executor", "std"] }
+ssh2-config = "0.8"
+shell-words = "1"
+bytes = "1"
+hmac = "0.13"
+sha1 = "0.11"
+data-encoding = "2"
+
+[dev-dependencies]
+tempfile = "3"
+rand = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "io-util", "sync", "macros", "process"] }

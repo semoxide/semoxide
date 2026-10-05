@@ -1,0 +1,14 @@
+[package]
+name = "m-russh"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2", "https"] }
+git2-russh = { path = "../.." }
+
+[profile.release]
+strip = true

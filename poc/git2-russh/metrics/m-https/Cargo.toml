@@ -1,0 +1,13 @@
+[package]
+name = "m-https"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2", "https"] }
+
+[profile.release]
+strip = true
