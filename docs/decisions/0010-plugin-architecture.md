@@ -16,6 +16,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Version compatibility:** the protocol uses SemVer, and host and plugin must share the same major version. Within a major version only additive Protobuf changes are allowed (new fields, new optional RPCs), and both sides ignore what they don't know. A major bump breaks every plugin at once, so it must be rare.
 - **Environment and secrets:** a plugin gets the system variables (`PATH`, `SystemRoot`, `PATHEXT`, …) plus only the secret variables it declares in its manifest or handshake. Every declared secret is registered for log masking.
 - **Host services:** during a step, a plugin can call a small gRPC service offered by semoxide: `Log`, plus a narrow `Git` service (add, commit, push) backed by semoxide's git2 and credentials. semoxide enforces its rules there: only the release tag is pushed, existing tags are never moved, and commit-back follows [ADR 0009](0009-commit-back.md). Plugins get no generic access to the host.
+- **Several plugins on one step:** semantic-release's rules apply. All plugins run in config order. Errors are collected. For analyzeCommits the highest release type wins; for generateNotes the outputs are joined ([spec](../specs/SEMANTIC-RELEASE-SPEC.md)). Config can override the order for a single step, e.g. `[steps.publish] order = ["npm", "github"]`.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
