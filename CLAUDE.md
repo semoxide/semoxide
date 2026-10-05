@@ -6,7 +6,6 @@ A Rust release tool inspired by semantic-release. Current phase: **research and 
 
 - While making architecture decisions and any new functionality, including just starting a documentation do not assume or go into generic path - ask user.
 - Keep in mind that we need to "collapse"/"codnence" the docs after the we complete first "planning" huge step (before we write the code) so it doesn't bloat: we clear, compact, combine and remove things that were needed during planning but not needed as a documentation itself. (For example: decisions goes into hard specification in the correct space.)
-
 - Doc comments are short and informative. If the code speaks for itself, write no doc comment.
 - Split code into small, understandable parts, but not too small: follow [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md) (crates §1–§2, patterns §9, where things go §8).
 - Log enough for debugging: every step, plugin call and remote operation emits `tracing` events ([OBSERVABILITY](docs/OBSERVABILITY.md)).
