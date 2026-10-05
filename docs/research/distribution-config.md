@@ -172,18 +172,33 @@ Context object: `version`, `previous_version`, `tag`, `channel`, `branch`, `note
 | changesets | Change files written by humans | Independent, `fixed` / `linked` groups | Explicit in the change file |
 | release-please | `release-please-config.json` + `.release-please-manifest.json` | Independent, `linked-versions` / `node-workspace` / `cargo-workspace` plugins | Path, with `exclude-paths` |
 
+### Demand
+Measured 2026-10-05. npm download counts are CI-inflated, so treat them as relative signals.
+
+| Signal | Value |
+|---|---|
+| semantic-release [#193](https://github.com/semantic-release/semantic-release/issues/193) | 256 👍 (335 reactions in total), 159 comments. #1 issue by reactions; #2 has 138 |
+| [#1688](https://github.com/semantic-release/semantic-release/issues/1688), npm workspaces | 54 👍, #8 overall |
+| Issues mentioning "monorepo" across the semantic-release org | 119 |
+| npm per month: semantic-release | 12.8M |
+| semantic-release-monorepo | 649k |
+| multi-semantic-release (3 forks: original, `@qiwi`, `@anolilab`) | 249k |
+| `@semrel-extra/npm` (npm plugin fork for monorepos) | 192k |
+| changesets (monorepo-first) | 21.9M, 1.7× semantic-release |
+| release-please | 842k |
+
 **Why upstream declined (from the maintainers' comments on [#193](https://github.com/semantic-release/semantic-release/issues/193)):** this was a scope choice, not an anti-monorepo stance. The docs ([supported-branching](https://github.com/semantic-release/docs/blob/main/src/content/docs/foundation/supported-branching.md#monorepos)) say "not officially supported at this time" and point to community plugins.
 - Commit filtering by path is "relatively trivial" (pvdlg, 2019). The blocker is **interdependent packages**: releases must run in dependency order, and dependents' manifests must be updated between publishes, otherwise broken packages get published. A path-filter-only feature was rejected for this reason.
 - That conflicts with the "versions live only in tags, never commit back" principle many users rely on (travi, 2021).
 - 2018: no maintainer had monorepo expertise, and they asked for an RFC. 2023: "no short term plans… would need to come from the community".
 
-**Recommendation: not in v1, but the architecture must not preclude it.** v1 = one releasable unit per run:
+**Researcher recommendation (superseded by [ADR 0003](../decisions/0003-monorepo-scope.md): v1 also allows explicitly declared independent units):** design it in from the start:
 
 Proposed `Package` abstraction (v1 constraints):
 
 ```mermaid
 flowchart TD
-    cfg["config: [packages.NAME] reserved, deep-merged over root, rejected in v1 with a clear error"] --> pkg["Package {name, root_path, tag_format}: v1 has exactly one, the default"]
+    cfg["config: [packages.NAME] reserved, deep-merged over root, independent units allowed in v1"] --> pkg["Package {name, root_path, tag_format}: one by default"]
     pkg --> tag["last-release lookup per package tag regex, tag_format supports {package}"]
     pkg --> it["commit iterator gives changed paths (gix diff), v1 analyzer ignores them"]
     it --> bump["pure fn (package, commits) -> Bump"]
