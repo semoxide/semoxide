@@ -34,11 +34,11 @@ flowchart LR
 
 | Source | Handling |
 |---|---|
-| `Log` host service | event inside `plugin{name}` span, level as sent (proposed: clamp, so `error` requires a failed step) |
+| `Log` host service | event inside `plugin{name}` span, level as sent; an `error` from a step that then succeeds fails the step (`core::plugin_error_on_success`, ADR 0013) |
 | Plugin stdout/stderr, incl. child tools | captured, masked, tagged with the plugin; never parsed (results only via gRPC) |
 | In-process plugin | `Log` API only; the conformance kit checks it doesn't print |
 
-Display of captured output: in full when that plugin's step fails, live with `-v`/`--debug`, always in `--log-file`; `[plugins.<name>] show_output = true` shows it live on every run. Proposed: captured lines are `debug` events with `stream="stdout|stderr"`.
+Display of captured output: in full when that plugin's step fails, live with `-v`/`--debug`, always in `--log-file`; `[plugins.<name>] show_output = true` shows it live on every run. Captured lines are `debug` events with `stream="stdout|stderr"` (ADR 0013).
 
 Untrusted text (plugin output, commit subjects, notes) starting with `::` is escaped in `github` format (proposed).
 
@@ -157,7 +157,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 5. ~~Base64 forms~~: decided (ADR 0013).
 6. ~~Env-pattern secret scan~~: decided (ADR 0013): manifests + name pattern + `mask_env` list.
 7. ~~Runtime secrets~~: decided (ADR 0013): `RegisterSecret`.
-8. Level clamp for plugin `Log` events; level of captured output lines.
+8. ~~Plugin log levels~~: decided (ADR 0013).
 9. Support bundle format (markdown vs JSON default).
 10. ~~CI log formats~~: decided (ADR 0013), GitHub and GitLab automatic.
 11. Dry-run plan: per-plugin "would do" lines need a protocol call (`describe` today only returns the config schema).
