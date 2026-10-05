@@ -21,6 +21,19 @@ A Rust release tool inspired by semantic-release. Current phase: **research and 
 - **Docs: use Mermaid diagrams wherever they help**: flows, processes, sequences and timing, how code should work, and how things connect. Never use ASCII art.
 - Git commit email is the default global config. Never override it.
 
+## Rust rules
+
+Core rules only. Everything else: [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md), lints and tools [ADR 0017](docs/decisions/0017-code-quality.md), logging [ADR 0013](docs/decisions/0013-observability.md).
+
+1. No `unwrap` / `expect` / `panic!` outside tests.
+2. `#[expect(lint, reason = "…")]`, never `#[allow]`.
+3. Meaning lives in types: newtypes and enums, not `bool` / `Option` / `String` parameters.
+4. Struct fields are private; construct with `new` or a builder.
+5. Conversions via `From` / `TryFrom` / `FromStr`; names use `as_` / `to_` / `into_`; getters have no `get_`.
+6. `unsafe_code = "forbid"`. The only exception is `semoxide-git`'s transport registration, with a `// SAFETY:` comment and real-repo integration tests (miri can't run its FFI).
+7. Prefer modern std over extra crates or nesting: let chains, `if let` guards, `LazyLock`/`OnceLock`, `cfg_select!`, `assert_matches!`.
+8. Flat control flow: early returns and `?` over nested `if` / `match`.
+
 ## Index
 
 ### **IMPORTANT**: every agent or subagent MUST read what's required for the task! In the plan mode we MUST READ as much as needed even more so.
