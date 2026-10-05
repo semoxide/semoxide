@@ -20,10 +20,10 @@ flowchart TD
 
 | Crate | Holds | Heavy deps | Published |
 |---|---|---|---|
-| `semoxide-schema` | `semoxide.toml` types, JSON Schema generation | none (serde, schemars) | to decide (§5) |
-| `semoxide-engine` | version engine, branch model, domain types | none: **pure, no I/O** | to decide (§5) |
-| `semoxide-git` | git2, SSH transports, push guards, credential rules ([0011](decisions/0011-git-backend.md)) | git2, russh | to decide (§5) |
-| `semoxide-runtime` | orchestrator, config loading, CI context, plugin host integration, observability | tokio, tonic (via `semoxide-plugin-host`) | to decide (§5) |
+| `semoxide-schema` | `semoxide.toml` types, JSON Schema generation | none (serde, schemars) | yes, internal (§5) |
+| `semoxide-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal (§5) |
+| `semoxide-git` | git2, SSH transports, push guards, credential rules ([0011](decisions/0011-git-backend.md)) | git2, russh | yes, internal (§5) |
+| `semoxide-runtime` | orchestrator, config loading, CI context, plugin host integration, observability | tokio, tonic (via `semoxide-plugin-host`) | yes, internal (§5) |
 | `semoxide` | façade: the public library API ([0014](decisions/0014-porting-behaviour.md)) | – | yes |
 | `semoxide-cli` | the binary | clap, miette | yes (binary) |
 | `semoxide-test-support` | fixtures, git-repo DSL, builders ([0015](decisions/0015-testing.md)) | – | no |
@@ -62,7 +62,8 @@ Enforced in CI by:
 
 ## 5. Public API surface
 
-_To decide (base: [0014](decisions/0014-porting-behaviour.md))._
+- **Publishing:** all crates except `semoxide-test-support` go to crates.io, because a published crate's dependencies must be published too. They are versioned in lockstep. **Only the façade `semoxide` (and the CLI binary) is a stable API**; the inner crates are documented as "internal, no stability promise". `cargo-semver-checks` runs on the façade only. This is uv/ruff's model.
+- **Façade shape:** builder, `run()` (blocking and async), and the read-only queries ([0014](decisions/0014-porting-behaviour.md)).
 
 ## 6. Testing layout
 
