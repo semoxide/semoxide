@@ -40,7 +40,30 @@ flowchart TD
 
 ## 3. Components
 
-_Pending decisions._
+| Component | Responsibility |
+|---|---|
+| Config | load and merge layers (defaults → extends → file → env → flags), validate against the core and plugin schemas, resolve `extends` ([0002](decisions/0002-config-format.md), [0014](decisions/0014-porting-behaviour.md)) |
+| CI context | detect CI, branch, PR and commit; env snapshot ([0013](decisions/0013-observability.md), [0014](decisions/0014-porting-behaviour.md)) |
+| Git | all repo access via git2: tags, notes, log ranges, fetch/unshallow, guarded push, SSH transports, credential rules ([0011](decisions/0011-git-backend.md)) |
+| Version engine | **pure, no I/O**: branch model, ranges, last and next version, bump rules, skip marker ([0007](decisions/0007-bump-defaults.md), [0014](decisions/0014-porting-behaviour.md)) |
+| Plugin host | start, connect, sync and lock plugins (via `semoxide-plugin-host`); host services; in-process plugins ([0010](decisions/0010-plugin-architecture.md)) |
+| Orchestrator | lifecycle, multi-plugin rules, changed-file tracking, rollback, dry-run/plan, `RunReport` ([0010](decisions/0010-plugin-architecture.md), [0012](decisions/0012-partial-failure.md)) |
+| Observability | tracing events, secret registry and masking, error catalog ([0013](decisions/0013-observability.md)) |
+| CLI | **thin**: args, output formats, exit codes, TTY rule, commands ([0013](decisions/0013-observability.md), [0016](decisions/0016-agent-experience.md)) |
+
+```mermaid
+flowchart TD
+    cli["CLI"] --> orch["Orchestrator"]
+    orch --> cfg["Config"]
+    orch --> ci["CI context"]
+    orch --> ver["Version engine (pure)"]
+    orch --> git["Git"]
+    orch --> host["Plugin host"]
+    host -->|"Git host service"| git
+    obs["Observability"] -.-> orch
+    obs -.-> host
+    obs -.-> git
+```
 
 ## 4. Release run flow
 
