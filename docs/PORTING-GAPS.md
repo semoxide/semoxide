@@ -21,7 +21,7 @@ Status: an ADR link means decided; **open** means only a recommendation exists, 
 | 13 | `npm` CLI dependency | Bundled `npm` for version/pack/publish/whoami/dist-tag, temp npmrc ([npm §5](research/npm.md#5-rust-port-notes)) | Packing, lifecycle scripts and provenance only exist in the CLI | npm is not in the first official plugin set ([0010](decisions/0010-plugin-architecture.md#decided)). When built it must be a process plugin (runs external tools) whose manifest secrets reach `npm` children via env. Mechanism: tentative hybrid, deferred ([0014](decisions/0014-porting-behaviour.md)) | 0010, 0014 (tentative) |
 | 14 | Error semantics | `SemanticReleaseError` flag gates `fail`; `AggregateError` flattening ([aggregation](research/semantic-release.md#error-aggregation), [error §9](research/dependencies.md#9-semantic-releaseerror)) | Duck-typed marker flag on any thrown object | Errors from several plugins on one step are collected ([0010](decisions/0010-plugin-architecture.md#decided)); a failure after the tag push runs `rollback` ([0012](decisions/0012-partial-failure.md)). Error type, `fail` gating (always runs) and partial-failure exit code 5: [0013](decisions/0013-observability.md) | 0010, 0012, 0013 |
 | 15 | JS API | `semanticRelease(options, {cwd, env, stdout, stderr})` → `Result \| false` ([spec §8](specs/SEMANTIC-RELEASE-SPEC.md#8-js-api)) | Node streams, untyped options bag | Embedders register in-process plugin crates in the builder ([0010](decisions/0010-plugin-architecture.md#decided), "Embedders"). Builder + `run()` + read-only queries ([0014](decisions/0014-porting-behaviour.md)) | 0010, 0014 |
-| 16 | `localeCompare` sorting | Writer sorts groups, commits and notes with `localeCompare` ([writer](research/dependencies.md#3-conventional-changelog-writer-921)) | ICU collation, not byte order | O13 | **open** |
+| 16 | `localeCompare` sorting | Writer sorts groups, commits and notes with `localeCompare` ([writer](research/dependencies.md#3-conventional-changelog-writer-921)) | ICU collation, not byte order | `icu_collator`, default `en`, configurable `notes.locale` ([0014](decisions/0014-porting-behaviour.md)) | 0014 |
 
 ## Open decisions
 
@@ -39,4 +39,4 @@ Each entry is a **recommendation (not decided)**; the user decides.
 10. **O10 npm (#13): tentative, deferred** in [0014](decisions/0014-porting-behaviour.md): hybrid, to be confirmed when npm is planned.
 11. **O11 Errors (#14): decided** in [0013](decisions/0013-observability.md): structure, display, aggregation, exit codes; `fail` always runs with known/unexpected marking.
 12. **O12 Library API (#15): decided** in [0014](decisions/0014-porting-behaviour.md).
-13. **O13 Sort order (#16):** case-insensitive comparison with byte-order tiebreak, documented as a difference.
+13. **O13 Sort order (#16): decided** in [0014](decisions/0014-porting-behaviour.md).
