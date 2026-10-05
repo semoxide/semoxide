@@ -5,7 +5,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Separate repos:** each official plugin lives in its own repo with its own version and release cycle.
 - **Not stdio:** the protocol runs over a native local socket, never over the plugin's stdin/stdout. That is a Unix domain socket on Linux/macOS and a named pipe on Windows (e.g. via the `interprocess` crate); the SDK hides the difference.
 - **Own protocol repo:** the protocol has its own repo and its own version, independent of semoxide's version. This avoids Nushell's lockstep pain ([nushell research](../research/nushell-plugins.md)).
-- **The protocol repo contains:** the spec, a Rust SDK crate (message types, socket and handshake code, the `Plugin` trait, `serve()`), and a conformance kit. The kit is a test tool any plugin repo runs in CI to prove it follows the protocol, whatever language the plugin is written in.
+- **The protocol repo contains:** the spec, a Rust SDK crate for plugins, a host-side crate `semoxide-plugin-host` (start, connect, kill and handshake, used by semoxide and the conformance kit), plus (message types, socket and handshake code, the `Plugin` trait, `serve()`), and a conformance kit. The kit is a test tool any plugin repo runs in CI to prove it follows the protocol, whatever language the plugin is written in.
 - **semoxide starts the plugin:** it creates the socket, starts the plugin with the socket address (e.g. `--socket <addr>`), and stops it when the run ends, together with any processes the plugin started.
 - **One process per run:** a plugin is started once, receives every step it implements, and can keep state between steps (e.g. its API client and rate-limit info).
 - **gRPC over the local socket (Protobuf).** The `.proto` file in the protocol repo is the spec: it defines both the messages and the plugin service. Client and server code is generated for any language (Rust: `tonic`). Protobuf's field-evolution rules govern compatibility, and gRPC provides calls, errors, deadlines, cancellation and streaming. This is the same model as HashiCorp go-plugin. Windows named pipes need a custom connector in tonic.
@@ -52,6 +52,12 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - Per-run token: semoxide passes a random one-time token to the plugin at start, in its environment. The plugin's first message must present it; connections without it are dropped while semoxide keeps listening.
   - Limit: a same-user process able to read process environments could steal the token, but it could equally read semoxide's own secrets.
 - **Wire data shapes:** the context, step results and host services are typed Protobuf messages (semoxide's contract). Each plugin's own config section travels as `google.protobuf.Struct`, validated against that plugin's schema. No JSON strings inside Protobuf.
+
+## Implementation notes (from the [gRPC PoC](../../poc/plugin-grpc/README.md); not decisions)
+- Windows: the Job Object is assigned right after spawn, so a grandchild started in that instant could escape. A full fix needs `CreateProcessW` / `raw_attribute`, which is still unstable.
+- Linux: a process group isn't cleaned up if semoxide itself crashes. The SDK exits when the connection drops; `PR_SET_PDEATHSIG` is optional. Children that call `setsid()` escape the group kill.
+- Windows: the SDK resolves program names via `PATHEXT` (`npm` → `npm.cmd`); batch-file argument escaping needs care.
+- tonic reports a client-side deadline as `CANCELLED`, so the host treats both `CANCELLED` and `DEADLINE_EXCEEDED` as a timeout.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
