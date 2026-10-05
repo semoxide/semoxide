@@ -10,3 +10,5 @@
 - [0008](decisions/0008-initial-version.md): first release 1.0.0, configurable
 - [0009](decisions/0009-commit-back.md): tags only; commit-back only for monorepos with dependent units
 - [0010](decisions/0010-plugin-architecture.md): plugins in separate repos; socket protocol in its own versioned repo (partly open)
+- [0011](decisions/0011-git-backend.md): git2 only, with tag and push-status guards
+- [0012](decisions/0012-partial-failure.md): tag first; `rollback` step on later failure
