@@ -9,3 +9,4 @@
 - [0007](decisions/0007-bump-defaults.md): semantic-release default bump table
 - [0008](decisions/0008-initial-version.md): first release 1.0.0, configurable
 - [0009](decisions/0009-commit-back.md): tags only; commit-back only for monorepos with dependent units
+- [0010](decisions/0010-plugin-architecture.md): plugins in separate repos; socket protocol in its own versioned repo (partly open)
