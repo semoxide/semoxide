@@ -16,3 +16,4 @@
 - [0014](decisions/0014-porting-behaviour.md): porting behaviour (extends sources, user functions, presets, globs, ranges, regexes, bot identity, CI detection, npm (tentative), library API, sort order)
 - [0015](decisions/0015-testing.md): testing (fixtures via the git CLI, sandbox credentials, npm tests (tentative), upstream comparison in development only)
 - [0016](decisions/0016-agent-experience.md): agent experience (versioned JSON on every command, structured plan, `schema`, `init`/`sync`, non-interactive rule, retry hints, size limits, skills/AGENTS.md/llms.txt, no MCP in v1, injection guard)
+- [0017](decisions/0017-code-quality.md): code quality, decided step by step (qlty git hooks, …)
