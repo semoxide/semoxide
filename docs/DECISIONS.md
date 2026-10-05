@@ -14,4 +14,4 @@
 - [0012](decisions/0012-partial-failure.md): tag first; `rollback` step on later failure
 - [0013](decisions/0013-observability.md): observability (library never prints, masking, env snapshot, stderr/stdout, exit codes, error codes, CI formats, dry-run plan, diagnostics)
 - [0014](decisions/0014-porting-behaviour.md): porting behaviour (extends sources, user functions, presets, globs, ranges, regexes, bot identity, CI detection, npm (tentative), library API, sort order)
-- [0015](decisions/0015-testing.md): testing, decided step by step (fixtures built with the git CLI, …)
+- [0015](decisions/0015-testing.md): testing (fixtures via the git CLI, sandbox credentials, npm tests (tentative), upstream comparison in development only)

@@ -147,10 +147,12 @@ Linux jobs run in Docker containers (as in the [gRPC PoC](../poc/plugin-grpc/REA
 
 Windows-specific: CRLF in messages, path separators in asset globs, named pipes, Job Object kill, `PATHEXT` resolution (`npm` → `npm.cmd`).
 
-## Open
+## Decisions
+
+All decided in [ADR 0015](decisions/0015-testing.md).
 
 - ~~npm: Verdaccio only, or also npmjs~~: tentative Verdaccio only, deferred ([ADR 0015](decisions/0015-testing.md)).
-- Comparison job against upstream semantic-release (dry-run outputs on golden histories).
+- ~~Comparison job against upstream~~: development phase only, pinned upstream, version/type, frozen into fixtures before release ([ADR 0015](decisions/0015-testing.md)).
 
 
 ## Ticket candidates
