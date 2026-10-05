@@ -41,7 +41,7 @@ Coverage: `cargo llvm-cov` on layers 1 to 4.
 
 ## Fixtures
 
-- **Fixture DSL** (test-support crate): builder for commits, tags, notes, merges (ff/no-ff/rebase), shallow clone, detached HEAD, following upstream's `git-utils.js` ([helpers](research/semantic-release.md#7-tests)). Whether it writes history with the git CLI (an independent oracle) or with git2 is **open**.
+- **Fixture DSL** (test-support crate): builder for commits, tags, notes, merges (ff/no-ff/rebase), shallow clone, detached HEAD, following upstream's `git-utils.js` ([helpers](research/semantic-release.md#7-tests)). It writes history with the git CLI, an independent oracle ([ADR 0015](decisions/0015-testing.md)).
 - **Deterministic SHAs:** fixed author/committer dates and identity, `core.autocrlf=false`.
 - **Golden histories:** `tests/histories/*.toml` = commit script + branch config + expected next version, channel and notes (`insta`). Shared by layers 2 and 4 and dry-run snapshots.
 - **Remotes:** `file://` bare repos by default. libgit2 refuses shallow over `file://` ([PoC gap 1](../poc/git2-ops/README.md#gaps)), so shallow/unshallow tests need a `git daemon` or HTTP server (as the PoC's `tests/daemon.rs` does).
@@ -106,7 +106,7 @@ One named regression test per row.
 | Case | Injection | Expected | Layer |
 |---|---|---|---|
 | Publish fails after tag push ([ADR 0012](decisions/0012-partial-failure.md); upstream #896, #2381) | stub publisher fails | `rollback` runs for each plugin; tag deleted via Git service; irreversible plugin logs a warning | 4 |
-| Rollback without delete rights | remote refuses tag deletion | failure surfaced (reporting format **open** in ADR 0012) | 4, 6 |
+| Rollback without delete rights | remote refuses tag deletion | partial failure, exit 5, message names the leftover tag ([ADR 0012](decisions/0012-partial-failure.md), [0013](decisions/0013-observability.md)) | 4, 6 |
 | Plugin timeout / crash | plugin hangs or exits mid-step | tree killed, step fails, `rollback`/`fail` run | 4 |
 | Asset changed after git commit ([ADR 0010](decisions/0010-plugin-architecture.md)) | a plugin after `git` modifies a file matching its `assets` | in `prepare`: error by default, warning when configured; in `publish`: warning | 4 |
 | Host `Git` rule | plugin pushes a non-release tag or moves a tag | `PERMISSION_DENIED`, remote unchanged | 4 |
@@ -151,7 +151,6 @@ Windows-specific: CRLF in messages, path separators in asset globs, named pipes,
 
 - npm: Verdaccio only, or also real npmjs publishes.
 - Comparison job against upstream semantic-release (dry-run outputs on golden histories).
-- Fixtures: git CLI allowed, or git2 only.
 - Sandbox token type.
 
 ## Ticket candidates
