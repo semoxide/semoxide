@@ -2,7 +2,7 @@
 
 Logging, debugging, secret masking, CI output and error reporting. Items backed by an ADR say so; **everything else is proposed**. Upstream behavior is only linked: [logger, `debug`, hook-std, masking](research/semantic-release.md#4-side-effects), [masking rule](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth).
 
-## 1. Principles (proposed)
+## 1. Principles (decided: [ADR 0013](decisions/0013-observability.md))
 
 | # | Rule | Replaces upstream |
 |---|---|---|
@@ -10,7 +10,7 @@ Logging, debugging, secret masking, CI output and error reporting. Items backed 
 | P2 ✅ [ADR 0013](decisions/0013-observability.md) | Secrets are masked **at the source** (core, plugin host) before emission; a writer-level mask is the second pass | `hook-std` stdout patching |
 | P3 ✅ [ADR 0013](decisions/0013-observability.md) | The library takes an explicit `Env` snapshot and never reads or mutates the process env | `Object.assign(process.env, …)` ([port notes](research/semantic-release.md#6-rust-port-notes)) |
 | P4 ✅ [ADR 0013](decisions/0013-observability.md) | Results are data (`RunReport`), not log lines. Logs on stderr, data on stdout/files | logs + dry-run notes mixed on stdout |
-| P5 | No release is never silent: a typed reason is always reported | [top complaint](research/semantic-release.md#8-issue-history) |
+| P5 ✅ [ADR 0013](decisions/0013-observability.md) | No release is never silent: a typed reason is always reported | [top complaint](research/semantic-release.md#8-issue-history) |
 
 ## 2. Log flow
 
