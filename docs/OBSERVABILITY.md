@@ -90,7 +90,8 @@ flowchart TD
 | Source | Status |
 |---|---|
 | Secret env vars declared in each plugin's **manifest** | decided ([ADR 0010](decisions/0010-plugin-architecture.md) "Environment and secrets"); registered before spawn |
-| `Env` vars matching the upstream name/length rule ([spec §6](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth)) | proposed |
+| `Env` vars matching the upstream name/length rule ([spec §6](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth)) | decided (ADR 0013) |
+| User list `mask_env = [...]` in config | decided (ADR 0013) |
 | Config values typed `Secret<T>` (`secrecy::SecretBox`, `Debug` = `[secure]`, no `Serialize`) | proposed |
 | Secrets a plugin derives at runtime (OIDC, GitHub App tokens) | open: no host API yet |
 
@@ -154,7 +155,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 3. ~~Error-code naming~~: decided (ADR 0013).
 4. ~~Exit codes~~: decided (ADR 0013).
 5. Base64 forms in masking.
-6. Env-pattern secret scan in addition to manifest-declared secrets.
+6. ~~Env-pattern secret scan~~: decided (ADR 0013): manifests + name pattern + `mask_env` list.
 7. Host API for secrets a plugin derives at runtime.
 8. Level clamp for plugin `Log` events; level of captured output lines.
 9. Support bundle format (markdown vs JSON default).
