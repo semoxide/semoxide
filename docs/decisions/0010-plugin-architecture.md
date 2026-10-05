@@ -18,6 +18,10 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Host services:** during a step, a plugin can call a small gRPC service offered by semoxide: `Log`, plus a narrow `Git` service (add, commit, push) backed by semoxide's git2 and credentials. semoxide enforces its rules there: only the release tag is pushed, existing tags are never moved, and commit-back follows [ADR 0009](0009-commit-back.md). Plugins get no generic access to the host.
 - **Several plugins on one step:** semantic-release's rules apply. All plugins run in config order. Errors are collected. For analyzeCommits the highest release type wins; for generateNotes the outputs are joined ([spec](../specs/SEMANTIC-RELEASE-SPEC.md)). Config can override the order for a single step, e.g. `[steps.publish] order = ["npm", "github"]`.
 - **Lifecycle steps:** semantic-release's 9 steps (`verify_conditions`, `analyze_commits`, `verify_release`, `generate_notes`, `prepare`, `publish`, `add_channel`, `success`, `fail`) plus **`rollback`**. `rollback` runs when a step fails after the tag is pushed; each plugin undoes its own work, and plugins whose work can't be undone log a warning ([ADR 0012](0012-partial-failure.md)).
+- **Plugin config validation:**
+  - Each plugin provides a JSON Schema for its config, via a gRPC `describe` call and published with its release (generated with schemars for Rust plugins).
+  - semoxide validates all plugin config before any step runs, and the editor schema for `semoxide.toml` includes the plugin options.
+  - Plugins still do runtime checks (e.g. token permissions) in `verify_conditions`.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
