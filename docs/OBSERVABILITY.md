@@ -158,7 +158,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 6. ~~Env-pattern secret scan~~: decided (ADR 0013): manifests + name pattern + `mask_env` list.
 7. ~~Runtime secrets~~: decided (ADR 0013): `RegisterSecret`.
 8. ~~Plugin log levels~~: decided (ADR 0013).
-9. Support bundle format (markdown vs JSON default).
+9. ~~Support bundle format~~: decided (ADR 0013): Markdown default.
 10. ~~CI log formats~~: decided (ADR 0013), GitHub and GitLab automatic.
 11. Dry-run plan: per-plugin "would do" lines need a protocol call (`describe` today only returns the config schema).
 
