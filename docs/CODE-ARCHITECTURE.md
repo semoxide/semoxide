@@ -113,4 +113,8 @@ Basis: typst, ripgrep, cargo, uv, ruff and jj, plus the 2025–26 architecture a
 
 ## 10. Approaches
 
-_To decide._
+- **A1. Failure path first.**
+  - Before implementing a step, its spec gets a failure table: what can fail, whether anything remote was written, what rollback does, the error code, and whether it's `retryable`.
+  - Preflight checks everything checkable before any write (P10).
+  - Irreversible steps run last: with [0012](decisions/0012-partial-failure.md)'s order the reversible tag push comes before the irreversible publish.
+  - Steps are idempotent, e.g. "release already exists with the same content" counts as OK.
