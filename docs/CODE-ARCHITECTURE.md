@@ -91,7 +91,25 @@ _Written last, from §1–§7 and §9._
 
 ## 9. Patterns
 
-_To decide._
+| # | Pattern | Where |
+|---|---|---|
+| P1 | Pure core, I/O at the edges | `semoxide-engine` takes and returns data |
+| P2 | Traits only at real seams; concrete types until a 2nd implementation exists | `Plugin` (in-process / process), SSH transport (russh / system `ssh`) |
+| P3 | Façade crate | `semoxide` re-exports the stable API |
+| P4 | Schema-only crate | `semoxide-schema` |
+| P5 | Layered merge trait (`combine(self, lower)`) | config layers |
+| P6 | Command file: args → validated options → library call | each command is one small file in `semoxide-cli` |
+| P7 | Builder | `Semoxide::builder()` |
+| P8 | Newtypes | `Tag`, `Version`, `PluginName`, `Channel`, … |
+| P9 | Parse, don't validate | raw input → types that can only be valid; the engine accepts only those |
+| P10 | Typestate, only where a wrong order is costly | `Plan → Approved → Executed` |
+| P11 | RAII guards | plugin processes (kill on drop), temp files, the release lock (`File::lock`) |
+| P12 | Typed errors + `ErrorInfo`, rendering at the edge | §4 |
+| P13 | Lints as architecture rules | §2 |
+| P14 | `#[non_exhaustive]` on public enums and structs from day one | façade types, `RunReport`, errors |
+| P15 | Snapshot-first output testing | [0015](decisions/0015-testing.md) |
+
+Basis: typst, ripgrep, cargo, uv, ruff and jj, plus the 2025–26 architecture articles.
 
 ## 10. Approaches
 
