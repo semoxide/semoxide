@@ -137,3 +137,11 @@ Basis: typst, ripgrep, cargo, uv, ruff and jj, plus the 2025–26 architecture a
   6. Refactors go in separate commits with the tests unchanged.
 
   Basis: TDFlow (locked human tests, 2025), Beck (2025), Böckeler (2026), Anthropic's Claude Code guidance.
+- **A3. Simplicity over abstraction.** Concrete types until a 2nd implementation exists (P2); no speculative generics. The core is held to a strict bar, the periphery to a looser one.
+- **A4. Walking skeleton, then vertical slices.** First, a dry run on a real temp repo end to end; then tag + push; then one gRPC plugin; then publish. Each slice is a task an agent can finish and verify, and it drives the milestone order.
+- **A5. Lightweight spec-driven flow.** Every task has a short spec: scope, out of scope, the A1 failure table, and an end-to-end check. Specs are revised when implementation teaches something; small fixes need no ceremony.
+- **A6. Deterministic guardrails over prompts.** CLAUDE.md and AGENTS.md stay short. Any rule that must always hold lives in the compiler, clippy, CI or hooks, and every task ends in a runnable check.
+- **A7. Security by design.** No ambient secrets for plugins ([0010](decisions/0010-plugin-architecture.md)). Our own releases use trusted publishing (OIDC) over stored tokens. CI uses minimal `permissions`, SHA-pinned actions, zizmor and cargo-deny. A short threat model covers the release path.
+- **A8. Dogfood from release #1.** semoxide releases itself with its previous released binary. Every PR gets a dry-run release check; Conventional Commits are enforced on our repos; PRs are small and squash-merged.
+- **A9. Invariants in the cheapest checkable form.** Types first, then `debug_assert!` and `#[must_use]`; no nightly-only contracts.
+- Already covered elsewhere: type-driven core (P8–P10), separate writer and grader (A2), observability per feature ([0013](decisions/0013-observability.md)), async only where needed (§3), lints as architecture (§2).
