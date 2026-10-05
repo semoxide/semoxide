@@ -34,30 +34,62 @@ Behavior is in the [spec](../specs/SEMANTIC-RELEASE-SPEC.md); this maps it to co
 4. `run(context, plugins)`. On throw, `callFail` runs, then `logErrors`, `unhook`, and a rethrow.
 
 ### `run()` internals
-Order and semantics: [spec §2.2](../specs/SEMANTIC-RELEASE-SPEC.md#22-actual-run-order-src-conflict-with-the-docs-table). Code per spec step:
+Order and semantics: [spec §2.2](../specs/SEMANTIC-RELEASE-SPEC.md#22-actual-run-order-src-conflict-with-the-docs-table). Code per spec step (leading number), with git calls from [§3](#3-git-operations):
 
-| Spec step | Function | Context mutation / note |
-|---|---|---|
-| 2 | `Object.assign(env, …)` | **mutates the caller's env** (`process.env`); `options.dryRun` |
-| 4 | `verify(context)` | errors → AggregateError |
-| 5 | `getGitAuthUrl`; `getBranches` (ls-remote, glob expand, serial fetch per branch, notes, tags, normalize, validate) | `options.repositoryUrl` = auth URL; `context.branches` |
-| 6 | `branches.find(name === ciBranch)` | `context.branch` |
-| 7 | `verifyAuth`, then `isBranchUpToDate` | |
-| 9 | `getReleaseToAdd` (rev-list tags) → getCommits → generateNotes → (non-dry) addNote+push+pushNotes → tag pushed into `branch.tags` → addChannel → success. mergeRange violations are queued and thrown after this step as one AggregateError | `context.releases` |
-| 10 | `getLastRelease` + rev-list its gitHead; `getCommits` | `context.lastRelease`, `context.commits` |
-| 11 | `nextRelease = {type, channel: branch.channel ‖ null, gitHead: rev-parse HEAD}` | |
-| 12 | `getNextVersion`; `gitTag = name = makeTag` | `context.nextRelease` |
-| 13 | prepare may move HEAD | `nextRelease.notes`, `gitHead` |
-| 14 | `tag`, `addNote`, `push --tags`, `pushNotes` (**before publish**) | |
-| 15 | publish results appended to `releases`; `success({...context, releases})` | `context.releases` |
-| 16 | returns `pick(lastRelease, commits, nextRelease, releases)` | |
+```mermaid
+sequenceDiagram
+    participant C as Core
+    participant G as Local git
+    participant R as Remote
+    participant P as Plugins
+    Note over C: 2 Object.assign(env, ...) MUTATES the caller's env (process.env), sets options.dryRun
+    C->>C: 4 verify(context), errors as AggregateError
+    C->>R: 5 getGitAuthUrl (G5) sets options.repositoryUrl = auth URL
+    C->>R: 5 getBranches: ls-remote (G6), glob expand, serial fetch per branch (G8), notes (G9)
+    C->>G: 5 tags (G10, G11), normalize, validate, sets context.branches
+    C->>C: 6 branches.find(name === ciBranch) sets context.branch
+    C->>R: 7 verifyAuth (G5), then isBranchUpToDate (G13, G14)
+    C->>P: 8 verifyConditions
+    opt 9 getReleaseToAdd (rev-list tags, G15)
+        C->>G: getCommits (G16)
+        C->>P: generateNotes
+        C->>G: non-dry: addNote (G18)
+        C->>R: non-dry: push --tags (G19), pushNotes (G20)
+        C->>C: tag pushed into branch.tags
+        C->>P: addChannel (results into context.releases), then success
+    end
+    Note over C: mergeRange violations are queued and thrown after step 9 as one AggregateError
+    C->>G: 10 getLastRelease, rev-list its gitHead (G15), getCommits (G16): context.lastRelease, context.commits
+    C->>P: 11 analyzeCommits
+    C->>G: 11 rev-parse HEAD (G14): nextRelease = {type, channel: branch.channel or null, gitHead}
+    C->>C: 12 getNextVersion, gitTag = name = makeTag: context.nextRelease
+    C->>P: 13 verifyRelease, generateNotes, prepare (may move HEAD: nextRelease.notes, gitHead)
+    C->>G: 14 tag (G17), addNote (G18)
+    C->>R: 14 push --tags (G19), pushNotes (G20), BEFORE publish
+    C->>P: 15 publish (results appended to context.releases)
+    Note over C,R: tag already on the remote: no rollback if publish fails (issues 896, 2381)
+    C->>P: 15 success({...context, releases})
+    C->>C: return pick(lastRelease, commits, nextRelease, releases)
+```
 
 ### Plugin loading and normalization
-- `plugins/index.js`: each `options.plugins` entry is validated (`validatePlugin`), loaded with `loadPlugin`, and each exported key matching a step is registered as `[func, config]` with `pluginName`. Invalid entries collect as EPLUGINSCONF.
-- Then, for each step definition: `options[type]` (CLI or step override) wins over the `plugins` list. If a step is unset and has a `default` (only analyzeCommits), the default is used. `validateStep` failures give EPLUGINCONF. Each step is `normalize`d into a validator wrapper.
-- `loadPlugin`: `resolveFrom(basePath‖cwd, name)` then `import(file://)`. Uses `default` (CJS/ESM default) or the named exports.
-- `normalize`: the plugin must be a function or have a function at `[type]`, otherwise EPLUGIN. The wrapper skips the step if `dryRun` is set and `!def.dryRun`, logs start/complete/fail, passes `cloneDeep(input minus stdout/stderr/logger)` plus a scoped logger, validates output, and stamps `pluginName` on thrown errors.
-- Step function: `postprocess(await pipeline(steps, pipelineConfig)(await preprocess(input)), input)`.
+```mermaid
+flowchart TD
+    E["plugins/index.js: each options.plugins entry"] --> V{"validatePlugin"}
+    V -- invalid --> X1(["collected as EPLUGINSCONF"])
+    V -- ok --> L["loadPlugin: resolveFrom(basePath or cwd, name), import(file://), use default (CJS/ESM) or named exports"]
+    L --> R["register each exported key matching a step as [func, config] with pluginName"]
+    R --> S{"per step definition: options[type] set (CLI or step override)?"}
+    S -- yes --> O["use it, it wins over the plugins list"]
+    S -- no --> PL["plugins list, else the step default (only analyzeCommits has one)"]
+    O --> VS{"validateStep"}
+    PL --> VS
+    VS -- fails --> X2(["EPLUGINCONF"])
+    VS -- ok --> N{"normalize: plugin is a function or has one at [type]?"}
+    N -- no --> X3(["EPLUGIN"])
+    N -- yes --> W["wrapper: skip if dryRun and !def.dryRun, log start/complete/fail, pass cloneDeep(input minus stdout/stderr/logger) + scoped logger, validate output, stamp pluginName on thrown errors"]
+    W --> F["step fn = postprocess(await pipeline(steps, pipelineConfig)(await preprocess(input)), input)"]
+```
 
 ### Pipeline internals (`lib/plugins/pipeline.js`, `lib/definitions/plugins.js`)
 Per-step semantics: [spec §2.1](../specs/SEMANTIC-RELEASE-SPEC.md#21-hooks). Sequential `pReduce` returning an array of results. Hook points:

@@ -3,6 +3,18 @@
 Sources (shallow clones, 2026-10-05): `conventional-changelog` monorepo @ `f90c80e`, `env-ci` @ `0a8c00b`, `git` @ `08bfb3d`, `changelog` @ `d780a55`, `exec` @ `3988e52`, `error` @ `bfc9b06`, `semantic-release` master (for lodash template use).
 Issue counts = total reactions, open issues, sorted by 👍.
 
+How the conventional-changelog packages feed the two default plugins:
+
+```mermaid
+flowchart LR
+    PRE["preset (§4)"] -- ".parser options" --> PAR["parser (§1)"]
+    PRE -- ".writer options (notes generator only)" --> WR
+    PAR --> FIL["filter (§2): drop revert pairs"]
+    FIL --> CA["commit-analyzer: release type"]
+    FIL --> WR["writer (§3)"]
+    WR --> RN["release-notes-generator: notes"]
+```
+
 ## 0. Version skew (read first)
 
 | Package | Latest | Used by commit-analyzer / release-notes-generator |
@@ -54,9 +66,22 @@ Purpose: commit message → `{type, scope, subject, merge, header, body, footer,
 1. Reject blank input. Trim leading/trailing newlines, split `\r?\n`, drop `gpg:` lines (+ comment/scissors filtering).
 2. Line 0 vs `mergePattern` → `merge`, consume, skip empty lines.
 3. Header = next line. Try `breakingHeaderPattern`, then `headerPattern`; assign correspondence. References parsed from header.
-4. Loop over remaining lines: `parseMeta` (fieldPattern blocks) → `parseNotes` → `parseBodyAndFooter`.
-   - Note line (notes regex): push `{title, text}`, append to footer; following lines append to note text until a meta/note line or a **footer token** line (token line goes to footer, ends note).
-   - Otherwise: body until first footer-token line, then everything is footer. Every line is scanned for references.
+4. Loop over remaining lines: `parseMeta` (fieldPattern blocks) → `parseNotes` → `parseBodyAndFooter`. Every line is scanned for references. A note line pushes `{title, text}` and is appended to the footer. Line routing:
+
+```mermaid
+stateDiagram-v2
+    state "Note" as NoteS
+    [*] --> Body
+    Body --> Body: other line
+    Body --> Footer: footer-token line
+    Body --> NoteS: note line (notes regex)
+    Footer --> Footer: other line
+    Footer --> NoteS: note line
+    NoteS --> NoteS: other line, appended to note text and footer
+    NoteS --> NoteS: note line starts a new note
+    NoteS --> Footer: footer-token line (footer only, not note text), or a meta line
+```
+
 5. If no notes and `breakingHeaderPattern` matches header → note `BREAKING CHANGE: <group 3>`.
 6. Mentions and revert scanned over the **whole raw input**.
 7. Cleanup: trim newlines of body/footer/notes; dedupe references by `lower(action + raw)`.
@@ -174,16 +199,17 @@ Purpose: `prepare` step commits release assets and pushes. README itself recomme
 
 Behavior:
 - `verifyConditions` borrows `assets`/`message` from the `prepare` plugin entry, validates (`EINVALIDASSETS`, `EINVALIDMESSAGE`). Module-level `verified` flag.
-- Only **modified or untracked** files (`ls-files -m -o`) matching assets are committed (micromatch, `dot: true`, dir-glob expansion; a lone `!glob` group is ignored). No match → no commit, no push.
 - Author/committer: core sets `GIT_AUTHOR_*`/`GIT_COMMITTER_*` = semantic-release-bot unless user env overrides.
 - Push target is `options.repositoryUrl` (core-injected token URL). Core re-reads HEAD after prepare, so the tag lands on the release commit.
 
-| Step | Command | Side effect |
-|---|---|---|
-| list candidates | `git ls-files -m -o` | none (maxBuffer issue on large untracked trees) |
-| stage | `git add --force --ignore-errors <files…>` | ignores `.gitignore`; errors swallowed (`reject: false`) |
-| commit | `git commit -F -` (message on stdin) | runs commit hooks; signing per user config |
-| push | `git push --tags <repositoryUrl> HEAD:<branch.name>` | pushes **all** local tags too |
+```mermaid
+flowchart TD
+    L["git ls-files -m -o: modified or untracked only (maxBuffer issue on large untracked trees)"] --> M{"match assets? micromatch, dot: true, dir-glob expansion, a lone !glob group is ignored"}
+    M -- no --> X(["no commit, no push"])
+    M -- yes --> A["git add --force --ignore-errors files: ignores .gitignore, errors swallowed (reject: false)"]
+    A --> C["git commit -F - (message on stdin): runs commit hooks, signing per user config"]
+    C --> P["git push --tags repositoryUrl HEAD:branch.name: pushes ALL local tags too"]
+```
 
 Rust: gix status (modified+untracked) + `globset` + index add + commit; push via gix if PoC passes, else git CLI fallback. Make it opt-in, no `--tags` blanket push.
 

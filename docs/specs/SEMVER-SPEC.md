@@ -54,19 +54,26 @@ Numbered groups (cg1 major … cg5 build; ECMAScript-compatible):
 
 ## 3. Precedence (§11)
 
-Algorithm, first difference wins:
-1. Compare `major`, `minor`, `patch` **numerically** (not as strings: `1.10.0 > 1.9.0`).
-2. Equal core: no pre-release > has pre-release (`1.0.0-alpha < 1.0.0`).
-3. Both pre-release: compare dot-identifiers left to right:
+First difference wins. **Build metadata is ignored**: `1.0.0+a` and `1.0.0+b` have equal precedence (but are different strings).
 
-| a vs b | Rule |
-|---|---|
-| numeric vs numeric | numeric compare (`2 < 11`) |
-| alnum vs alnum | ASCII byte order (`Z < a`, `-` (0x2D) < digits < uppercase < lowercase; `pre12 < pre8`) |
-| numeric vs alnum | numeric is always lower |
-| all shared equal, one longer | longer set is higher (`alpha < alpha.1`) |
-
-4. **Build metadata ignored**: `1.0.0+a` and `1.0.0+b` have equal precedence (but are different strings).
+```mermaid
+flowchart TD
+    A{"major, minor, patch differ? (numeric, not string: 1.10.0 > 1.9.0)"} -- yes --> W1(["higher core wins"])
+    A -- no --> B{"pre-release on both?"}
+    B -- neither --> EQ(["equal precedence"])
+    B -- "only one" --> W2(["no pre-release is higher: 1.0.0-alpha < 1.0.0"])
+    B -- both --> N{"next dot-identifier pair, left to right"}
+    N -- "both exhausted" --> EQ
+    N -- "one exhausted, all shared equal" --> W3(["longer set is higher: alpha < alpha.1"])
+    N -- pair --> K{"kinds?"}
+    K -- "numeric vs numeric" --> NN["numeric compare: 2 < 11"]
+    K -- "alnum vs alnum" --> AA["ASCII byte order: - (0x2D) < digits < uppercase < lowercase. Z < a, pre12 < pre8"]
+    K -- "numeric vs alnum" --> W4(["numeric is always lower"])
+    NN --> E{"equal?"}
+    AA --> E
+    E -- yes --> N
+    E -- no --> W5(["this pair decides"])
+```
 
 Canonical chain: `1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0`.
 

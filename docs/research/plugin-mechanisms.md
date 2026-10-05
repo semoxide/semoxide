@@ -43,14 +43,51 @@ Goal: keep semantic-release's step plugins (`verifyConditions` … `fail`, see [
 
 ## Recommendation: (e) hybrid
 
-1. **Core trait** in the library: `#[async_trait]`/AFIT `Plugin` with one method per step (default impl = not implemented) plus `fn steps() -> StepSet`. `Context` holds a borrowed logger, a filtered env (secrets masked) and cwd/options/branch/commits/releases. Built-ins (commit-analyzer, notes, github, git, changelog, exec, npm?) sit behind cargo features. Embedders call `Semoxide::builder().plugin(impl Plugin)`.
-2. **External protocol**: `ProcessPlugin` implements the same trait. One long-lived process per plugin per run, JSON-RPC 2.0, newline-delimited JSON on stdio.
-   - Handshake: `initialize {protocol: 1, host_version, plugin_config}` → `{protocol, name, steps[]}`. Steps are requests; `log` is a notification.
-   - Ignore unknown fields, so new fields are additive. Bump `protocol` only on a breaking change, and the host supports N and N-1.
-   - Env is inherited (like semantic-release) and never put in messages. Secret masking applies to plugin logs and stderr.
-3. **Resolution / install**: the built-in name is used first. Otherwise look up `semoxide-plugin-<name>` on PATH (cargo convention). Otherwise use `{ url = "...", sha256 = "..." }` with a per-OS archive, downloaded and cached (dprint model). An explicit `command = ["npx", "pkg"]` also works.
-4. **SDK crates**: `semoxide-plugin-protocol` (serde types + JSON Schema via `schemars`) and `semoxide-plugin-sdk` (a stdio server loop that wraps any `impl Plugin`). The same trait then works compiled in or out of process.
-5. **WASM: defer.** Its only advantage is sandboxing, and the plugins we need (npm, cargo publish) must exec, which breaks the sandbox. Revisit when a real untrusted-plugin use case appears. The protocol types can be reused through WIT.
+Proposed architecture. The same trait works compiled in or out of process:
+
+```mermaid
+flowchart LR
+    emb["embedder: Semoxide::builder().plugin(impl Plugin)"] --> trait["trait Plugin (async_trait or AFIT): one method per step, default = not implemented, plus steps() -> StepSet"]
+    bi["built-ins behind cargo features: commit-analyzer, notes, github, git, changelog, exec, npm?"] -->|implements| trait
+    pp["ProcessPlugin"] -->|implements| trait
+    pp -->|"JSON-RPC 2.0, newline-delimited JSON on stdio"| ext["plugin process, any language"]
+    sdk["semoxide-plugin-sdk: stdio server loop wrapping any impl Plugin"] --> ext
+    proto["semoxide-plugin-protocol: serde types + JSON Schema via schemars"] --> pp
+    proto --> sdk
+```
+
+`Context` holds a borrowed logger, a filtered env (secrets masked) and cwd/options/branch/commits/releases.
+
+Proposed protocol, one long-lived process per plugin per run:
+
+```mermaid
+sequenceDiagram
+    participant H as host (ProcessPlugin)
+    participant P as plugin process
+    H->>P: spawn, env inherited and never put in messages
+    H->>P: request initialize {protocol: 1, host_version, plugin_config}
+    P-->>H: {protocol, name, steps[]}
+    loop each step the plugin declared
+        H->>P: request: step
+        P-)H: log notification (secrets masked, as is stderr)
+        P-->>H: step result
+    end
+```
+
+Unknown fields are ignored, so new fields are additive. `protocol` is bumped only on a breaking change, and the host supports N and N-1.
+
+Proposed resolution (an explicit `command = ["npx", "pkg"]` also works):
+
+```mermaid
+flowchart TD
+    name["plugin name in config"] --> bi{"built-in?"}
+    bi -->|yes| useb["use built-in"]
+    bi -->|no| path{"semoxide-plugin-NAME on PATH? (cargo convention)"}
+    path -->|yes| spawn["spawn it"]
+    path -->|no| url["{ url, sha256 }: download per-OS archive, verify, cache (dprint model)"]
+```
+
+**WASM: defer.** Its only advantage is sandboxing, and the plugins we need (npm, cargo publish) must exec, which breaks the sandbox. Revisit when a real untrusted-plugin use case appears. The protocol types can be reused through WIT.
 
 ## Wave B PoCs
 

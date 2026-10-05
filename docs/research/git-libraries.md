@@ -63,9 +63,20 @@ Refs used below:
 
 ## Recommendation
 
-- **gix for everything local + fetch/ls-remote/notes/tags.** Push sits behind a `Pusher` trait in the library.
-- **Default pusher: git2** (option C) behind a cargo feature. **CLI pusher (D)** is an opt-in fallback for SSH setups that libssh2 can't handle.
-- Spike **E** in Wave B. If it handles HTTPS+SSH push of tag/notes/branch to GitHub/GitLab, drop git2 (pure-Rust static binary).
+Proposed layering, and the Wave B decision on option E:
+
+```mermaid
+flowchart TD
+    lib["semoxide library"] --> gix["gix: everything local, fetch, ls-remote, notes, tags"]
+    lib --> pusher["trait Pusher"]
+    pusher --> g2["git2 (C): default, behind a cargo feature"]
+    pusher --> cli["git CLI (D): opt-in fallback for SSH setups libssh2 can't handle"]
+    pusher --> e["own send-pack (E): Wave B spike"]
+    e --> q{"HTTPS and SSH push of tag, notes, branch to GitHub and GitLab works?"}
+    q -->|yes| drop["drop git2: pure-Rust static binary"]
+    q -->|no| keep["keep git2 as default"]
+```
+
 - Pin `gix` exactly. Budget for breaking upgrades each release.
 - Signed commits: out of core. If needed, add a signer hook (`gpg`/`ssh-keygen -Y sign`) + `commit_signed`/hand-built object.
 

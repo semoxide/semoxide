@@ -62,7 +62,6 @@ value       = text, may span lines; ends where the next line matches `token sep`
 
 | Case | Spec says | Proposed semoxide decision |
 |---|---|---|
-| Body vs footer boundary | R9 rationale only | Footer block = first paragraph (preceded by blank line) whose first line matches `token sep`; everything after it is footers. |
 | Body paragraph that looks like a footer (`Note: see below` mid-body) | silent | Becomes footer start (same as git-conventional). Accept; document. Optional strict lint: footer block must be the last paragraph. |
 | Line inside footer value matching `token sep` (e.g. `See: …` inside `BREAKING CHANGE:` text) | R10: terminates value | Follow R10 literally. |
 | Blank lines inside footer value | R10 allows newlines | Keep in value; trim trailing whitespace. |
@@ -87,14 +86,19 @@ value       = text, may span lines; ends where the next line matches `token sep`
 
 ## 3. SemVer mapping
 
-| Signal | Bump | Source |
-|---|---|---|
-| `!` in header OR `BREAKING CHANGE`/`BREAKING-CHANGE` footer, any type | MAJOR | R11–13, R16, FAQ |
-| `feat` | MINOR | R2, FAQ |
-| `fix` | PATCH | R3, FAQ |
-| any other type | none (spec silent) | R14 — semoxide config decides (e.g. `perf` → PATCH) |
-| Release bump | max over all commits in range | convention |
-| `0.y.z` | spec silent; FAQ: "proceed as if you've already released" | semoxide decision: e.g. breaking → MINOR while `0.x` (opt-in) |
+Per commit; the release bump is the max over all commits in range (convention).
+
+```mermaid
+flowchart TD
+    C["commit"] --> B{"! in header, or BREAKING CHANGE / BREAKING-CHANGE footer? (any type)"}
+    B -- yes --> MAJ(["MAJOR: R11-13, R16, FAQ"])
+    B -- no --> T{"type?"}
+    T -- feat --> MIN(["MINOR: R2, FAQ"])
+    T -- fix --> PAT(["PATCH: R3, FAQ"])
+    T -- other --> NONE(["none, spec silent (R14): semoxide config decides, e.g. perf to PATCH"])
+```
+
+`0.y.z`: spec silent; FAQ: "proceed as if you've already released". semoxide decision: e.g. breaking → MINOR while `0.x` (opt-in).
 
 ## 4. FAQ points affecting implementation
 
@@ -108,12 +112,20 @@ value       = text, may span lines; ends where the next line matches `token sep`
 
 ## 5. Implementation notes for semoxide
 
-Parser design:
-- Two-stage: (1) line-oriented splitter (header / paragraphs / footer block), (2) header parser. Hand-written or `winnow`; no regex needed.
+Parser design (hand-written or `winnow`; no regex needed):
+
+```mermaid
+flowchart TD
+    M["stored message, CRLF normalized"] --> S1["stage 1: line splitter into header, body paragraphs, footer block"]
+    S1 --> FB["footer block = first paragraph (after a blank line) whose first line matches token sep, all after it is footers. Spec: R9 rationale only"]
+    S1 --> S2{"stage 2: header parser, type(scope)!: description"}
+    S2 -- invalid --> NC(["Err(NotConventional): a normal outcome, not an error"])
+    S2 -- ok --> OK(["Ok(Commit)"])
+    FB --> OK
+```
 - Zero-copy `&str` AST: `Commit { type, scope, breaking_bang, description, body, footers: Vec<Footer{token, sep, value}> }`; derived `is_breaking()`, `breaking_notes()`.
 - Case-insensitive newtypes (`UniCase`-style) for type/scope/token; keep original spelling.
 - `ParseMode::{Strict, Lenient}` + diagnostics with byte spans (for a future `lint` CLI).
-- Return `Result<Commit, NotConventional>`; non-conventional is a normal outcome, not an error.
 - Fuzz (`cargo-fuzz`) + property tests: never panic, spans round-trip.
 
 Existing crates (checked crates.io 2026-10-05):

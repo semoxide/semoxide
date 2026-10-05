@@ -35,31 +35,51 @@ Beta/v14 (not on master yet): drops the atom/ember/eslint/express/jshint presets
 
 ## 3. Algorithm
 
+`rules = loadReleaseRules()` (`undefined | Rule[]`), `parser = CommitParser(loadParserConfig())`, `result = null`. `higher(cur, new) = !cur || idx(new) < idx(cur)`, where `idx(false|null) = -1`.
+
+```mermaid
+flowchart TD
+    A["drop commits with empty/whitespace message"] --> B["map to {rawMsg, message, ...c, ...parser.parse(message)}"]
+    B --> C["filterRevertedCommitsSync: drop revert pairs"]
+    C --> N{"next commit?"}
+    N -- none --> RET(["return result: string or null, never false"])
+    N -- yes --> L1["log: Analyzing commit: %s (rawMsg)"]
+    L1 --> CR{"custom rules?"}
+    CR -- yes --> T1["t = analyzeCommit(rules, c)"]
+    CR -- no --> T2["t = analyzeCommit(DEFAULTS, c)"]
+    T1 --> U{"t === undefined?"}
+    U -- "yes (false/null do NOT fall back)" --> T2
+    U -- no --> L2["log: The release type for the commit is %s / The commit should not trigger a release"]
+    T2 --> L2
+    L2 --> H{"t truthy and higher(result, t)?"}
+    H -- yes --> S["result = t"]
+    H -- no --> M{"result == major?"}
+    S --> M
+    M -- "yes, stop early" --> RET
+    M -- no --> N
 ```
-rules     = loadReleaseRules()          // undefined | Rule[]
-parser    = CommitParser(loadParserConfig())
-commits'  = filterRevertedCommitsSync(commits.filter(msg.trim()).map(c => {rawMsg, message, ...c, ...parser.parse(message)}))
-result    = null
-for c in commits':
-    log("Analyzing commit: %s", rawMsg)
-    t = rules ? analyzeCommit(rules, c) : undefined
-    if t === undefined: t = analyzeCommit(DEFAULTS, c)    // false/null from custom rules does NOT fall back
-    log(t ? "The release type for the commit is %s" : "The commit should not trigger a release")
-    if t && higher(result, t): result = t
-    if result == "major": break
-log("Analysis of %s commits complete: %s release", commits.length /*incl. empty*/, result || "no")
-return result                                             // string | null, never false
-```
+
+Final log: `Analysis of %s commits complete: %s release` with `commits.length` (incl. empty) and `result || "no"`.
 
 `analyzeCommit(rules, commit)`:
 1. Filters the rules. A rule matches if all of these hold:
    - `breaking` is truthy and `commit.notes.length > 0`. **Any note counts**, not only `BREAKING CHANGE` (#335).
    - `revert` is truthy and `commit.revert` is truthy. The parser's `revertPattern` sets `commit.revert`.
    - The remaining keys match through `_.isMatchWith(commit, rest, cust)`. This is a deep partial match: nested objects are a subset match, and arrays are an unordered subset. The customizer is used only when **both** values are strings, and calls `micromatch.isMatch(value, pattern)`. Everything else uses lodash `isEqual`, so `{scope: 1}` works. A rule with no criteria, `{release:"patch"}`, matches everything (#339).
-2. Folds the matches in rule order with `higher(cur, new) = !cur || idx(new) < idx(cur)`, where `idx(false|null) = -1`. Consequences:
-   - A truthy type after a falsy one always replaces it. A **falsy type after a truthy one also always replaces it**, except when the current value is `major`, because the fold stops at `major`. So a trailing `{release:false}` acts as a veto that depends on rule order (README `no-release` example, #377, #122).
-   - Otherwise the higher type wins.
-3. Returns `undefined` when no rule matched. Only `undefined` triggers the fallback to the default rules.
+2. Folds the matches in rule order:
+
+```mermaid
+flowchart TD
+    N{"next matching rule, in rule order?"} -- none --> RET(["return cur: undefined if no rule matched, the only value that triggers the default fallback"])
+    N -- yes --> H{"higher(cur, rule.release)?"}
+    H -- no --> N
+    H -- yes --> S["cur = rule.release"]
+    S --> M{"cur == major?"}
+    M -- yes, stop --> RET
+    M -- no --> N
+```
+
+Consequence: a truthy type after a falsy one replaces it, and a **falsy type after a truthy one also replaces it** (unless `major` already stopped the fold). So a trailing `{release:false}` acts as a veto that depends on rule order (README `no-release` example, #377, #122). Otherwise the higher type wins.
 
 Matching notes:
 - A rule value is a **glob, not a regex**. JSON has no RegExp, and a JS RegExp in a rule falls through to `isEqual` and never matches a string. micromatch is path-oriented: `*` does not cross `/` (#175), leading `.` is treated as a dotfile, and picomatch on win32 converts `\` to `/`. Braces and extglobs (`{a,b}`, `+(x|y)`) work. Matching is case-sensitive (#496, #641).

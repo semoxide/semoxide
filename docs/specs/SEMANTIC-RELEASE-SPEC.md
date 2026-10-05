@@ -31,25 +31,52 @@ Links: [Release steps](https://semantic-release.org/foundation/release-steps/) �
 Plugins run in `plugins` array order within each step. Steps run in fixed order.
 
 ### 2.2 Actual run order [src] ([conflict] with the docs table)
-The docs put "Create Git Tag" before Prepare and "Add Channel" between tag and Prepare. The source does this:
+The docs put "Create Git Tag" before Prepare and "Add Channel" between tag and Prepare. The source does this (numbers are step ids used elsewhere):
 
-1. Load config (§3), detect CI (`env-ci`).
-2. Not in CI and no `--no-ci` → force `dryRun=true` with a warning. In CI → default `GIT_AUTHOR_*`/`GIT_COMMITTER_*` to `semantic-release-bot <semantic-release-bot@martynus.net>` unless already set, and set `GIT_ASKPASS=echo`, `GIT_TERMINAL_PROMPT=0`.
-3. CI build triggered by a PR (and CI checks on) → log and return `false`.
-4. Core verify: inside a git repo (`ENOGITREPO`), `repositoryUrl` set (`ENOREPOURL`) and not starting with `-` (`EINVALIDREPOURL`), tagFormat valid (§5), branch entries valid (`EINVALIDBRANCH`).
-5. Resolve the auth URL (§6), then expand and fetch branches, tags and notes (§4).
-6. Current branch not configured → log and return `false`.
-7. `git push --dry-run --no-verify <url> HEAD:<branch>`. On failure: if local is behind remote → return `false`; else `EGITNOPERMISSION`. **This also runs in dry-run.**
-8. `verifyConditions`.
-9. **Merged-release promotion**: if a release from a higher branch exists on this branch's history but not on its channel, then (maintenance: version must satisfy `mergeRange`, else `EINVALIDMAINTENANCEMERGE`) `generateNotes` → add the channel to the git note and push it → `addChannel` → `success`. At most one version per run (the highest).
-10. Get last release (§4.4) → collect commits `lastRelease.gitHead..HEAD`.
-11. `analyzeCommits` → no type → return `{releases}` if step 9 produced any, else `false`.
-12. Compute the next version (§4.5) and tag. Non-prerelease version outside `branch.range` → `EINVALIDNEXTVERSION`.
-13. `verifyRelease` → `generateNotes` → `prepare`.
-14. Not dry-run: `git tag` → add note `{"channels":[channel]}` → `git push --tags` → push the note ref.
-15. `publish` → `success`.
-16. Dry-run: print the notes (markdown rendered to the terminal).
-17. On error: call `fail` with `errors` **only if** at least one error is a `SemanticReleaseError` (`error.semanticRelease`); then log and rethrow.
+```mermaid
+flowchart TD
+    S1["1 Load config (§3), detect CI (env-ci)"] --> S2{"2 Not in CI and no --no-ci?"}
+    S2 -- yes --> DRY["force dryRun=true, warn"]
+    S2 -- no --> ENV["set CI git env (below)"]
+    DRY --> S3{"3 PR build and CI checks on?"}
+    ENV --> S3
+    S3 -- yes --> NO(["log, return false"])
+    S3 -- no --> S4["4 Core verify: ENOGITREPO, ENOREPOURL, EINVALIDREPOURL (url starts with -), tagFormat (§5), EINVALIDBRANCH"]
+    S4 --> S5["5 Resolve auth URL (§6), expand and fetch branches, tags, notes (§4)"]
+    S5 --> S6{"6 Current branch configured?"}
+    S6 -- no --> NO
+    S6 -- yes --> S7{"7 git push --dry-run --no-verify url HEAD:branch (also in dry-run)"}
+    S7 -- "fails, local behind remote" --> NO
+    S7 -- "fails otherwise" --> EP(["EGITNOPERMISSION"])
+    S7 -- ok --> S8["8 verifyConditions"]
+    S8 --> S9["9 Merged-release promotion (below)"]
+    S9 --> S10["10 Last release (§4.4), commits lastRelease.gitHead..HEAD"]
+    S10 --> S11{"11 analyzeCommits gives a type?"}
+    S11 -- no --> NR(["return {releases} if step 9 released, else false"])
+    S11 -- yes --> S12["12 Next version (§4.5) and tag. Non-prerelease outside branch.range: EINVALIDNEXTVERSION"]
+    S12 --> S13["13 verifyRelease, generateNotes, prepare"]
+    S13 --> S14{"dry-run?"}
+    S14 -- no --> T["14 git tag, note {channels:[channel]}, git push --tags, push note ref"]
+    T --> S15["15 publish, success"]
+    S14 -- yes --> S16["16 print notes (markdown rendered to the terminal)"]
+```
+
+- CI git env (step 2): default `GIT_AUTHOR_*`/`GIT_COMMITTER_*` to `semantic-release-bot <semantic-release-bot@martynus.net>` unless already set; set `GIT_ASKPASS=echo`, `GIT_TERMINAL_PROMPT=0`.
+- 17, on any error: call `fail` with `errors` **only if** at least one error is a `SemanticReleaseError` (`error.semanticRelease`); then log and rethrow.
+
+Step 9 runs `addChannel` before the normal release, for at most one version per run (the highest):
+
+```mermaid
+flowchart TD
+    A{"Release from a higher branch in this branch's history but not on its channel?"} -- no --> Z(["continue to step 10"])
+    A -- yes --> B{"Maintenance branch and version outside mergeRange?"}
+    B -- yes --> E(["EINVALIDMAINTENANCEMERGE"])
+    B -- no --> C["generateNotes"]
+    C --> D["add the channel to the git note, push it"]
+    D --> F["addChannel"]
+    F --> G["success"]
+    G --> Z
+```
 
 ## 3. Configuration
 Link: [Configuration](https://semantic-release.org/usage/configuration/)
@@ -112,11 +139,19 @@ Branch order in the result: maintenance (sorted by range) → release (config or
 - Last release = highest version among branch tags that are non-prerelease, or (on a prerelease branch) prereleases with this branch's id that are on this branch's channel.
 
 ### 4.5 Next version [src]
-- No last release: `1.0.0`, or `1.0.0-<pre>.1` on a prerelease branch. Starting at `0.x` is unsupported ([FAQ](https://semantic-release.org/support/faq/#can-i-set-the-initial-release-version-of-my-package-to-001)).
-- Release or maintenance branch: `inc(last, type)`.
-- Prerelease branch:
-  - If `last` is a prerelease on the same channel: `max(inc(last,'prerelease'), inc(highestTagInclPre, type)+'-<pre>.1')`.
-  - Otherwise: `inc(major.minor.patch, type)+'-<pre>.1'`.
+`pre` = the branch's prerelease id. Starting at `0.x` is unsupported ([FAQ](https://semantic-release.org/support/faq/#can-i-set-the-initial-release-version-of-my-package-to-001)).
+
+```mermaid
+flowchart TD
+    A{"Last release?"} -- none --> B{"Prerelease branch?"}
+    B -- no --> B1["1.0.0"]
+    B -- yes --> B2["1.0.0-pre.1"]
+    A -- found --> C{"Branch type?"}
+    C -- "release or maintenance" --> C1["inc(last, type)"]
+    C -- prerelease --> D{"last is a prerelease on the same channel?"}
+    D -- yes --> D1["max(inc(last, 'prerelease'), inc(highestTagInclPre, type) + '-pre.1')"]
+    D -- no --> D2["inc(major.minor.patch, type) + '-pre.1'"]
+```
 
 ### 4.6 Range calculation [src]
 **Release branches** `R[0..n]`:

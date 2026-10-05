@@ -45,9 +45,34 @@ Source: https://github.com/semantic-release/npm @ `ab4382f` (2026-10-05). ~400 L
 
 **Registry resolution** (`get-registry.js`): `publishConfig.registry` → `env.NPM_CONFIG_REGISTRY` → `@scope:registry` / `registry` from `rc("npm", {registry: OFFICIAL}, {config: USERCONFIG || <cwd>/.npmrc})` → `https://registry.npmjs.org/`. Note: `.npmrc` is read from `cwd`, never from `pkgRoot`.
 
-**.npmrc handling** (`set-npmrc-auth.js`): `rc` collects every npmrc it finds (project, user, global, env). Contents are concatenated verbatim into a temp file (`tempy`, at module load, never deleted). If `registry-auth-token` already finds auth for the registry → file written as-is. Else if `NPM_TOKEN` → append `//host/path/:_authToken = ${NPM_TOKEN}` (nerf-dart). Else `ENONPMTOKEN`. Every npm command gets `--userconfig <temp>`.
+**Auth verification** (`verify-auth.js`, `trusted-publishing/`, `set-npmrc-auth.js`). Every OIDC failure falls back to token auth silently (logged only):
 
-**OIDC / trusted publishing** (`trusted-publishing/`): only if `registry === "https://registry.npmjs.org/"` (strict string compare, [#1066](https://github.com/semantic-release/npm/issues/1066)). CI detected via `env-ci`. ID token → `POST https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/<urlencoded name>` with `Authorization: Bearer <idToken>`; `200` → `{token}`. **The returned token is discarded** — success only proves trust is configured; actual publish relies on npm CLI (>=11.5.1) doing its own OIDC exchange. On success, no temp npmrc is written and `whoami` is skipped.
+```mermaid
+flowchart TD
+    reg{"registry === 'https://registry.npmjs.org/' (strict string compare)"}
+    reg -->|yes| ci{"CI via env-ci"}
+    reg -->|no| rc["rc collects every npmrc: project, user, global, env"]
+    ci -->|"GitHub Actions"| gha["getIDToken('npm:registry.npmjs.org')"]
+    ci -->|"GitLab, CircleCI"| idt{"NPM_ID_TOKEN set?"}
+    ci -->|other| rc
+    gha -->|"fails, e.g. no id-token: write"| rc
+    gha --> ex["POST /-/npm/v1/oidc/token/exchange/package/{name}, Authorization: Bearer idToken"]
+    idt -->|yes| ex
+    idt -->|no| rc
+    ex -->|"non-2xx"| rc
+    ex -->|"200: token discarded"| oidc["OIDC ok: no temp npmrc, no whoami. npm CLI 11.5.1+ does its own exchange at publish"]
+    rc --> auth{"registry-auth-token finds auth?"}
+    auth -->|yes| tmp["temp npmrc = all npmrc files concatenated"]
+    auth -->|no| tok{"NPM_TOKEN set?"}
+    tok -->|yes| tmp2["also append nerf-dart :_authToken = ${NPM_TOKEN}"]
+    tok -->|no| err["ENONPMTOKEN"]
+    tmp --> def{"registry == DEFAULT_NPM_REGISTRY, normalized?"}
+    tmp2 --> def
+    def -->|yes| who["npm whoami, fail = EINVALIDNPMTOKEN"]
+    def -->|no| none["no verification at all"]
+```
+
+The strict compare silently disables OIDC for a registry without a trailing slash ([#1066](https://github.com/semantic-release/npm/issues/1066)). The temp file is created by `tempy` at module load and never deleted. Every npm command gets `--userconfig <temp>`.
 
 **Provenance**: not implemented by the plugin. npm CLI emits it automatically under trusted publishing, or via `publishConfig.provenance` / `NPM_CONFIG_PROVENANCE=true`.
 
@@ -55,13 +80,29 @@ Source: https://github.com/semantic-release/npm @ `ab4382f` (2026-10-05). ~400 L
 
 Module-level state: `verified`, `prepared`, temp `npmrc` path. Each step re-reads `package.json`; if `verifyConditions` did not run, steps re-validate config + auth themselves.
 
-| Step | Behavior | npm command(s) (cwd = `context.cwd` unless noted) |
-|---|---|---|
-| `verifyConditions` | merge options from publish entry; validate; read pkg; if publishing & not private: OIDC check → else build npmrc → whoami if official registry | `npm whoami --userconfig <tmp> --registry <reg>` → fail = `EINVALIDNPMTOKEN`. Custom registries: **no verification at all** |
-| `prepare` | bump version; optional pack + move | `npm version <ver> --userconfig <tmp> --no-git-tag-version --allow-same-version` (cwd = pkgRoot). If `tarballDir`: `npm pack <pkgRoot> --userconfig <tmp>`; tarball name = last stdout line; moved to `<cwd>/<tarballDir>/` unless same path |
-| `publish` | runs `prepare` if not yet prepared; skip if `npmPublish:false`/private (returns `false`) | `npm publish <pkgRoot> --userconfig <tmp> --tag <distTag> --registry <reg>` |
-| `addChannel` | skip if `npmPublish:false`/private | `npm dist-tag add <name>@<ver> <distTag> --userconfig <tmp> --registry <reg>` |
-| `success`/`fail` | not implemented | — |
+Every command gets `--userconfig tmp`; cwd is `context.cwd` unless noted. `success`/`fail` are not implemented.
+
+```mermaid
+sequenceDiagram
+    participant SR as semantic-release
+    participant P as npm plugin
+    participant N as npm CLI
+    SR->>P: verifyConditions
+    Note over P: merge options from publish entry, validate, read pkg. If publishing and not private, run auth verification (above)
+    P->>N: npm whoami --registry reg (default registry only)
+    SR->>P: prepare
+    P->>N: npm version ver --no-git-tag-version --allow-same-version (cwd = pkgRoot)
+    opt tarballDir set
+        P->>N: npm pack pkgRoot
+        Note over P: tarball name = last stdout line, moved to cwd/tarballDir unless same path
+    end
+    SR->>P: publish
+    Note over P: runs prepare if not yet prepared. npmPublish false or private: skip, return false
+    P->>N: npm publish pkgRoot --tag distTag --registry reg
+    SR->>P: addChannel
+    Note over P: npmPublish false or private: skip
+    P->>N: npm dist-tag add name@ver distTag --registry reg
+```
 
 **dist-tag mapping** (`get-channel.js`): no channel → `latest`; channel is a valid semver range (e.g. `1.x`) → `release-1.x`; else channel verbatim.
 

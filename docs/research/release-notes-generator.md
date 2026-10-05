@@ -40,13 +40,22 @@ README claims that without preset/config only `parserOpts`/`writerOpts` are used
 
 ## 3. Algorithm and data flow
 
-```
-loadChangelogConfig -> {commitOpts, parserOpts, writerOpts}
-repositoryUrl -> {protocol, hostname, port, owner, repository}
-hostname -> HOSTS_CONFIG entry (exact match) | default
-commits -> filter(empty, ignore) -> map(CommitParser.parse merged onto raw commit) -> filterRevertedCommitsSync
-context = lodash.merge(derived, pluginOverrides)   // undefined overrides are skipped
-return writeChangelogString(parsedCommits, context, writerOpts)
+```mermaid
+flowchart LR
+    cfg["loadChangelogConfig"] --> opts["commitOpts, parserOpts, writerOpts"]
+    url["repositoryUrl"] -->|"URL parsing"| coords["protocol, hostname, port, owner, repository"]
+    coords -->|"hostname, exact match"| hosts["HOSTS_CONFIG entry or default"]
+    commits["context.commits"] --> filt["filter: empty, ignore"]
+    filt --> parse["CommitParser.parse, merged onto raw commit"]
+    parse --> rev["filterRevertedCommitsSync"]
+    opts --> parse
+    hosts --> parse
+    coords --> ctx["context = lodash.merge(derived, pluginOverrides), undefined overrides skipped"]
+    hosts --> ctx
+    rev --> writer["writeChangelogString(parsedCommits, context, writerOpts)"]
+    ctx --> writer
+    opts --> writer
+    writer --> notes["notes string"]
 ```
 
 **URL parsing** (`index.js:31-40`):

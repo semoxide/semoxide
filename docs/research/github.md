@@ -62,10 +62,51 @@ Resolution happens in `lib/resolve-config.js`. Options win over env vars.
 | Step | Flow |
 |---|---|
 | verifyConditions | validate options → parse URL → (if token and proxy valid) GET repo → rename check → if not `GITHUB_ACTION` and not `permissions.push`, HEAD `/installation/repositories` (success means App token, so OK) → 401 gives `EINVALIDGHTOKEN`, 404 gives `EMISSINGREPO`, other errors are rethrown |
-| publish | no assets: one POST release (draft if `draftRelease`). With assets: POST draft → glob → upload **all in parallel** (each file read fully into memory) → unless `draftRelease`, PATCH `draft:false` + `make_latest` + discussion. Returns `{url, name:"GitHub release", id, discussion_url}` |
 | addChannel | GET release by tag → PATCH `{name, prerelease, tag_name}`. On 404, POST a new release with `body: notes`. **No `make_latest`**, body is not updated |
-| success | GET repo (canonical `full_name`) → [comments: GraphQL associated PRs (chunks of 100 SHAs, chunks run in parallel) → per PR (unbounded concurrency) paginate PR commits, falling back to GET PR `merge_commit_sha` → issue-parser on PR bodies + commit messages (`close` actions, same-repo slug only) → GraphQL `issueOrPullRequest` batch → parallel comment + label, where 403/404 log only and other errors are collected] → [GraphQL find SR issues → PATCH close each] → [`addReleases`, only if there were no errors: PATCH release body] → throw AggregateError |
 | fail | GET repo → GraphQL find SR issue (first 100 open, label filter, marker in body) → evaluate condition → comment on the existing issue, or POST a new issue |
+
+**publish** returns `{url, name:"GitHub release", id, discussion_url}`:
+
+```mermaid
+sequenceDiagram
+    participant P as github plugin
+    participant API as GitHub API
+    participant U as upload_url
+    alt no assets
+        P->>API: POST release (draft if draftRelease, else with discussion)
+    else assets
+        P->>API: POST release, draft true
+        API-->>P: upload_url, id
+        Note over P: glob assets. Missing or non-file assets are logged and skipped
+        par all assets at once, each file read fully into memory
+            P->>U: POST ?name=&label= with raw body
+        end
+        opt not draftRelease
+            P->>API: PATCH draft false, make_latest, discussion
+        end
+    end
+    Note over P,API: An upload failure throws here and leaves an orphan untagged draft. A rerun hits already_exists
+```
+
+**success** (`releasedLabels` are added only after the comment succeeds):
+
+```mermaid
+flowchart TD
+    repo["GET repo: canonical full_name"] --> gate{"successComment false, no commits, or successCommentCondition false?"}
+    gate -->|no| prs["GraphQL associated PRs: chunks of 100 SHAs, chunks in parallel"]
+    prs --> conf["per PR, unbounded concurrency: paginate PR commits, else GET PR merge_commit_sha"]
+    conf --> kw["issue-parser on PR bodies and commit messages: close actions, same-repo slug only"]
+    kw --> hyd["GraphQL issueOrPullRequest batch"]
+    hyd --> fan["parallel per PR/issue: condition, comment, then label. 403/404 log only, other errors collected"]
+    fan --> fgate
+    gate -->|yes| fgate{"failComment, failTitle or failCommentCondition false?"}
+    fgate -->|no| close["GraphQL find SR issues, PATCH close each"]
+    close --> add{"addReleases set and no errors?"}
+    fgate -->|yes| add
+    add -->|yes| body["PATCH release body"]
+    add -->|no| agg["throw AggregateError if any errors"]
+    body --> agg
+```
 
 ### API calls (exhaustive)
 
@@ -120,7 +161,7 @@ Notes on PR/issue discovery:
 
 | Side effect | Where | Notes |
 |---|---|---|
-| GitHub release created or updated (draft, prerelease, `make_latest`, discussion) | publish, addChannel | With assets, a failed upload leaves an **orphan untagged draft**. A rerun then hits `already_exists` ([#295](https://github.com/semantic-release/github/issues/295), [#995](https://github.com/semantic-release/github/issues/995)) |
+| GitHub release created or updated (draft, prerelease, `make_latest`, discussion) | publish, addChannel | Orphan draft on failed upload (see publish diagram; [#295](https://github.com/semantic-release/github/issues/295), [#995](https://github.com/semantic-release/github/issues/995)) |
 | Release assets uploaded | publish | No overwrite or delete of an existing asset |
 | Comments on PRs and issues | success | Can be hundreds of POSTs, which trips secondary rate limits |
 | Labels added to PRs and issues (the label is auto-created by GitHub if missing) | success | |
@@ -143,23 +184,35 @@ Notes on PR/issue discovery:
 | GHE | Derive `{api_base, upload_base, graphql_url}` from `GITHUB_API_URL`/`GITHUB_SERVER_URL`. GHE uses `/api/v3` and `/api/graphql` paths, and uploads go to `{host}/api/uploads`. Always use the `upload_url` returned by the API |
 | Steps | Drop the module-global `verified`. The host guarantees that verify runs. Verify should also check the extra permissions ([#895](https://github.com/semantic-release/github/issues/895)) |
 
-**Shared shape for GitLab/Gitea**: `trait Forge` below. SHA → PR discovery is forge-specific; keyword parsing, dedup, conditions and the rate-limited comment/label fan-out are shared.
+**Proposed `trait Forge`**, a shared shape for GitHub, GitLab and Gitea. All methods are `async` and take `&self`. SHA → PR discovery is forge-specific. Keyword parsing, dedup, conditions and the rate-limited comment/label fan-out are shared.
 
-```rust
-trait Forge {
-    async fn verify(&self) -> Result<RepoInfo>;
-    async fn create_release(&self, r: &ReleaseSpec) -> Result<ReleaseRef>;
-    async fn upload_asset(&self, rel: &ReleaseRef, a: &Asset) -> Result<Url>;
-    async fn finalize_release(&self, rel: &ReleaseRef) -> Result<()>;
-    async fn release_by_tag(&self, tag: &str) -> Result<Option<ReleaseRef>>;
-    async fn change_requests_for_commits(&self, shas: &[Sha]) -> Result<Vec<ChangeRequest>>;
-    async fn issues(&self, ids: &[u64]) -> Result<Vec<Issue>>;
-    async fn comment(&self, id: u64, body: &str) -> Result<Url>;
-    async fn add_labels(&self, id: u64, labels: &[String]) -> Result<()>;
-    async fn find_open_issue(&self, marker: &str, labels: &[String]) -> Result<Option<Issue>>;
-    async fn open_issue(&self, spec: IssueSpec) -> Result<Url>;
-    async fn close_issue(&self, id: u64) -> Result<()>;
-}
+```mermaid
+classDiagram
+    class Forge {
+        <<trait>>
+        verify() Result~RepoInfo~
+        create_release(r: ReleaseSpec) Result~ReleaseRef~
+        upload_asset(rel: ReleaseRef, a: Asset) Result~Url~
+        finalize_release(rel: ReleaseRef) Result
+        release_by_tag(tag: str) Result~Option~ReleaseRef~~
+        change_requests_for_commits(shas: Sha[]) Result~Vec~ChangeRequest~~
+        issues(ids: u64[]) Result~Vec~Issue~~
+        comment(id: u64, body: str) Result~Url~
+        add_labels(id: u64, labels: String[]) Result
+        find_open_issue(marker: str, labels: String[]) Result~Option~Issue~~
+        open_issue(spec: IssueSpec) Result~Url~
+        close_issue(id: u64) Result
+    }
+    class Shared {
+        keyword parsing
+        dedup
+        conditions
+        rate-limited comment and label fan-out
+    }
+    Forge <|.. GitHub
+    Forge <|.. GitLab
+    Forge <|.. Gitea
+    Shared --> Forge : calls
 ```
 
 ## 6. Tests
