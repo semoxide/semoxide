@@ -19,3 +19,4 @@ Status: accepted (2026-10-05). Decided step by step: making semoxide easy and sa
   - Without a TTY, or with `--no-input`, semoxide never prompts, pages, opens an editor or shows spinners or progress bars. Anything that needs an answer fails fast, naming the flag to pass instead.
   - Child processes get `GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, and BatchMode for `ssh`.
   - A test runs every command without a TTY and fails on any prompt or hang.
+- **Retry hints on errors (C7):** every JSON error carries `retryable` (transient: network timeouts, rate limits, the SSH handshake flake) and `remote_writes_happened` (true once anything was pushed or published, [ADR 0012](0012-partial-failure.md)). Retrying is safe only when `retryable && !remote_writes_happened`.
