@@ -78,7 +78,12 @@ Decided in [0015](decisions/0015-testing.md): placement, kinds, how tests run.
 
 - **Toolchain:** pinned in `rust-toolchain.toml` to the exact stable release; Renovate/Dependabot bumps it. **MSRV = latest minus 2**, checked with `cargo hack --rust-version` ([0015](decisions/0015-testing.md)).
 - **Every other tool is pinned too:** CI actions (to commit SHA), cargo tools (exact versions, e.g. nextest, insta, deny, shear, semver-checks, mutants, llvm-cov, hack), qlty and its plugins, typos, zizmor, and the hook config. Pins are bumped by automation, never floating.
-- Lints: [0017](decisions/0017-code-quality.md).
+- **`[workspace.package]`:** `edition = "2024"`, `rust-version`, `license = "MIT OR Apache-2.0"`, `repository`, all inherited by every crate.
+- **`[workspace.dependencies]`:** every external dependency is declared once; crates use `dep.workspace = true`, with the per-crate `default-features` override where needed (e.g. git2).
+- **`[workspace.lints]`:** the [0017](decisions/0017-code-quality.md) policy; every crate sets `lints.workspace = true`.
+- **Resolver 3. `default-members = ["crates/semoxide-cli"]`. CI uses `CARGO_BUILD_WARNINGS=deny`.**
+- **Features:** few and additive only, using `dep:` syntax; no feature removes behaviour. SSH backends: `ssh-russh` (default) and `ssh-exec`.
+- **Profiles:** dev/test build dependencies at `opt-level = 3`; release uses `strip = true`, `lto = "thin"`, `codegen-units = 1`.
 
 ## 8. Where things go
 
