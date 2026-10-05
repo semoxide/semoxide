@@ -25,7 +25,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Trusting downloaded plugins:**
   - Now: a checksum lock only. The sha256 recorded on first download is required on every later run.
   - Once the plugin repos are public: also verify GitHub artifact attestations (Sigstore, e.g. the `sigstore` crate) before first use. GitHub's Free, Pro and Team plans only offer attestations for public repos.
-- **Bundled defaults:** the commit analyzer and the release-notes generator implement the same plugin trait, but ship inside the semoxide binary as in-process plugins and are enabled by default. Like any plugin, they can be replaced. They are the only exceptions to "plugins live in separate repos".
+- **Bundled defaults:** commit-analyzer and release-notes live in their own repos (`semoxide-plugin-commit-analyzer`, `semoxide-plugin-release-notes`) like every plugin. semoxide depends on their crates and compiles them in, running them in-process and enabled by default. They are also released as binaries, so they can be replaced. They are the first users of the in-process crate path.
 - **First official plugins** (each in its own repo): github, cargo, exec, gitlab, changelog, git. npm is not in the first set.
 - **Naming:**
   - Each plugin uses `semoxide-plugin-<name>` for its repo, binary and crate (e.g. `sm-steel/semoxide-plugin-github`). Config uses the short name (`[plugins.github]`).
