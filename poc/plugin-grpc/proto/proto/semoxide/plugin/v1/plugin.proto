@@ -1,0 +1,125 @@
+// semoxide plugin protocol, v1 (PoC).
+//
+// Transport: gRPC (HTTP/2) over a native local socket (Unix domain socket /
+// Windows named pipe). The host listens; the plugin dials the address given
+// as `--socket <addr>` TWICE, writing one tag byte first on each connection:
+//   'P' -> plugin service connection: host = HTTP/2 client, plugin = server
+//   'H' -> host services connection:  plugin = HTTP/2 client, host = server
+//
+// Compatibility: protocol SemVer. Major must match; within a major only
+// additive changes. Unknown fields and unknown enum values are ignored.
+syntax = "proto3";
+
+package semoxide.plugin.v1;
+
+// ---------- plugin service (implemented by the plugin) ----------
+
+service Plugin {
+  rpc Handshake(HandshakeRequest) returns (HandshakeResponse);
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+  rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+  rpc RunStep(StepRequest) returns (StepResponse);
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+message ProtocolVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
+  uint32 patch = 3;
+}
+
+enum Step {
+  STEP_UNSPECIFIED = 0;
+  STEP_VERIFY_CONDITIONS = 1;
+  STEP_ANALYZE_COMMITS = 2;
+  STEP_VERIFY_RELEASE = 3;
+  STEP_GENERATE_NOTES = 4;
+  STEP_PREPARE = 5;
+  STEP_PUBLISH = 6;
+  STEP_ADD_CHANNEL = 7;
+  STEP_SUCCESS = 8;
+  STEP_FAIL = 9;
+  STEP_ROLLBACK = 10;
+}
+
+message HandshakeRequest {
+  ProtocolVersion protocol = 1;
+  string host_name = 2;
+  string host_version = 3;
+}
+
+message HandshakeResponse {
+  ProtocolVersion protocol = 1;
+  string plugin_name = 2;
+  string plugin_version = 3;
+  // Unknown values (a newer plugin) are ignored by the host.
+  repeated Step steps = 4;
+  // Names of the secret env vars the plugin needs (e.g. GH_TOKEN).
+  repeated string secret_env = 5;
+}
+
+message DescribeRequest {}
+
+message DescribeResponse {
+  // JSON Schema (draft 2020-12) of the plugin's config table.
+  string config_schema_json = 1;
+}
+
+message ConfigureRequest {
+  // The plugin's config table as JSON.
+  string config_json = 1;
+  // Values of the declared secret_env vars that are set on the host.
+  map<string, string> secrets = 2;
+}
+
+message ConfigureResponse {}
+
+message StepRequest {
+  Step step = 1;
+  // semantic-release-like context as JSON (PoC shortcut).
+  string context_json = 2;
+}
+
+message StepResponse {
+  // Step result as JSON (null, release type, notes, publish info, ...).
+  string output_json = 1;
+}
+
+message ShutdownRequest {}
+message ShutdownResponse {}
+
+// ---------- host services (implemented by semoxide) ----------
+
+service HostLog {
+  rpc Log(LogRequest) returns (LogResponse);
+}
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_DEBUG = 1;
+  LOG_LEVEL_INFO = 2;
+  LOG_LEVEL_WARN = 3;
+  LOG_LEVEL_ERROR = 4;
+}
+
+message LogRequest {
+  LogLevel level = 1;
+  string message = 2;
+}
+
+message LogResponse {}
+
+// Narrow git service. semoxide enforces its rules here (only the release tag
+// may be pushed, tags are never moved, commit-back per ADR 0009).
+service HostGit {
+  rpc Add(GitAddRequest) returns (GitAddResponse);
+  rpc Commit(GitCommitRequest) returns (GitCommitResponse);
+  rpc Push(GitPushRequest) returns (GitPushResponse);
+}
+
+message GitAddRequest { repeated string paths = 1; }
+message GitAddResponse {}
+message GitCommitRequest { string message = 1; }
+message GitCommitResponse { string sha = 1; }
+message GitPushRequest { string refspec = 1; }
+message GitPushResponse {}

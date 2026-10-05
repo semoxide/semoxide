@@ -1,0 +1,20 @@
+[package]
+name = "semoxide-plugin-demo"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "semoxide_plugin_demo"
+
+[[bin]]
+name = "semoxide-plugin-demo"
+path = "src/main.rs"
+
+[dependencies]
+semoxide-plugin-sdk = { path = "../sdk" }
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true

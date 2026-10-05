@@ -1,0 +1,11 @@
+[package]
+name = "semoxide-plugin-conformance"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+semoxide-plugin-sdk = { path = "../sdk", features = ["host"] }
+tokio.workspace = true
+tonic.workspace = true
+serde_json.workspace = true
