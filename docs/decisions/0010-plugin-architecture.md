@@ -12,7 +12,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Getting plugins:**
   - By default, config pins a version (`[plugins.github] version = "1.4.2"`). semoxide downloads that binary from the plugin's GitHub release, checks its checksum (recorded in a lock file) and caches it.
   - Override: an explicit `path = "..."` or PATH lookup of `semoxide-plugin-<name>`, for plugin development and offline/air-gapped CI.
-- **Embedders:** each Rust plugin repo publishes a library crate as well as its binary, both implementing the SDK `Plugin` trait. Embedders can link a plugin in-process and register it in the builder (no process, no socket), or use binaries like the CLI does. The conformance kit tests both paths.
+- **Embedders:** each Rust plugin repo publishes a library crate as well as its binary, both implementing the SDK `Plugin` trait. Embedders can link a pure-computation plugin in-process (see In-process limits) and register it in the builder (no process, no socket), or use binaries like the CLI does. The conformance kit tests both paths.
 - **Version compatibility:** the protocol uses SemVer, and host and plugin must share the same major version. Within a major version only additive Protobuf changes are allowed (new fields, new optional RPCs), and both sides ignore what they don't know. A major bump breaks every plugin at once, so it must be rare.
 - **Environment and secrets:**
   - A plugin gets the system variables (`PATH`, `SystemRoot`, `PATHEXT`, …) plus only the secret variables listed in its **manifest**, a file shipped with each plugin release.
@@ -42,6 +42,10 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - As in semantic-release: plugins change files freely and the user sets the order. The `git` plugin commits and pushes its `assets` through the host `Git` service.
   - semoxide compares the working tree before and after each plugin, so it knows which files each plugin changed.
   - If a file matching git's `assets` changes after git has committed: during `prepare` this is an error by default (configurable down to a warning), so nothing is published with a stale commit; during `publish` it can only be a warning.
+- **In-process limits:**
+  - In-process plugins must not start child processes; the SDK only allows that in process mode. Plugins that run external tools (cargo, exec, git hooks, …) always run as processes.
+  - In-process plugins log only via the `Log` API, which is masked; the conformance kit checks that they don't print directly.
+  - On a timeout the step fails and the call is abandoned (an in-process plugin can't be killed).
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
