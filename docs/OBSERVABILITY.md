@@ -1,6 +1,6 @@
 # Observability
 
-Logging, debugging, secret masking, CI output and error reporting. Items backed by an ADR say so; **everything else is proposed**. Upstream behavior is only linked: [logger, `debug`, hook-std, masking](research/semantic-release.md#4-side-effects), [masking rule](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth).
+Logging, debugging, secret masking, CI output and error reporting. All decisions are recorded in [ADR 0013](decisions/0013-observability.md). Upstream behavior is only linked: [logger, `debug`, hook-std, masking](research/semantic-release.md#4-side-effects), [masking rule](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth).
 
 ## 1. Principles (decided: [ADR 0013](decisions/0013-observability.md))
 
@@ -14,7 +14,7 @@ Logging, debugging, secret masking, CI output and error reporting. Items backed 
 
 ## 2. Log flow
 
-Plugin side per [ADR 0010](decisions/0010-plugin-architecture.md) ("Host services", "Plugin output", "In-process limits"); sinks proposed.
+Plugin side per [ADR 0010](decisions/0010-plugin-architecture.md) ("Host services", "Plugin output", "In-process limits"); sinks per ADR 0013.
 
 ```mermaid
 flowchart LR
