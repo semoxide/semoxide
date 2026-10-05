@@ -16,5 +16,5 @@ Status: accepted (2026-10-05). Decided step by step. Findings are fixed in the c
 | cargo-shear | unused deps | CI |
 | typos | spelling (code, docs, messages) | pre-commit + CI |
 | cargo-semver-checks | breaking changes in published crates | CI |
-| cargo-mutants | tests that test nothing | scheduled / on demand |
+| cargo-mutants | tests that test nothing | `--in-diff` on PRs for the pure crates (gating once the baseline is clean, [CODE-ARCHITECTURE A2](../CODE-ARCHITECTURE.md#10-approaches)); full runs scheduled |
 | zizmor | insecure GitHub Actions workflows | CI |

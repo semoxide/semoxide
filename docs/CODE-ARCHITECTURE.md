@@ -118,3 +118,22 @@ Basis: typst, ripgrep, cargo, uv, ruff and jj, plus the 2025–26 architecture a
   - Preflight checks everything checkable before any write (P10).
   - Irreversible steps run last: with [0012](decisions/0012-partial-failure.md)'s order the reversible tag push comes before the irreversible publish.
   - Steps are idempotent, e.g. "release already exists with the same content" counts as OK.
+- **A2. Test-first, per area.**
+
+  | Area | Approach |
+  |---|---|
+  | Pure core (SemVer, bump rules, next version, channels, branches, commit parser, config merge) | strict spec-first TDD; ported upstream tables, specs and proptest laws are the failing tests |
+  | Notes, templates | a few hand-written expected outputs plus approved snapshots |
+  | CLI, JSON, `explain`, plan | outside-in: the `assert_cmd` case first |
+  | git2, plugin host, forge, npm | PoC first, then characterization tests |
+  | Every bug | a failing reproduction test first |
+
+  **AI-agent workflow:**
+  1. A human approves the spec or table rows.
+  2. The agent writes **tests only**, against a stub, and shows them failing on assertions. That `test:` commit is human-reviewed, and the tests are **locked**: a local hook blocks agent edits, and a CI check rejects test changes outside a reviewed `test:` commit.
+  3. A fresh session implements under the lock. It stops and reports rather than editing a test; new snapshots stay `.snap.new`.
+  4. `cargo mutants --in-diff`: every surviving mutant becomes a test.
+  5. A reviewer checks the change against the spec, the lock, and the no-mocks rule.
+  6. Refactors go in separate commits with the tests unchanged.
+
+  Basis: TDFlow (locked human tests, 2025), Beck (2025), Böckeler (2026), Anthropic's Claude Code guidance.
