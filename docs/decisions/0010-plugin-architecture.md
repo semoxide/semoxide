@@ -46,6 +46,10 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - In-process plugins must not start child processes; the SDK only allows that in process mode. Plugins that run external tools (cargo, exec, git hooks, …) always run as processes.
   - In-process plugins log only via the `Log` API, which is masked; the conformance kit checks that they don't print directly.
   - On a timeout the step fails and the call is abandoned (an in-process plugin can't be killed).
+- **Socket access control:**
+  - OS permissions: the Unix socket lives in a private 0700 temp dir; the Windows named pipe has a security descriptor allowing only the current user.
+  - Per-run token: semoxide passes a random one-time token to the plugin at start, in its environment. The plugin's first message must present it; connections without it are dropped while semoxide keeps listening.
+  - Limit: a same-user process able to read process environments could steal the token, but it could equally read semoxide's own secrets.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
