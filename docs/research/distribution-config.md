@@ -142,6 +142,11 @@ Context object: `version`, `previous_version`, `tag`, `channel`, `branch`, `note
 | changesets | Change files written by humans | Independent, `fixed` / `linked` groups | Explicit in the change file |
 | release-please | `release-please-config.json` + `.release-please-manifest.json` | Independent, `linked-versions` / `node-workspace` / `cargo-workspace` plugins | Path, with `exclude-paths` |
 
+**Why upstream declined (from the maintainers' comments on [#193](https://github.com/semantic-release/semantic-release/issues/193)):** this was a scope choice, not an anti-monorepo stance. The docs ([supported-branching](https://github.com/semantic-release/docs/blob/main/src/content/docs/foundation/supported-branching.md#monorepos)) say "not officially supported at this time" and point to community plugins.
+- Commit filtering by path is "relatively trivial" (pvdlg, 2019). The blocker is **interdependent packages**: releases must run in dependency order, and dependents' manifests must be updated between publishes, otherwise broken packages get published. A path-filter-only feature was rejected for this reason.
+- That conflicts with the "versions live only in tags, never commit back" principle many users rely on (travi, 2021).
+- 2018: no maintainer had monorepo expertise, and they asked for an RFC. 2023: "no short term plans… would need to come from the community".
+
 **Recommendation: not in v1, but the architecture must not preclude it.** v1 = one releasable unit per run:
 
 | Must not preclude | Concretely |
