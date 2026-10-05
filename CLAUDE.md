@@ -4,7 +4,7 @@ A Rust release tool inspired by semantic-release. Current phase: **research and 
 
 ## Hard requirements
 - Library first: the core is an embeddable crate, and the CLI is a thin wrapper around it.
-- Opinionated. Not compatible with semantic-release, but should feel familiar to its users.
+- Opinionated. Familiar but not compatible: migration tool, no JS bridge ([ADR 0001](docs/decisions/0001-compatibility-stance.md)).
 - Keep semantic-release's core ideas, including the plugin system.
 - Use no git CLI if feasible: a Rust git library, with every operation checked by a PoC.
 - Research, docs and PoCs come before any product code. Planning is discussed in waves.

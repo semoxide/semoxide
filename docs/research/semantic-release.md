@@ -231,7 +231,7 @@ G5–G20 run with the CI env from [spec §2.2](../specs/SEMANTIC-RELEASE-SPEC.md
 - Error catalog — coded errors + markdown details + aggregation.
 
 **Epic: Plugin system** (pipeline: [spec tickets](../specs/SEMANTIC-RELEASE-SPEC.md#ticket-candidates); API/registry: [plugin-mechanisms](plugin-mechanisms.md#ticket-candidates))
-- Config — data-only config discovery (toml/json/yaml), shareable presets, validation.
+- Config — data-only config discovery (TOML only, [ADR 0002](../decisions/0002-config-format.md)), shareable presets, validation.
 
 **Epic: Security & output** (CI detection: [dependencies](dependencies.md#ticket-candidates))
 - Secret masking sink — env-pattern masking incl. URL-encoded forms over all output and subprocesses.

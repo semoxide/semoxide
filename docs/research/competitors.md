@@ -54,7 +54,7 @@ Stars, last release and issue reactions `[n]`: GitHub API, 2026-10-05. Issue num
 | semantic-release lifecycle steps (verifyConditions → analyze → notes → prepare → publish → success/fail) as plugin contract; go-semantic-release proved it ports | go-semantic-release's self-hosted plugin download registry: infra burden; the project stalled (causal link unverified) |
 | Use `git-cliff-core` or Tera/MiniJinja for notes; Jinja-like syntax is what users know (PSR, git-cliff, cocogitto) | Handlebars/lodash templates (convco, conventional-changelog): weak for logic |
 | First-class `--dry-run` + `next-version` JSON output | Making "no release" an error exit code |
-| Monorepo from day one (top request everywhere) | Paywalling monorepo (goreleaser Pro) |
+| Monorepo designed in from day one, shipped in v2 ([ADR 0003](../decisions/0003-monorepo-scope.md)) | Paywalling monorepo (goreleaser Pro) |
 | Forge abstraction (GitHub, GitLab, Gitea/Forgejo) + retry/backoff on API (release-plz uses reqwest-retry (unverified)) | GitHub-API-only design (release-please 502s on big repos) |
 | Git-only mode: tag + notes, no forge, no registry | Hard-wiring one ecosystem (release-plz, cargo-release) |
 | Version-file updaters as plugins incl. lockfiles (knope, FerrFlow) | Fragile third-party runtime deps (PSR/GitPython); single static binary instead |
@@ -78,8 +78,8 @@ Risk: the differentiator is execution and migration, not a missing feature. With
 
 ## Ticket candidates
 
-- Decide semantic-release config/lifecycle compatibility level — `.releaserc` parity scope, plugin name mapping.
-- Evaluate `git-cliff-core` as changelog engine vs own Tera/MiniJinja — embed vs dependency risk.
+- `.releaserc` migration mapping: options and plugin names ([ADR 0001](../decisions/0001-compatibility-stance.md)).
+- ~~Evaluate git-cliff-core/Tera~~: decided on minijinja ([ADR 0004](../decisions/0004-template-engine.md)).
 - Git-only mode — tag + notes without forge or registry.
 - Version-file updater plugins — Cargo.toml/lock, package.json/lock, pyproject/uv.lock, go, custom regex.
 - Plugin protocol PoC vs go-semantic-release gRPC and moonlit WASI components; plugin distribution via GitHub releases / binstall / OCI: see [plugin-mechanisms](plugin-mechanisms.md#ticket-candidates).

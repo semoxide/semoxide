@@ -259,16 +259,16 @@ See [research §6](../research/semantic-release.md#6-rust-port-notes).
 
 ## Ticket candidates
 - **Core lifecycle engine**: run steps in the source-verified order (§2.2), including merged-release promotion, PR skip, and auto dry-run outside CI.
-- **Config loader**: `.releaserc` (YAML/JSON) and `release.config.toml`; precedence CLI > file > extends > defaults; shallow merge; null→default.
+- **Config loader**: see [ADR 0002](../decisions/0002-config-format.md).
 - **Branch model**: release/maintenance/prerelease detection, glob expansion against remote heads, all validation error codes.
 - **Range/accept calculation**: port the §4.6 algorithms, with recipe walkthroughs as golden tests.
 - **Next-version computation**: first release 1.0.0, prerelease numbering and channel-aware rules (§4.5).
-- **Tag format**: `${version}` template, exactly-once check, ref-format validation, strict parse-back, non-matching tags ignored.
+- **Tag format**: `{version}` template ([ADR 0004](../decisions/0004-template-engine.md)), exactly-once check, ref-format validation, strict parse-back, non-matching tags ignored.
 - **Git notes channel store**: read legacy and per-tag refs, write `refs/notes/semantic-release-<tag>`, fetch/push notes.
 - **Auth URL resolution**: SSH-first, then token env vars with host-specific prefixes; multi-token probing.
 - **Plugin protocol/ABI**: hook set, `pluginConfig` + `context` schema, return-value validators, error model (`SemanticReleaseError` vs unexpected).
 - **Plugin pipeline semantics**: settleAll hooks, notes concatenation, prepare HEAD-change note regeneration, publish/addChannel release merging.
-- **JS plugin bridge**: run existing npm semantic-release plugins via Node subprocess for compatibility.
+- **`semoxide migrate`**: convert `.releaserc` to semoxide.toml ([ADR 0001](../decisions/0001-compatibility-stance.md)). No JS plugin bridge.
 - **Dry-run mode**: exact skip set; still verifies push permission; prints version and notes.
 - **CLI**: flags `-b -r -t -p -e -d --ci/--no-ci --debug`, comma lists, `false` = empty; decide on per-step overrides.
 - **Library API**: `run(options, {cwd, env, stdout, stderr}) -> Result | NoRelease`, result types mirroring §8.
