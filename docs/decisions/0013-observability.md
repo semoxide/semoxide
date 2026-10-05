@@ -20,3 +20,16 @@ Status: accepted (2026-10-05). Decided step by step; details and remaining propo
   - Read-only steps (`verify_conditions`, `analyze_commits`, `verify_release`, `generate_notes`) run for real, with `dry_run = true` in the context so plugins can adapt (e.g. no push-permission check, [ADR 0005](0005-dry-run.md)).
   - Write steps (`prepare`, `publish`, `add_channel`, `success`, `fail`, `rollback`) are never called. semoxide calls the optional `plan` RPC instead and prints each plugin's "would do" lines; plugins without `plan` show "(no plan available)".
   - Safety net: in a dry run the host `Git` service refuses every write.
+- **CI integration:**
+  - GitHub Actions:
+    - `::group::` per step
+    - `::error` / `::warning` annotations
+    - a final `::notice::`
+    - `::add-mask::` for every registered secret and its encoded forms
+    - `$GITHUB_OUTPUT` (`released`, `version`, `tag`, `channel`, `type`, `last_version`, `notes`)
+    - `$GITHUB_STEP_SUMMARY`
+  - GitLab CI:
+    - collapsible sections
+    - outputs via a dotenv report (`--output-env <file>` → `artifacts:reports:dotenv`)
+    - no annotations, and no runtime masking (GitLab only masks predefined variables), so semoxide's own masking is the only protection
+  - Everywhere: `--output=json` prints the `RunReport`; the library returns the same struct.

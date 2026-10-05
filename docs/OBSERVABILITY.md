@@ -101,7 +101,7 @@ Where masking applies: host `Log` service and captured plugin output (at source)
 
 Embedders get at-source masking regardless of subscriber; dependency events are masked only if they wrap their writer with `observe::MaskingWriter::new(w, run.secrets())`. Optional `observe::subscriber(&opts)` builds the CLI stack.
 
-## 6. CI integration (proposed)
+## 6. CI integration (decided: [ADR 0013](decisions/0013-observability.md))
 
 | GitHub Actions | Use |
 |---|---|
@@ -112,7 +112,7 @@ Embedders get at-source masking regardless of subscriber; dependency events are 
 | `$GITHUB_OUTPUT` | `released`, `version`, `tag`, `channel`, `type`, `last_version`, `notes` ([Action shape](research/distribution-config.md#github-action-shape)) |
 | `$GITHUB_STEP_SUMMARY` | outcome, reason, versions, timings, rollback result, notes |
 
-Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dotenv (GitLab). Library: `run() -> Result<RunReport, Error>`, `RunReport { outcome: Released | Promoted | NoRelease(reason) | Partial{rollback}, … }`, serde-serializable (covers upstream [#753, #3877](research/semantic-release.md#8-issue-history)).
+Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dotenv (GitLab `artifacts:reports:dotenv`). GitLab: collapsible sections, no annotations, no runtime masking (only predefined masked variables). Library: `run() -> Result<RunReport, Error>`, `RunReport { outcome: Released | Promoted | NoRelease(reason) | Partial{rollback}, … }`, serde-serializable (covers upstream [#753, #3877](research/semantic-release.md#8-issue-history)).
 
 ## 7. Diagnostics (proposed)
 
