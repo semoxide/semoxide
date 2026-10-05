@@ -1,0 +1,10 @@
+syntax = "proto3";
+package stub.v1;
+
+message Req { string name = 1; repeated string args = 2; }
+message Resp { string out = 1; uint32 code = 2; }
+
+service Plugin {
+  rpc Call(Req) returns (Resp);
+  rpc Watch(Req) returns (stream Resp);
+}
