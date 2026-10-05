@@ -14,6 +14,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - Override: an explicit `path = "..."` or PATH lookup of `semoxide-plugin-<name>`, for plugin development and offline/air-gapped CI.
 - **Embedders:** each Rust plugin repo publishes a library crate as well as its binary, both implementing the SDK `Plugin` trait. Embedders can link a plugin in-process and register it in the builder (no process, no socket), or use binaries like the CLI does. The conformance kit tests both paths.
 - **Version compatibility:** the protocol uses SemVer, and host and plugin must share the same major version. Within a major version only additive Protobuf changes are allowed (new fields, new optional RPCs), and both sides ignore what they don't know. A major bump breaks every plugin at once, so it must be rare.
+- **Environment and secrets:** a plugin gets the system variables (`PATH`, `SystemRoot`, `PATHEXT`, …) plus only the secret variables it declares in its manifest or handshake. Every declared secret is registered for log masking.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
