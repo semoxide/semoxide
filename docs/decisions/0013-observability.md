@@ -42,3 +42,4 @@ Status: accepted (2026-10-05). Decided step by step; details and remaining propo
   - Display: rich in a terminal, plain in CI, an `error` object in `--output=json`; `--debug` adds step → plugin → operation.
   - All errors from a step are collected and shown together.
   - Every code has a docs-site page, and a test fails on any undocumented code.
+- **`fail` always runs** on a failed release. Each error in the context is marked `known` (has a namespaced code) or `unexpected`, so plugins can phrase it differently (e.g. "unexpected error, please report", with the support-bundle command). This differs from upstream, which skips `fail` unless a `SemanticReleaseError` is present.
