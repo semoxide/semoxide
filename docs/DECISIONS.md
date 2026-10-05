@@ -8,7 +8,7 @@
 - [0006](decisions/0006-cc-parser.md): wrap `git-conventional` first
 - [0007](decisions/0007-bump-defaults.md): semantic-release default bump table
 - [0008](decisions/0008-initial-version.md): first release 1.0.0, configurable
-- [0009](decisions/0009-commit-back.md): tags only; commit-back only for monorepos with dependent units
+- [0009](decisions/0009-commit-back.md): tags only by default; configuring the `git` plugin turns commit-back on
 - [0010](decisions/0010-plugin-architecture.md): plugins in separate repos; socket protocol in its own versioned repo 
 - [0011](decisions/0011-git-backend.md): git2 only, with tag and push-status guards
 - [0012](decisions/0012-partial-failure.md): tag first; `rollback` step on later failure
