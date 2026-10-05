@@ -26,3 +26,11 @@ Status: accepted (2026-10-05). Decided step by step; details are in [TESTING.md]
   - **miri** on every crate it can run. AI-assisted coding raises the risk of subtle undefined behaviour. miri cannot execute FFI (libgit2), real processes or sockets, so it covers the pure-Rust crates.
   - Plus the conformance kit, failure injection, the sandbox E2E and the upstream comparison (above).
   - Not used: mocking frameworks, and `trycmd`.
+- **How tests run:**
+  - Runner: `cargo-nextest`, with a `ci` profile (retries for known-flaky network tests, JUnit output).
+  - Every PR: Linux. Windows tests only on `main` and on PRs labelled `windows` while the repos are private (Windows minutes cost 2×); every PR once public. aarch64 is build-checked on PRs and tested on a schedule.
+  - Toolchains: stable on PRs, an MSRV check (`cargo hack --rust-version`), beta scheduled.
+  - Checks: `cargo hack --each-feature` on published crates; `cargo insta test --unreferenced reject`; doc tests as a separate step; miri on PRs for the pure-Rust crates; coverage via `cargo llvm-cov` (reported, not gating).
+  - Scheduled: fuzzing, benchmarks (plus on demand for log-walk PRs), sandbox E2E, the upstream comparison.
+  - Speed: deps at `opt-level=3` in dev/test, `rust-cache` in CI.
+  - One aggregate `required-checks` job.
