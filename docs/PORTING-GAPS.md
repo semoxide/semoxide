@@ -37,6 +37,6 @@ Each entry is a **recommendation (not decided)**; the user decides.
 8. **O8 Bot identity (#11):** commit author/committer for commit-back. Recommendation (not decided): a git2 `Signature` from config, defaulting to a semoxide bot identity. Core env is decided ([0013](decisions/0013-observability.md)).
 9. **O9 CI detection (#12):** own table-driven env-ci port as a separate module/crate, git fallback via git2.
 10. **O10 npm (#13):** shell out to the user's package manager for pack/publish; native HTTP for whoami, OIDC and dist-tags; no temp `.npmrc`.
-11. ~~**O11 Errors**~~ decided: (#14):** error structure, display, aggregation and exit codes are decided ([0013](decisions/0013-observability.md)). `fail` always runs, with known/unexpected marking ([0013](decisions/0013-observability.md)).
+11. **O11 Errors (#14): decided** in [0013](decisions/0013-observability.md): structure, display, aggregation, exit codes; `fail` always runs with known/unexpected marking.
 12. **O12 Library API (#15):** `Semoxide::builder()` taking config layers, `cwd`, env map, output sinks and plugins; returns `Result<Option<Release>>` (`None` = no release).
 13. **O13 Sort order (#16):** case-insensitive comparison with byte-order tiebreak, documented as a difference.
