@@ -22,6 +22,9 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - Each plugin provides a JSON Schema for its config, via a gRPC `describe` call and published with its release (generated with schemars for Rust plugins).
   - semoxide validates all plugin config before any step runs, and the editor schema for `semoxide.toml` includes the plugin options.
   - Plugins still do runtime checks (e.g. token permissions) in `verify_conditions`.
+- **Trusting downloaded plugins:**
+  - Now: a checksum lock only. The sha256 recorded on first download is required on every later run.
+  - Once the plugin repos are public: also verify GitHub artifact attestations (Sigstore, e.g. the `sigstore` crate) before first use. GitHub's Free, Pro and Team plans only offer attestations for public repos.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
