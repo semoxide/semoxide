@@ -149,7 +149,7 @@ Windows-specific: CRLF in messages, path separators in asset globs, named pipes,
 
 ## Open
 
-- npm: Verdaccio only, or also real npmjs publishes.
+- ~~npm: Verdaccio only, or also npmjs~~: tentative Verdaccio only, deferred ([ADR 0015](decisions/0015-testing.md)).
 - Comparison job against upstream semantic-release (dry-run outputs on golden histories).
 
 
