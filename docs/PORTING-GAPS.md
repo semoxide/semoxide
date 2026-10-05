@@ -2,7 +2,7 @@
 
 What semantic-release does that semoxide can't reproduce in Rust, and what semoxide does instead. Overview: [semantic-release §6](research/semantic-release.md#6-rust-port-notes). `semoxide migrate` ([ADR 0001](decisions/0001-compatibility-stance.md)) reports every gap it hits in a `.releaserc`.
 
-Status: an ADR link means decided; **open** means only a recommendation exists, listed under [Open decisions](#open-decisions) (O1–O13).
+Status: all gaps are decided ([ADR 0014](decisions/0014-porting-behaviour.md) and earlier); npm (O10) is tentative and deferred.
 
 | # | Gap | semantic-release behavior | Why not portable as-is | semoxide replacement | Status |
 |---|---|---|---|---|---|

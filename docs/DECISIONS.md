@@ -13,4 +13,4 @@
 - [0011](decisions/0011-git-backend.md): git2 only, with tag and push-status guards
 - [0012](decisions/0012-partial-failure.md): tag first; `rollback` step on later failure
 - [0013](decisions/0013-observability.md): observability (library never prints, masking, env snapshot, stderr/stdout, exit codes, error codes, CI formats, dry-run plan, diagnostics)
-- [0014](decisions/0014-porting-behaviour.md): porting behaviour, decided step by step (`extends` sources, …)
+- [0014](decisions/0014-porting-behaviour.md): porting behaviour (extends sources, user functions, presets, globs, ranges, regexes, bot identity, CI detection, npm (tentative), library API, sort order)
