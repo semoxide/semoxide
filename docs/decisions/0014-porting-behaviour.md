@@ -10,3 +10,8 @@ Status: accepted (2026-10-05). Decided step by step; resolves the open items in 
   - `conventionalcommits` and `angular` ship as built-in data in the commit-analyzer and release-notes crates. **Default: `conventionalcommits`.** It recognises `!` as breaking, matches the spec, and is semantic-release's planned next default (#3406, #1652; no timeline upstream).
   - `angular` stays available (`preset = "angular"`), and `migrate` sets it for configs that relied on upstream's default. User presets are written in TOML.
   - Bump rules stay as in [ADR 0007](0007-bump-defaults.md).
+- **Globs (O4):** `globset` with context-specific semantics.
+  - File paths (assets, monorepo paths): standard file globs.
+  - Bump-rule values: `*` also matches `/` (fixes commit-analyzer #175).
+  - Branches: a built-in matcher for the maintenance pattern (`N.x`, `N.N.x`), plus normal globs for user patterns.
+  - No extended globs. `migrate` rewrites the ones it recognises and reports the rest.
