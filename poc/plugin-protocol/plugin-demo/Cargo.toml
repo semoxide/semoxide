@@ -1,0 +1,9 @@
+[package]
+name = "semoxide-plugin-demo"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+# Deliberately no SDK and no host dependency: the protocol is hand-rolled.
+[dependencies]
+serde_json = "1"

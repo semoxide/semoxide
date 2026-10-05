@@ -1,0 +1,14 @@
+[package]
+name = "git2-ops-poc"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Standalone: not part of any parent workspace.
+[workspace]
+
+[dependencies]
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2", "https", "ssh"] }
+
+[dev-dependencies]
+tempfile = "3"

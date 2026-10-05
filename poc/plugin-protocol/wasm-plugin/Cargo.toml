@@ -1,0 +1,19 @@
+[package]
+name = "semoxide-plugin-wasm"
+edition = "2024"
+version = "0.0.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.62"
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+strip = true
+
+# standalone: built only for wasm32-wasip2
+[workspace]

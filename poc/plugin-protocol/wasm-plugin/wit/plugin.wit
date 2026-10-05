@@ -1,0 +1,13 @@
+package semoxide:plugin@0.1.0;
+
+interface host {
+  log: func(level: string, message: string);
+}
+
+/// Same protocol as the stdio one, with JSON strings as payloads.
+world plugin {
+  import host;
+  /// returns implemented steps
+  export initialize: func(protocol: u32, config-json: string) -> result<list<string>, string>;
+  export call: func(step: string, context-json: string) -> result<string, string>;
+}
