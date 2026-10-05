@@ -52,18 +52,18 @@ sequenceDiagram
     participant G as git (git2)
     participant P as plugins
     C->>C: load config (file, extends, env, flags) [0002, 0014]
-    C->>C: detect CI, branch, PR [0014]; outside CI → dry-run
+    C->>C: detect CI, branch, PR [0014] (outside CI → dry-run)
     C->>P: sync check, start plugins (manifest env, token, socket) [0010]
     C->>G: fetch / unshallow, read tags + notes, find last release
     C->>P: verify_conditions, analyze_commits, verify_release, generate_notes
     alt dry-run [0005, 0013, 0016]
         C->>P: plan (write steps never called)
     else release
-        C->>P: prepare (changed files tracked; git plugin commits assets) [0009, 0010]
+        C->>P: prepare (changed files tracked, git plugin commits assets) [0009, 0010]
         C->>G: create + push tag (guards) [0011]
         C->>P: publish, add_channel, success
         opt a later step fails
-            C->>P: rollback; core deletes only its own tag; fail [0012]
+            C->>P: rollback, core deletes only its own tag, then fail [0012]
         end
     end
     C->>C: RunReport (JSON, exit code, typed no-release reason) [0013, 0016]
