@@ -25,6 +25,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 - **Trusting downloaded plugins:**
   - Now: a checksum lock only. The sha256 recorded on first download is required on every later run.
   - Once the plugin repos are public: also verify GitHub artifact attestations (Sigstore, e.g. the `sigstore` crate) before first use. GitHub's Free, Pro and Team plans only offer attestations for public repos.
+- **Bundled defaults:** the commit analyzer and the release-notes generator implement the same plugin trait, but ship inside the semoxide binary as in-process plugins and are enabled by default. Like any plugin, they can be replaced. They are the only exceptions to "plugins live in separate repos".
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
