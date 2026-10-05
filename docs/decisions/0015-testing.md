@@ -13,3 +13,16 @@ Status: accepted (2026-10-05). Decided step by step; details are in [TESTING.md]
   - Shared fixtures and builders live in a `publish = false` `semoxide-test-support` crate.
   - Doc tests in `///` examples are allowed.
   - Basis: ripgrep, uv, jj, just and cargo use one integration-test binary; uv, jj, ruff and cargo have test-support crates.
+- **Kinds of tests:**
+  - **Unit** (sibling files) and **integration** (library API against real temporary repos).
+  - **CLI end-to-end** with `assert_cmd`.
+  - **Snapshot** with `insta` as the backbone (notes, JSON, errors, `explain`, plan); CI runs `--unreferenced reject`.
+  - **Data-driven** ported upstream tables.
+  - **Property-based** (`proptest`) for parsers and the version engine.
+  - **Fuzzing** (`cargo-fuzz`, scheduled) for commit, config and tag parsers.
+  - **Doc tests.**
+  - **Fakes**, not mocks: a fake plugin binary, and `wiremock` as a fake forge.
+  - **Benchmarks** (`criterion`) from the start, for large-history log walks and analysis.
+  - **miri** on every crate it can run. AI-assisted coding raises the risk of subtle undefined behaviour. miri cannot execute FFI (libgit2), real processes or sockets, so it covers the pure-Rust crates.
+  - Plus the conformance kit, failure injection, the sandbox E2E and the upstream comparison (above).
+  - Not used: mocking frameworks, and `trycmd`.
