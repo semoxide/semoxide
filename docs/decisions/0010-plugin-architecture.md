@@ -51,6 +51,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - OS permissions: the Unix socket lives in a private 0700 temp dir; the Windows named pipe has a security descriptor allowing only the current user.
   - Per-run token: semoxide passes a random one-time token to the plugin at start, in its environment. The plugin's first message must present it; connections without it are dropped while semoxide keeps listening.
   - Limit: a same-user process able to read process environments could steal the token, but it could equally read semoxide's own secrets.
+- **Wire data shapes:** the context, step results and host services are typed Protobuf messages (semoxide's contract). Each plugin's own config section travels as `google.protobuf.Struct`, validated against that plugin's schema. No JSON strings inside Protobuf.
 
 ## Open
 Discussed one at a time; each answer is added to the Decided list above.
