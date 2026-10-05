@@ -25,6 +25,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
   - Each plugin provides a JSON Schema for its config, via a gRPC `describe` call and published with its release (generated with schemars for Rust plugins).
   - semoxide validates all plugin config before any step runs, and the editor schema for `semoxide.toml` includes the plugin options.
   - Plugins still do runtime checks (e.g. token permissions) in `verify_conditions`.
+  - Schema language: JSON Schema for v1, because that's what editors support today (Taplo/SchemaStore) and schemars generates it. [TOML Schema](https://tomlschema.org/) (`.tosd`, spec 1.0.0-rc.2, 2026) is a candidate to re-evaluate once it reaches 1.0, has a crates.io release and has mainstream editor support.
 - **Trusting downloaded plugins:**
   - Now: a checksum lock only. The sha256 recorded on first download is required on every later run.
   - Once the plugin repos are public: also verify GitHub artifact attestations (Sigstore, e.g. the `sigstore` crate) before first use. GitHub's Free, Pro and Team plans only offer attestations for public repos.
