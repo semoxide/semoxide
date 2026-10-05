@@ -87,7 +87,23 @@ Decided in [0015](decisions/0015-testing.md): placement, kinds, how tests run.
 
 ## 8. Where things go
 
-_Written last, from §1–§7 and §9._
+| I need to add… | Goes in | Rules |
+|---|---|---|
+| a config option | type in `semoxide-schema`; loading/merge in `semoxide-runtime` (config module) | P4, P5; schema regenerated; docs page |
+| version / bump / branch / channel logic | `semoxide-engine` | pure (P1), newtypes (P8), strict TDD (A2) |
+| a git operation | `semoxide-git` | guards and credential rules ([0011](decisions/0011-git-backend.md)); characterization test against a real repo |
+| CI vendor detection | `semoxide-runtime` (CI module) | env snapshot only, never `std::env` |
+| lifecycle / step behaviour | `semoxide-runtime` (orchestrator) | A1 failure table first; rollback and idempotency |
+| plugin protocol changes | the `semoxide-plugin-protocol` repo, not here | additive within a major version ([0010](decisions/0010-plugin-architecture.md)) |
+| plugin host behaviour (spawn, services, lock) | `semoxide-runtime` (plugin host module) + `semoxide-plugin-host` | async stays inside it (§3) |
+| a new plugin | its own `semoxide-plugin-<name>` repo | [0010](decisions/0010-plugin-architecture.md) |
+| a public API item | `semoxide` façade | `#[non_exhaustive]` (P14); semver-checked |
+| a CLI command or flag | one file in `semoxide-cli` | P6; `--output=json` + schema; no TTY prompts ([0016](decisions/0016-agent-experience.md)) |
+| an error | its crate's enum + `ErrorInfo` | namespaced code + docs page ([0013](decisions/0013-observability.md)) |
+| logging | `tracing` events in the library crates | the library never prints ([0013](decisions/0013-observability.md)) |
+| test fixtures / helpers | `semoxide-test-support` | [0015](decisions/0015-testing.md) |
+| a test | sibling `tests.rs` (unit) or `tests/` (integration) | no inline test blocks; A2 workflow |
+| an external dependency | `[workspace.dependencies]` | cargo-deny allowed; respect §2 bans |
 
 ## 9. Patterns
 
