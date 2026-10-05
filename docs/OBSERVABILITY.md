@@ -95,7 +95,7 @@ flowchart TD
 | Config values typed `Secret<T>` (`secrecy::SecretBox`, `Debug` = `[secure]`, no `Serialize`) | proposed |
 | Secrets a plugin derives at runtime (OIDC, GitHub App tokens) | decided (ADR 0013): `RegisterSecret` host call |
 
-Masked forms: raw, `encodeURI`, `encodeURIComponent`, `:`-preserving (as upstream). Proposed addition: base64 of `user:token` and of the bare token.
+Masked forms: raw, `encodeURI`, `encodeURIComponent`, `:`-preserving (as upstream). Plus base64 of `user:token` and of the bare token (decided, ADR 0013).
 
 Where masking applies: host `Log` service and captured plugin output (at source); notes and `success`/`fail` payloads (value, as upstream); `url_for_log()` strips userinfo; `MaskingWriter` second pass on console, `--log-file`, GHA commands and the panic hook. Secrets never touch disk: plugins get them via env ([npm notes](research/npm.md#5-rust-port-notes)).
 
@@ -154,7 +154,7 @@ Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
 2. ~~Logs on stderr, data on stdout~~: decided (ADR 0013).
 3. ~~Error-code naming~~: decided (ADR 0013).
 4. ~~Exit codes~~: decided (ADR 0013).
-5. Base64 forms in masking.
+5. ~~Base64 forms~~: decided (ADR 0013).
 6. ~~Env-pattern secret scan~~: decided (ADR 0013): manifests + name pattern + `mask_env` list.
 7. ~~Runtime secrets~~: decided (ADR 0013): `RegisterSecret`.
 8. Level clamp for plugin `Log` events; level of captured output lines.
