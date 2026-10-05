@@ -38,7 +38,7 @@ Status: accepted (2026-10-05). Decided step by step; details and remaining propo
   - `semoxide doctor [--online]`: checks the setup without releasing (repo, shallow clone, tags, CI, token env names, plugin locks, manifests, handshakes, schemas). `--online` adds token auth, push rights and tag-delete rights.
 - **Skip marker:** commits containing `[skip release]` or `[release skip]` (any case) are excluded from both the bump decision **and** the release notes. That is upstream's marker without its notes bug (release-notes-generator #531). `explain` shows such commits as "skipped by marker". If every relevant commit is marked, the no-release reason is `AllCommitsSkipped`.
 - **Errors:**
-  - Each error carries its code, a message, a help line, a docs link and, for config errors, a pointer to the line in `semoxide.toml` (`thiserror` + `miette`).
+  - Each error carries its code, a message, a help line, a docs link and, for config errors, a pointer to the line in `semoxide.toml` (`thiserror` + an `ErrorInfo` trait in the libraries; `miette` only for rendering in the CLI, [CODE-ARCHITECTURE §4](../CODE-ARCHITECTURE.md#4-error-and-result-types)).
   - Display: rich in a terminal, plain in CI, an `error` object in `--output=json`; `--debug` adds step → plugin → operation.
   - All errors from a step are collected and shown together.
   - Every code has a docs-site page, and a test fails on any undocumented code.
