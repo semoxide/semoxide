@@ -3,7 +3,7 @@ Status: accepted in part (2026-10-05). Decided step by step; open points are lis
 
 ## Decided
 - **Separate repos:** each official plugin lives in its own repo with its own version and release cycle.
-- **Not stdio:** the protocol runs over a native local socket, never over the plugin's stdin/stdout. That is a Unix domain socket on Linux/macOS and a named pipe on Windows (e.g. via the `interprocess` crate); the SDK hides the difference.
+- **Not stdio:** the protocol runs over a native local socket, never over the plugin's stdin/stdout. That is a Unix domain socket on Linux/macOS and a named pipe on Windows (tokio's own support is enough; the PoC needed no `interprocess`). The SDK hides the difference.
 - **Own protocol repo:** the protocol has its own repo and its own version, independent of semoxide's version. This avoids Nushell's lockstep pain ([nushell research](../research/nushell-plugins.md)).
 - **The protocol repo contains:**
   - the spec (the `.proto` files)
