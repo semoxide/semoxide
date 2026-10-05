@@ -14,6 +14,7 @@ Status: accepted (2026-10-05). Decided step by step. Findings are fixed in the c
 | qlty security: Gitleaks/TruffleHog, OSV-Scanner/Trivy, Semgrep | secrets, vulnerable deps, SAST | CI (secrets also pre-push) |
 | cargo-deny | licenses, RustSec, banned/duplicate deps, sources | CI |
 | cargo-shear | unused deps | CI |
+| dependency budget (max `Cargo.lock` packages; number set once code exists) | dependency bloat | CI |
 | typos | spelling (code, docs, messages) | pre-commit + CI |
 | cargo-semver-checks | breaking changes in published crates | CI |
 | cargo-mutants | tests that test nothing | `--in-diff` on PRs for the pure crates (gating once the baseline is clean, [CODE-ARCHITECTURE A2](../CODE-ARCHITECTURE.md#10-approaches)); full runs scheduled |
