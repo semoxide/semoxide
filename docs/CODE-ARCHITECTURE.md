@@ -32,7 +32,19 @@ The pure engine and the schema compile and test without git2, tonic, russh or to
 
 ## 2. Crate boundaries and enforcement
 
-_To decide._
+| Crate | May depend on | Must never use |
+|---|---|---|
+| `semoxide-schema` | serde, schemars | anything with I/O |
+| `semoxide-engine` | `schema` | any I/O: `std::fs`, `std::net`, `std::process`, `std::env`, git2, tokio, printing |
+| `semoxide-git` | `engine` types, git2, russh | tokio outside its SSH bridge; printing |
+| `semoxide-runtime` | all above, `semoxide-plugin-host` | `std::env::var` (env snapshot only, [0013](decisions/0013-observability.md)); printing |
+| `semoxide` | `runtime` | anything beyond re-exports and thin glue |
+| `semoxide-cli` | the façade only | inner crates directly |
+
+Enforced in CI by:
+- the Cargo dependencies themselves
+- a `clippy.toml` per crate with `disallowed-methods` / `disallowed-types`, each ban with a reason
+- cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `engine`/`schema`)
 
 ## 3. Sync vs async
 
