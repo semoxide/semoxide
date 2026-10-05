@@ -128,7 +128,7 @@ Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dote
 
 - Library: `thiserror` enums deriving `miette::Diagnostic` (`code`, `help`, `url`, TOML `labels`, `related` for collected plugin errors, [aggregation](research/semantic-release.md#error-aggregation)). Each code has a generated docs page; a test fails on undocumented codes. Plugin errors arrive as gRPC `Status`; timeout = `CANCELLED` or `DEADLINE_EXCEEDED` (ADR 0010 notes).
 - CLI: miette graphical on TTY, plain in CI, `error` object in `json`; `--debug` appends the SpanTrace (step → plugin → op).
-- Partial failure (decided, [ADR 0012](decisions/0012-partial-failure.md)): tag pushed, later step fails → `rollback` step, tag deleted via the host Git service, irreversible plugins warn. Reporting is **undecided**; proposal: summary lists what was written, undone and left behind.
+- Partial failure (decided, [ADR 0012](decisions/0012-partial-failure.md)): tag pushed, later step fails → `rollback` step, the core deletes only its own tag (missing delete rights → reported, run ends as partial failure), irreversible plugins warn. Reporting is **undecided**; proposal: summary lists what was written, undone and left behind.
 
 | Exit (proposed) | Meaning |
 |---|---|
