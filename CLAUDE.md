@@ -34,6 +34,15 @@ Core rules only. Known pitfalls: [RUST-PITFALLS](docs/RUST-PITFALLS.md). Everyth
 7. Prefer modern std over extra crates or nesting: let chains, `if let` guards, `LazyLock`/`OnceLock`, `cfg_select!`, `assert_matches!`.
 8. Flat control flow: early returns and `?` over nested `if` / `match`.
 
+## Tools
+
+Decided in [ADR 0015](docs/decisions/0015-testing.md), [0017](docs/decisions/0017-code-quality.md), [CODE-ARCHITECTURE §7](docs/CODE-ARCHITECTURE.md#7-workspace-config). All pinned.
+
+- [rustup](https://rust-lang.github.io/rustup/) toolchain · [cargo](https://doc.rust-lang.org/cargo/) build · [rustfmt](https://rust-lang.github.io/rustfmt/) format · [clippy](https://doc.rust-lang.org/clippy/) lints · [rustdoc](https://doc.rust-lang.org/rustdoc/) docs · [rust-analyzer](https://rust-analyzer.github.io/) editor
+- Tests: [cargo-nextest](https://nexte.st/) runner · [insta](https://insta.rs/) snapshots · [assert_cmd](https://docs.rs/assert_cmd) CLI · [proptest](https://proptest-rs.github.io/proptest/) properties · [cargo-fuzz](https://rust-fuzz.github.io/book/) fuzzing · [criterion](https://docs.rs/criterion) benchmarks · [miri](https://github.com/rust-lang/miri) UB · [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) coverage · [cargo-mutants](https://mutants.rs/) mutation
+- Quality: [cargo-hack](https://github.com/taiki-e/cargo-hack) features/MSRV · [cargo-deny](https://embarkstudios.github.io/cargo-deny/) deps policy · [cargo-shear](https://github.com/Boshen/cargo-shear) unused deps · [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks) API breakage · [typos](https://github.com/crate-ci/typos) spelling · [zizmor](https://docs.zizmor.sh/) Actions security · [qlty](https://docs.qlty.sh/) checks + git hooks
+- Release: [dist](https://axodotdev.github.io/cargo-dist/) binaries · [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) installs
+
 ## Index
 
 ### **IMPORTANT**: every agent or subagent MUST read what's required for the task! In the plan mode we MUST READ as much as needed even more so.
