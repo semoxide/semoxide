@@ -4,12 +4,6 @@
 # Every rule has cases in rules.rs next to this file, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI.
 rules:
 
-  - id: no-inline-test-module
-    languages: [rust]
-    severity: ERROR
-    message: "Unit tests live in a sibling `tests.rs` (`#[cfg(test)] mod tests;`), never in an inline block (CODE-ARCHITECTURE §8)."
-    pattern-regex: '#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([a-z]+\))?\s+)?mod\s+\w+\s*\{'
-
   - id: no-pub-struct-field
     languages: [rust]
     severity: ERROR
@@ -17,12 +11,6 @@ rules:
     patterns:
       - pattern-inside: struct $S { ... }
       - pattern-regex: '\bpub(?:\([a-z]+\))?\s+(?:r#)?[a-z_][a-z0-9_]*\s*:'
-
-  - id: no-pub-tuple-field
-    languages: [rust]
-    severity: ERROR
-    message: "Newtype fields are private; convert with `From`/`TryFrom` and `as_`/`into_` (CLAUDE.md Rust rules 4, 5)."
-    pattern-regex: '\bstruct\s+\w+\s*(?:<[^>{;]*>)?\s*\(\s*(?:#\[[^\]]*\]\s*)*pub\b'
 
   - id: no-get-prefix
     languages: [rust]

@@ -59,7 +59,7 @@ Enforced in CI by:
 
 - the Cargo dependencies themselves
 - one root `clippy.toml` with `disallowed-methods` (env reads, process spawning, stdout/stderr handles, `temp_dir`, TLS "danger" methods) and `max-fn-params-bools = 0`, each ban with a reason; allowed sites carry `#[expect(clippy::disallowed_methods, reason = …)]`
-- `scripts/check-forbid-unsafe.sh` (CI): every crate root except semoxide-git has `#![forbid(unsafe_code)]`
+- `semoxide-test-support::source_rules`, run by `crates/semoxide/tests/source_rules.rs`: every crate root except semoxide-git has `#![forbid(unsafe_code)]`, no inline test modules, no `pub` tuple fields. It reads Rust tokens (`proc-macro2`), so comments and string contents never count; the error-code registry scan works the same way
 - `clippy::exhaustive_enums` / `exhaustive_structs` in the façade crate (P14)
 - cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `engine`/`schema`)
 
@@ -117,7 +117,7 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 | qlty maintainability (complexity, duplication, smells; `mode = "block"`) | complex or duplicated code | pre-push + CI |
 | gitleaks (`.gitleaks.toml`: default rules; only test tokens containing `SEMOXIDE_FAKE` allowlisted) | secrets | pre-push + CI |
 | osv-scanner | known-vulnerable versions in `Cargo.lock` | pre-push (when the lockfile changes) + CI |
-| semgrep, our own rules only (`.semgrep/rules.yaml`: private fields, no `get_`, no inline test modules, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests) | patterns clippy can't express | pre-push + CI; every rule has cases in `.semgrep/rules.rs`, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI |
+| semgrep, our own rules only (`.semgrep/rules.yaml`: private named fields, no `get_`, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests) | patterns clippy can't express | pre-push + CI; every rule has cases in `.semgrep/rules.rs`, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI |
 | markdownlint (`.markdownlint.json`: MD013 line length off) | broken Markdown structure in docs | pre-commit (autofix) + pre-push + CI |
 | actionlint | incorrect GitHub Actions workflows | pre-push + CI |
 | cargo-deny | licenses, RustSec, banned/duplicate deps, sources | CI on PRs + daily schedule |

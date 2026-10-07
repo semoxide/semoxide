@@ -43,6 +43,7 @@ fn inline_test_modules_are_found(#[case] source: &str, #[case] expected: &[&str]
 #[case::generic("struct Wrapper<T: Clone>(pub T);\n", &["Wrapper"])]
 #[case::private("pub struct Tag(String);\n", &[])]
 #[case::named_fields("pub struct Named { pub name: String }\n", &[])]
+#[case::unit_struct_before_tuple("struct Unit;\nstruct Tag(pub u8);\n", &["Tag"])]
 #[case::in_comment("// struct Tag(pub String);\n", &[])]
 #[case::in_string("const S: &str = \"struct Tag(pub String);\";\n", &[])]
 fn pub_tuple_fields_are_found(#[case] source: &str, #[case] expected: &[&str]) {
