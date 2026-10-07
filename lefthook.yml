@@ -6,7 +6,8 @@ min_version: 2.1.17
 pre-commit:
   commands:
     qlty-fmt:
-      run: qlty fmt --trigger pre-commit --index-file="${GIT_INDEX_FILE:-.git/index}"
+      # Explicit staged paths: `--trigger pre-commit` skips newly added files.
+      run: qlty fmt --no-upgrade-check {staged_files}
       stage_fixed: true
     typos:
       run: typos --force-exclude {staged_files}
