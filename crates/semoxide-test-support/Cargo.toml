@@ -16,4 +16,5 @@ proc-macro2.workspace = true
 semoxide-error.workspace = true
 
 [dev-dependencies]
+rstest.workspace = true
 tempfile.workspace = true
