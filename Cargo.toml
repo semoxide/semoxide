@@ -20,6 +20,10 @@ semoxide-runtime = { path = "crates/semoxide-runtime", version = "0.0.0" }
 semoxide = { path = "crates/semoxide", version = "0.0.0" }
 semoxide-test-support = { path = "crates/semoxide-test-support" }
 
+# External dependencies (pinned; bumped by Renovate).
+clap = { version = "=4.6.7", features = ["derive"] }
+assert_cmd = "=2.2.2"
+
 [workspace.lints.rust]
 # `deny`, not `forbid`: semoxide-git's transport registration needs a scoped `#[expect(unsafe_code)]`.
 # Every other crate adds `#![forbid(unsafe_code)]` in its root.
