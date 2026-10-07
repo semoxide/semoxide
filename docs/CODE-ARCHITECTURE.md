@@ -142,7 +142,7 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 | a new plugin | its own `semoxide-plugin-<name>` repo | [ARCHITECTURE](ARCHITECTURE.md) |
 | a public API item | `semoxide` façade | `#[non_exhaustive]` (P14); semver-checked |
 | a CLI command or flag | one file in `semoxide-cli` | P6; contract in [CLI](CLI.md) (`--output=json` + schema, no TTY prompts) |
-| an error | its crate's enum + `ErrorInfo` | namespaced code + catalog entry ([OBSERVABILITY](OBSERVABILITY.md)) |
+| an error | its crate's enum + `ErrorInfo`; its code as a `const` in the crate's `codes.rs`, listed in `codes::ALL` | a page `docs/errors/<slug>.md`; the registry test (façade crate) fails on a missing page, an orphan page or a code missing from `ALL` ([OBSERVABILITY](OBSERVABILITY.md)) |
 | logging | `tracing` events in the library crates | the library never prints ([OBSERVABILITY](OBSERVABILITY.md)) |
 | test fixtures / helpers | `semoxide-test-support` | [TESTING](TESTING.md) |
 | a test | sibling `tests.rs` (unit) or `tests/` (integration) | no inline test blocks; A2 workflow; [TESTING](TESTING.md) |
