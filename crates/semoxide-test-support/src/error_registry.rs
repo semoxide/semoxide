@@ -6,13 +6,12 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use semoxide_error::ErrorCode;
+
+const STATIC_CODE: &str = "from_static(\"";
 
 #[cfg(test)]
 mod reader_tests;
-#[cfg(test)]
-mod scan_tests;
 #[cfg(test)]
 mod tests;
 
@@ -110,73 +109,19 @@ pub fn constant_name(code: &ErrorCode) -> String {
         .to_ascii_uppercase()
 }
 
-/// The code strings in `ErrorCode::from_static("…")` calls of one source file, or nothing if
-/// the text isn't valid Rust tokens; [`try_codes_in_source`] reports that case instead.
-#[must_use]
-pub fn codes_in_source(text: &str) -> Vec<String> {
-    try_codes_in_source(text).unwrap_or_default()
-}
-
 /// The code strings in `ErrorCode::from_static("…")` calls of one source file.
 ///
-/// The text is split into Rust tokens by `proc-macro2`, so comments, raw strings and char
-/// literals follow Rust's own rules. Only a plain string argument counts: a code written as a
-/// raw string, `from_static(r"core::x")`, is not found.
-///
-/// # Errors
-///
-/// Returns [`UnreadableSource`] if the text isn't valid Rust tokens (e.g. unbalanced brackets),
-/// so no file is silently skipped.
-pub fn try_codes_in_source(text: &str) -> Result<Vec<String>, UnreadableSource> {
-    let tokens = text
-        .parse::<TokenStream>()
-        .map_err(|error| UnreadableSource {
-            reason: error.to_string(),
-        })?;
-    let mut codes = Vec::new();
-    collect_static_codes(tokens, &mut codes);
-    Ok(codes)
-}
-
-/// Source text that `proc-macro2` can't split into Rust tokens.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnreadableSource {
-    reason: String,
-}
-
-impl fmt::Display for UnreadableSource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "not valid Rust tokens: {}", self.reason)
-    }
-}
-
-impl std::error::Error for UnreadableSource {}
-
-/// Walks the tokens, nested groups included, for `from_static` followed by `("…")`.
-fn collect_static_codes(tokens: TokenStream, codes: &mut Vec<String>) {
-    let mut after_from_static = false;
-    for token in tokens {
-        if let TokenTree::Group(group) = &token {
-            if after_from_static
-                && group.delimiter() == Delimiter::Parenthesis
-                && let Some(code) = single_string_literal(group.stream())
-            {
-                codes.push(code);
-            }
-            collect_static_codes(group.stream(), codes);
-        }
-        after_from_static = matches!(&token, TokenTree::Ident(ident) if ident == "from_static");
-    }
-}
-
-/// The value of a group holding exactly one plain string literal, like `("core::x")`.
-fn single_string_literal(tokens: TokenStream) -> Option<String> {
-    let mut tokens = tokens.into_iter();
-    let (Some(TokenTree::Literal(literal)), None) = (tokens.next(), tokens.next()) else {
-        return None;
-    };
-    let text = literal.to_string();
-    text.strip_prefix('"')?.strip_suffix('"').map(str::to_owned)
+/// A plain-text scan, like the Rust compiler's `tidy` checks: lines starting with `//` are
+/// skipped. Known limits: a code inside a trailing `// …` comment, a `/* … */` block or a
+/// string is counted too (a false "not in `codes::ALL`" report; delete the commented-out
+/// code), and a code written as a raw string, `from_static(r"…")`, is not found.
+#[must_use]
+pub fn codes_in_source(text: &str) -> Vec<String> {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .flat_map(|line| line.split(STATIC_CODE).skip(1))
+        .filter_map(|rest| rest.split_once('"').map(|(code, _)| code.to_owned()))
+        .collect()
 }
 
 /// The slugs of all pages under `docs_dir` (`core/no-git-repo` for `core/no-git-repo.md`),
@@ -219,8 +164,7 @@ fn collect_pages(root: &Path, dir: &Path, slugs: &mut Vec<String>) -> io::Result
 ///
 /// # Errors
 ///
-/// Returns an I/O error if a directory or file can't be read, or if a `.rs` file isn't valid
-/// Rust tokens (the error names the file).
+/// Returns an I/O error if a directory or file can't be read.
 pub fn source_codes(crates_dir: &Path) -> io::Result<Vec<String>> {
     let mut codes = Vec::new();
     collect_source_codes(crates_dir, &mut codes)?;
@@ -242,13 +186,7 @@ fn collect_source_codes(dir: &Path, codes: &mut Vec<String>) -> io::Result<()> {
         }
         let is_rust = path.extension().is_some_and(|extension| extension == "rs");
         if is_rust && name != "tests.rs" {
-            let found = try_codes_in_source(&std::fs::read_to_string(&path)?).map_err(|error| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("{}: {error}", path.display()),
-                )
-            })?;
-            codes.extend(found);
+            codes.extend(codes_in_source(&std::fs::read_to_string(&path)?));
         }
     }
     Ok(())

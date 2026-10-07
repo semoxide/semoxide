@@ -59,7 +59,7 @@ Enforced in CI by:
 
 - the Cargo dependencies themselves
 - one root `clippy.toml` with `disallowed-methods` (env reads, process spawning, stdout/stderr handles, `temp_dir`, TLS "danger" methods) and `max-fn-params-bools = 0`, each ban with a reason; allowed sites carry `#[expect(clippy::disallowed_methods, reason = …)]`
-- `semoxide-test-support::source_rules`, run by `crates/semoxide/tests/source_rules.rs`: every crate root except semoxide-git has `#![forbid(unsafe_code)]`, no inline test modules, no `pub` tuple fields. It reads Rust tokens (`proc-macro2`), so comments and string contents never count; the error-code registry scan works the same way
+- `semoxide-test-support::source_rules`, run by `crates/semoxide/tests/source_rules.rs`: every crate root except semoxide-git has `#![forbid(unsafe_code)]`, no inline test modules, no `pub` tuple fields. Like the error-code registry scan, it is a plain-text scan in the style of the Rust compiler's `tidy` (lines starting with `//` skipped); its known limits are documented in the module
 - `clippy::exhaustive_enums` / `exhaustive_structs` in the façade crate (P14)
 - cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `engine`/`schema`)
 
@@ -191,10 +191,11 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 
   **Unlocking** (a spec change, a wrong test, a renamed API): the agent stops and reports; the maintainer agrees, starts the agent session with `SEMOXIDE_TESTS_UNLOCKED=1` (lifts the Claude hook and the pre-commit check for that session), the change lands as its own `test:` commit with the `// LOCKED:` header updated to the new commit, and the maintainer adds `tests-unlocked` to the PR.
   3. A fresh session implements under the lock. It stops and reports rather than editing a test; new snapshots stay `.snap.new`.
-  4. `cargo mutants --in-diff`: every surviving mutant becomes a test.
+  4. `cargo mutants --in-diff`: every surviving mutant in **product code** becomes a test. In test tooling (`semoxide-test-support`, repo checks) survivors are reported, and a test is added only when it is cheap and guards a realistic mistake.
   5. A reviewer checks the change against the spec, the lock, and the no-mocks rule.
   6. Refactors go in separate commits with the tests unchanged.
 - **A3. Simplicity over abstraction.** Concrete types until a 2nd implementation exists (P2); no speculative generics. The core is held to a strict bar, the periphery to a looser one.
+  - **Tooling matches established practice.** Checks on our own repo (scans, registries, custom lints) follow what comparable projects do, e.g. the Rust compiler's `tidy`: plain-text scans with documented limits. Search for precedent before building; no parsers or lexers for repo checks unless plain text demonstrably fails on real code.
 - **A4. Walking skeleton, then vertical slices.** First a dry run on a real temp repo end to end; then tag + push; then one gRPC plugin; then publish. Each slice is a task an agent can finish and verify, and it drives the milestone order ([PLANNING](PLANNING.md)).
 - **A5. Lightweight spec-driven flow.** Every task has a short spec: scope, out of scope, the A1 failure table, an end-to-end check. Specs are revised when implementation teaches something; small fixes need no ceremony.
 - **A6. Deterministic guardrails over prompts.** CLAUDE.md and AGENTS.md stay short. Any rule that must always hold lives in the compiler, clippy, CI or hooks (§7), and every task ends in a runnable check.

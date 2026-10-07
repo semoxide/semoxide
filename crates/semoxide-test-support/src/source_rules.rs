@@ -1,159 +1,100 @@
-//! Source rules checked on Rust tokens (`proc-macro2`), so comments and string contents never
-//! count: `#![forbid(unsafe_code)]` in crate roots (CLAUDE.md Rust rule 6), no inline test
-//! modules (CODE-ARCHITECTURE §8), private tuple fields (Rust rule 4).
+//! Source rules for the crates' `src/` files, as plain-text scans like the Rust compiler's
+//! `tidy` checks: `#![forbid(unsafe_code)]` in crate roots (CLAUDE.md Rust rule 6), no inline
+//! test modules (CODE-ARCHITECTURE §8), private tuple fields (Rust rule 4).
+//!
+//! Lines starting with `//` are skipped. Known limits: text inside `/* … */` blocks or strings
+//! that starts a line can still match, and a tuple struct spread over several lines isn't seen.
 
 use std::io;
 use std::path::{Path, PathBuf};
 
-use proc_macro2::{Delimiter, TokenStream, TokenTree};
-
 #[cfg(test)]
 mod tests;
 
-/// Whether the file has a `#![forbid(…)]` inner attribute that lists `unsafe_code`.
+/// Whether the file has a crate-level `#![forbid(…)]` (at the start of a line, not indented)
+/// that lists `unsafe_code`.
 #[must_use]
 pub fn forbids_unsafe_code(text: &str) -> bool {
-    tokens(text).windows(3).any(|window| {
-        matches!(window, [TokenTree::Punct(hash), TokenTree::Punct(bang), TokenTree::Group(attribute)]
-            if hash.as_char() == '#'
-                && bang.as_char() == '!'
-                && attribute.delimiter() == Delimiter::Bracket
-                && lists_lint(attribute.stream(), "forbid", "unsafe_code"))
+    code_lines(text).any(|line| {
+        line.strip_prefix("#![forbid(")
+            .and_then(|rest| rest.split_once(")]"))
+            .is_some_and(|(lints, _)| lints.split(',').any(|lint| lint.trim() == "unsafe_code"))
     })
 }
 
 /// Names of modules declared `#[cfg(test)] mod name { … }` with a body instead of `mod name;`.
+/// `cfg(all(test, …))` counts as a test cfg; a file containing `#![cfg(test)]` is test-only and
+/// skipped.
 #[must_use]
 pub fn inline_test_modules(text: &str) -> Vec<String> {
-    let mut names = Vec::new();
-    collect_inline_test_modules(&tokens(text), &mut names);
-    names
+    let lines: Vec<&str> = code_lines(text).map(str::trim).collect();
+    if lines.contains(&"#![cfg(test)]") {
+        return Vec::new();
+    }
+    lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| **line == "#[cfg(test)]" || line.starts_with("#[cfg(all(test"))
+        .filter_map(|(index, _)| {
+            let declaration = lines
+                .iter()
+                .skip(index + 1)
+                .find(|line| !line.starts_with("#["))?;
+            inline_module_name(declaration).map(str::to_owned)
+        })
+        .collect()
 }
 
-/// Names of tuple structs with a `pub` field, e.g. `struct Tag(pub String)`.
+/// `mod name {` (any visibility) gives `name`; `mod name;` and anything else give nothing.
+fn inline_module_name(line: &str) -> Option<&str> {
+    let rest = without_visibility(line).strip_prefix("mod ")?;
+    let end = rest.find(|c: char| c == '{' || c == ';' || c.is_whitespace())?;
+    let (name, after) = rest.split_at(end);
+    after.trim_start().starts_with('{').then_some(name)
+}
+
+/// Names of tuple structs with a `pub` field, e.g. `struct Tag(pub String);`.
 #[must_use]
 pub fn pub_tuple_fields(text: &str) -> Vec<String> {
-    let mut names = Vec::new();
-    collect_pub_tuple_fields(&tokens(text), &mut names);
-    names
-}
-
-/// The top-level tokens; text that isn't valid Rust tokens has none.
-fn tokens(text: &str) -> Vec<TokenTree> {
-    text.parse::<TokenStream>()
-        .map(|stream| stream.into_iter().collect())
-        .unwrap_or_default()
-}
-
-/// `level(…, lint, …)`, e.g. `forbid(missing_docs, unsafe_code)`.
-fn lists_lint(attribute: TokenStream, level: &str, lint: &str) -> bool {
-    let attribute: Vec<TokenTree> = attribute.into_iter().collect();
-    matches!(attribute.as_slice(), [TokenTree::Ident(name), TokenTree::Group(lints)]
-        if name == level
-            && lints.delimiter() == Delimiter::Parenthesis
-            && lints.stream().into_iter().any(|token| matches!(token, TokenTree::Ident(ident) if ident == lint)))
-}
-
-/// `#[…]` starting at `index`: the attribute's tokens.
-fn outer_attribute(tokens: &[TokenTree], index: usize) -> Option<TokenStream> {
-    match tokens.get(index..index + 2)? {
-        [TokenTree::Punct(hash), TokenTree::Group(attribute)]
-            if hash.as_char() == '#' && attribute.delimiter() == Delimiter::Bracket =>
-        {
-            Some(attribute.stream())
-        }
-        _ => None,
-    }
-}
-
-fn is_cfg_test(attribute: TokenStream) -> bool {
-    let attribute: Vec<TokenTree> = attribute.into_iter().collect();
-    matches!(attribute.as_slice(), [TokenTree::Ident(cfg), TokenTree::Group(condition)]
-        if cfg == "cfg"
-            && condition.delimiter() == Delimiter::Parenthesis
-            && condition.stream().to_string() == "test")
-}
-
-fn is_ident(token: Option<&TokenTree>, name: &str) -> bool {
-    matches!(token, Some(TokenTree::Ident(ident)) if ident == name)
-}
-
-fn collect_inline_test_modules(tokens: &[TokenTree], names: &mut Vec<String>) {
-    for (index, token) in tokens.iter().enumerate() {
-        if let TokenTree::Group(group) = token {
-            let inner: Vec<TokenTree> = group.stream().into_iter().collect();
-            collect_inline_test_modules(&inner, names);
-        }
-        if !outer_attribute(tokens, index).is_some_and(is_cfg_test) {
-            continue;
-        }
-        // Skip further attributes and a visibility, then expect `mod name { … }`.
-        let mut next = index + 2;
-        while outer_attribute(tokens, next).is_some() {
-            next += 2;
-        }
-        if is_ident(tokens.get(next), "pub") {
-            next += 1;
-            if matches!(tokens.get(next), Some(TokenTree::Group(scope)) if scope.delimiter() == Delimiter::Parenthesis)
-            {
-                next += 1;
-            }
-        }
-        if let (true, Some(TokenTree::Ident(name)), Some(TokenTree::Group(body))) = (
-            is_ident(tokens.get(next), "mod"),
-            tokens.get(next + 1),
-            tokens.get(next + 2),
-        ) && body.delimiter() == Delimiter::Brace
-        {
-            names.push(name.to_string());
-        }
-    }
-}
-
-fn collect_pub_tuple_fields(tokens: &[TokenTree], names: &mut Vec<String>) {
-    for (index, token) in tokens.iter().enumerate() {
-        if let TokenTree::Group(group) = token {
-            let inner: Vec<TokenTree> = group.stream().into_iter().collect();
-            collect_pub_tuple_fields(&inner, names);
-        }
-        let (true, Some(TokenTree::Ident(name))) =
-            (is_ident(Some(token), "struct"), tokens.get(index + 1))
-        else {
-            continue;
-        };
-        // The first group after the name (past any generics) holds the fields; a unit struct
-        // ends at `;` before any group.
-        let fields = tokens
-            .iter()
-            .skip(index + 2)
-            .take_while(
-                |token| !matches!(token, TokenTree::Punct(semicolon) if semicolon.as_char() == ';'),
-            )
-            .find_map(|token| match token {
-                TokenTree::Group(group) => Some(group),
-                _ => None,
-            });
-        if let Some(fields) = fields
-            && fields.delimiter() == Delimiter::Parenthesis
-            && has_pub_field(fields.stream())
-        {
-            names.push(name.to_string());
-        }
-    }
-}
-
-/// Whether any comma-separated field, after its attributes, starts with `pub`.
-fn has_pub_field(fields: TokenStream) -> bool {
-    let tokens: Vec<TokenTree> = fields.into_iter().collect();
-    tokens
-        .split(|token| matches!(token, TokenTree::Punct(comma) if comma.as_char() == ','))
-        .any(|field| {
-            let mut start = 0;
-            while outer_attribute(field, start).is_some() {
-                start += 2;
-            }
-            is_ident(field.get(start), "pub")
+    code_lines(text)
+        .filter_map(|line| {
+            let rest = without_visibility(line.trim()).strip_prefix("struct ")?;
+            let (name, fields) = rest.split_at(rest.find(['(', '{', ';'])?);
+            let fields = fields.strip_prefix('(')?;
+            let fields = fields.rsplit_once(')').map_or(fields, |(fields, _)| fields);
+            let name = name.split('<').next().unwrap_or(name).trim();
+            fields.split(',').any(is_pub_field).then(|| name.to_owned())
         })
+        .collect()
+}
+
+/// A tuple field, after an optional `#[…]` attribute, starts with `pub`.
+fn is_pub_field(field: &str) -> bool {
+    let field = field.trim();
+    let field = field
+        .strip_prefix("#[")
+        .and_then(|attribute| attribute.split_once(']'))
+        .map_or(field, |(_, after)| after.trim_start());
+    field.starts_with("pub ") || field.starts_with("pub(")
+}
+
+/// The lines that aren't `//` comments.
+fn code_lines(text: &str) -> impl Iterator<Item = &str> {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+}
+
+/// The line without a leading `pub ` or `pub(…) `.
+fn without_visibility(line: &str) -> &str {
+    let Some(rest) = line.strip_prefix("pub") else {
+        return line;
+    };
+    if let Some(rest) = rest.strip_prefix(' ') {
+        return rest;
+    }
+    rest.strip_prefix('(')
+        .and_then(|scope| scope.split_once(')'))
+        .map_or(line, |(_, after)| after.trim_start())
 }
 
 /// Every `.rs` file under `crates/*/src/`, with its content.

@@ -24,7 +24,6 @@ semoxide-test-support = { path = "crates/semoxide-test-support" }
 clap = { version = "=4.6.7", features = ["derive"] }
 assert_cmd = "=2.2.2"
 proptest = "=1.11.0"
-proc-macro2 = "=1.0.107"
 rstest = "=0.27.0"
 tempfile = "=3.27.0"
 
