@@ -67,6 +67,7 @@ Enforced in CI by:
 ## 5. Public API surface
 
 - **Publishing:** all crates except `semoxide-test-support` go to crates.io, because a published crate's dependencies must be published too. They are versioned in lockstep. **Only the façade `semoxide` (and the CLI binary) is a stable API**; the inner crates are documented as "internal, no stability promise". `cargo-semver-checks` runs on the façade only. This is uv/ruff's model.
+- **Protocol SDK dependency:** pinned git dependency on `semoxide-plugin-protocol` (`rev = <sha>`) during development; switched to a crates.io version once the protocol reaches a usable `0.1.0`.
 - **Façade shape:** builder, `run()` (blocking and async), and the read-only queries ([0014](decisions/0014-porting-behaviour.md)).
 - **Cancellation is cooperative and follows the failure path.**
   - Triggers: dropping the async `run()` future, Ctrl-C, or a `CancellationToken` given to the builder.
