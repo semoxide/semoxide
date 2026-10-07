@@ -1,0 +1,51 @@
+# cargo-deny policy (docs/CODE-ARCHITECTURE.md §2, quality tooling). Reference: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = true
+
+[advisories]
+# Every vulnerability advisory is an error. Unmaintained: only crates we depend on directly.
+unmaintained = "workspace"
+unsound = "all"
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Permissive licenses compatible with shipping semoxide as MIT OR Apache-2.0. Anything else is denied.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "CC0-1.0",
+]
+confidence-threshold = 0.8
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+  # Crate boundaries (CODE-ARCHITECTURE §2): heavy dependencies only through their owning crate.
+  { crate = "git2", wrappers = ["semoxide-git"], reason = "git access only through semoxide-git" },
+  { crate = "russh", wrappers = ["semoxide-git"], reason = "SSH transport lives in semoxide-git" },
+  { crate = "tokio", wrappers = ["semoxide-git", "semoxide-runtime", "semoxide-plugin-host", "tonic", "hyper", "hyper-util", "tower", "h2", "russh", "tokio-util", "tokio-stream"], reason = "async only in the plugin host and the SSH bridge (CODE-ARCHITECTURE §3)" },
+  { crate = "tonic", wrappers = ["semoxide-runtime", "semoxide-plugin-host", "semoxide-plugin-sdk"], reason = "gRPC only in the plugin host" },
+  { crate = "miette", wrappers = ["semoxide-cli"], reason = "diagnostic rendering only in the CLI (OBSERVABILITY §8)" },
+  # Decided exclusions.
+  { crate = "libssh2-sys", reason = "no libssh2: SSH via russh or the system ssh (ARCHITECTURE §6)" },
+  { crate = "openssl-sys", reason = "no OpenSSL; revisit if git2's https needs it on Linux" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# The plugin SDK is a pinned git dependency until protocol 0.1.0 (CODE-ARCHITECTURE §5).
+allow-git = ["https://github.com/semoxide/semoxide-plugin-protocol"]
