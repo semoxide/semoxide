@@ -63,6 +63,8 @@ jobs:
           echo "$HOME/.qlty/bin" >> "$GITHUB_PATH"
       - name: qlty check (formatters, clippy, gitleaks, osv-scanner, semgrep, markdownlint, actionlint, zizmor, smells)
         run: qlty check --all --no-progress
+      - name: Every crate root except semoxide-git forbids unsafe code
+        run: sh scripts/check-forbid-unsafe.sh
       - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: semgrep rule tests
