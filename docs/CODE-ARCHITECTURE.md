@@ -184,6 +184,8 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
   | CLI, JSON, `explain`, plan | outside-in: the `assert_cmd` case first |
   | git2, plugin host, forge, npm | PoC first, then characterization tests |
   | Every bug | a failing reproduction test first |
+  | Formats and contracts (file formats, wire types, published schemas) | the maintainer approves the format first, then outside-in |
+  | CI, config, repo checks, test tooling | infra + demo: no TDD; done when a demo shows the check failing when it should; precedent search first (A3) |
 
   **AI-agent workflow:**
   1. A human approves the spec or table rows.
