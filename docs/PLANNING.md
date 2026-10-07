@@ -19,3 +19,9 @@ flowchart LR
     C --> DC{{"Discussion"}}
     DC --> P["Product milestones"]
 ```
+
+## Issue structure
+- **Issue types** (org-level, shared by all repos): `Epic`, `Feature`, `Task`, `Bug`, `Spike` (PoC / research).
+- **Epics** are parent issues; their work items are **sub-issues**. "Blocked by" uses GitHub **issue dependencies**.
+- **Labels** carry only *area* and status extras (defined below), not the kind of issue.
+- Milestones are the slices (M0, M1, …), never epics.
