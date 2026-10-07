@@ -63,7 +63,7 @@ When each layer runs: [CI](#ci).
 
 - **Fixture DSL** (`semoxide-test-support`): builder for commits, tags, notes, merges (ff/no-ff/rebase), shallow clone, detached HEAD, modeled on upstream's `git-utils.js`. It writes history with the real git CLI, an independent oracle; tests also use `git daemon` and git cross-checks. Test machines and CI need git installed (only the tool itself is git-CLI-free).
 - **Fake secrets:** token-shaped test values always contain `SEMOXIDE_FAKE` (e.g. `ghp_SEMOXIDE_FAKE_0001`); gitleaks allowlists only that shape.
-- **Deterministic SHAs:** fixed author/committer dates and identity, `core.autocrlf=false`.
+- **Deterministic SHAs:** fixed identity, step `n` dated 2026-01-01T00:00:00Z + `n` minutes; git runs with a cleared env (only `PATH` kept), no system config and the fixture's own global config (no signing, `core.autocrlf=false`), so the machine's git setup never reaches the history.
 - **Golden histories:** `tests/histories/*.toml` = commit script + branch config + expected next version, channel and notes (`insta`). Shared by layers 2 and 4 and dry-run snapshots.
 - **Remotes:** `file://` bare repos by default. libgit2 refuses shallow over `file://`, so shallow/unshallow tests use a `git daemon` or HTTP server.
 

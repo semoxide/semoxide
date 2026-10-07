@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 semoxide-error.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
-tempfile.workspace = true
