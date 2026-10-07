@@ -1,0 +1,15 @@
+---
+source: crates/semoxide-cli/src/render/tests.rs
+assertion_line: 97
+expression: "serde_json::to_string_pretty(&json(&PushTimedOut)).unwrap()"
+---
+{
+  "schema_version": 1,
+  "error": {
+    "code": "git::push_timed_out",
+    "message": "push of `v1.2.0` to `origin` timed out",
+    "url": "https://github.com/semoxide/semoxide/blob/main/docs/errors/git/push-timed-out.md",
+    "retryable": true,
+    "remote_writes_happened": true
+  }
+}

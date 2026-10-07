@@ -1,0 +1,16 @@
+---
+source: crates/semoxide-cli/src/render/tests.rs
+assertion_line: 92
+expression: "serde_json::to_string_pretty(&json(&NoGitRepo)).unwrap()"
+---
+{
+  "schema_version": 1,
+  "error": {
+    "code": "core::no_git_repo",
+    "message": "not a git repository",
+    "help": "Run semoxide inside a git repository, or pass `--cwd`.",
+    "url": "https://github.com/semoxide/semoxide/blob/main/docs/errors/core/no-git-repo.md",
+    "retryable": false,
+    "remote_writes_happened": false
+  }
+}

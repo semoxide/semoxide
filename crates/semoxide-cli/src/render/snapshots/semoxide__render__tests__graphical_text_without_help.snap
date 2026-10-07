@@ -1,0 +1,8 @@
+---
+source: crates/semoxide-cli/src/render/tests.rs
+assertion_line: 82
+expression: "text(&PushTimedOut, TextStyle::Graphical { colors: Colors::Off })"
+---
+]8;;https://github.com/semoxide/semoxide/blob/main/docs/errors/git/push-timed-out.md\git::push_timed_out (link)]8;;\
+
+  × push of `v1.2.0` to `origin` timed out
