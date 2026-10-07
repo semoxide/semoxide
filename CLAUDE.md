@@ -23,7 +23,7 @@ A Rust release tool inspired by semantic-release. Current phase: **research and 
 
 ## Rust rules
 
-Core rules only. Known pitfalls: [RUST-PITFALLS](docs/RUST-PITFALLS.md). Everything else: [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md), lints and tools [ADR 0017](docs/decisions/0017-code-quality.md), logging [ADR 0013](docs/decisions/0013-observability.md).
+Core rules only. Known pitfalls: [RUST-PITFALLS](docs/RUST-PITFALLS.md). Patterns per situation: project skills in `.claude/skills/` (`rust-testing`, …). Everything else: [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md), lints and tools [ADR 0017](docs/decisions/0017-code-quality.md), logging [ADR 0013](docs/decisions/0013-observability.md).
 
 1. No `unwrap` / `expect` / `panic!` outside tests.
 2. `#[expect(lint, reason = "…")]`, never `#[allow]`.

@@ -1,0 +1,36 @@
+---
+name: rust-testing
+description: Use when writing, changing or fixing tests in semoxide, implementing pure-core logic (versions, bumps, branches, channels, commit parsing, config merge), or when a snapshot (insta) changes or a test fails
+---
+
+# Rust testing in semoxide
+
+## Overview
+Tests are the human-approved spec. An agent may write tests, but **only a human approves them**: a `test:` commit, or a snapshot. Implementation comes after that approval.
+
+## Pure-core work: the sequence
+For versions, bumps, branches, channels, the commit parser and config merge:
+
+1. **Tests only, in their own file.** Write tests from the approved source (a spec or table, e.g. `docs/test-tables/*.toml`) in a new sibling file for this feature, e.g. `src/next_version_tests.rs` declared as `#[cfg(test)] mod next_version_tests;`. Never append to an existing test file: the lock in step 5 must cover exactly what was approved.
+2. **Real red.** Make the stub return a wrong but valid value (e.g. `Version::new(0, 0, 0)`), so the new tests fail **on their assertions**. A `todo!()` panic or a compile error doesn't count as red. If a test already passes against the stub (e.g. a rejection case against a stub that always errors), keep it and list it in your report as "passes on stub".
+3. **One `test: …` commit** containing the new test file, the `mod` line and the wrong-value stub. The stub belongs here: it isn't implementation, and it makes this commit show the red on its own.
+4. **STOP and report** the failing test names (and any "passes on stub"), then wait for human review. Don't implement in the same turn.
+5. After approval, put this header at the top of the approved test file, then implement:
+   `// LOCKED: approved in <commit>. Do not edit; if a test looks wrong, stop and report.`
+6. Implement in a separate `feat:`/`fix:` commit. Never edit a LOCKED file; if one looks wrong, stop and report.
+
+New dependencies, including dev-dependencies: ask before adding them.
+
+## Snapshots (insta)
+**Never approve a snapshot yourself.** No `cargo insta accept`, no `cargo insta test --accept`, no `INSTA_UPDATE=always`, no hand-editing `.snap` files.
+
+When output changes: run `cargo insta test`, leave the `.snap.new` files, and report "N snapshots pending review" with a one-line summary of each diff. CI not being green yet is the correct state until a human accepts them.
+
+| Excuse | Reality |
+|---|---|
+| "I reviewed the diff, it's exactly the intended change" | You wrote the change, so your review doesn't count. The human approves. |
+| "The task says CI must be green" | Green CI from a self-approved snapshot is fake green. Report the pending snapshots. |
+| "It's a trivial reorder" | Trivial diffs are cheap for the human to approve. Leave them. |
+
+## Placement
+Unit tests go in a sibling `tests.rs` (`#[cfg(test)] mod tests;`); integration tests go in `tests/`; no inline test blocks with a body. Fixtures live in `semoxide-test-support`.
