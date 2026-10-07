@@ -6,10 +6,11 @@ description: Use when writing, changing or fixing tests in semoxide, implementin
 # Rust testing in semoxide
 
 ## Overview
+
 Tests are the human-approved spec, and **only a human approves them**. How much ceremony that takes depends on the area:
 
 | Area | Approach |
-|---|---|
+| --- | --- |
 | Pure core: versions, bumps, branches, channels, commit parser, config merge | the strict sequence below: tests first, then **stop** for review |
 | Notes, templates, rendering | write the code and tests together; outputs are insta snapshots that stay pending (`.snap.new`) for the human |
 | CLI commands, JSON output | an `assert_cmd` case first, then the code; output snapshots stay pending |
@@ -18,6 +19,7 @@ Tests are the human-approved spec, and **only a human approves them**. How much 
 Outside the pure core, don't stop for test review: finish the work and report the pending snapshots.
 
 ## Pure-core work: the sequence
+
 For versions, bumps, branches, channels, the commit parser and config merge:
 
 1. **Tests only, in their own file.** Write tests from the approved source (a spec or table, e.g. `docs/test-tables/*.toml`) in a new sibling file for this feature, e.g. `src/next_version_tests.rs` declared as `#[cfg(test)] mod next_version_tests;`. Never append to an existing test file: the lock in step 5 must cover exactly what was approved.
@@ -31,15 +33,17 @@ For versions, bumps, branches, channels, the commit parser and config merge:
 New dependencies, including dev-dependencies: ask before adding them.
 
 ## Snapshots (insta)
+
 **Never approve a snapshot yourself.** No `cargo insta accept`, no `cargo insta test --accept`, no `INSTA_UPDATE=always`, no hand-editing `.snap` files.
 
 When output changes: run `cargo insta test`, leave the `.snap.new` files, and report "N snapshots pending review" with a one-line summary of each diff. CI not being green yet is the correct state until a human accepts them.
 
 | Excuse | Reality |
-|---|---|
+| --- | --- |
 | "I reviewed the diff, it's exactly the intended change" | You wrote the change, so your review doesn't count. The human approves. |
 | "The task says CI must be green" | Green CI from a self-approved snapshot is fake green. Report the pending snapshots. |
 | "It's a trivial reorder" | Trivial diffs are cheap for the human to approve. Leave them. |
 
 ## Placement
+
 Unit tests go in a sibling `tests.rs` (`#[cfg(test)] mod tests;`); integration tests go in `tests/`; no inline test blocks with a body. Fixtures live in `semoxide-test-support`.

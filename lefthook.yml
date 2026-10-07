@@ -1,0 +1,23 @@
+# Local git hooks (CI is the gate). Setup per clone: `lefthook install`.
+# The qlty commands mirror what `qlty githooks install` would run.
+min_version: 2.1.17
+
+pre-commit:
+  commands:
+    qlty-fmt:
+      run: qlty fmt --trigger pre-commit --index-file="${GIT_INDEX_FILE:-.git/index}"
+      stage_fixed: true
+    typos:
+      run: typos --force-exclude {staged_files}
+
+pre-push:
+  piped: true
+  commands:
+    qlty-check:
+      run: qlty check --trigger pre-push --upstream-from-pre-push --no-formatters --skip-errored-plugins
+      use_stdin: true
+    nextest:
+      # until the first crate exists (#30) the workspace is empty and nextest has nothing to load
+      skip:
+        - run: test ! -d crates
+      run: cargo nextest run --workspace --no-tests=pass

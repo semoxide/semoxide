@@ -5,7 +5,7 @@ Logging, secret masking, CI output, errors and diagnostics. Exit codes, commands
 ## 1. Principles
 
 | # | Rule |
-|---|---|
+| --- | --- |
 | P1 | The library emits `tracing` spans/events only. It never installs a subscriber and never writes to stdout/stderr; the CLI or the embedder chooses the sink |
 | P2 | Secrets are masked **at the source** (core, plugin host) before an event exists; `MaskingWriter` masks again on output |
 | P3 | The library reads only the `Env` map passed to its builder (the CLI passes a copy of its own). It never reads or mutates the process env and builds child-process envs from that map |
@@ -31,7 +31,7 @@ flowchart LR
 ### Plugin output
 
 | Source | Handling |
-|---|---|
+| --- | --- |
 | `Log` host service | event in the `plugin{name}` span at the level the plugin sent. An `error` event from a step that then returns success fails the step (`core::plugin_error_on_success`); normal failure handling applies, including rollback after the tag push. The conformance kit checks for it |
 | Plugin stdout/stderr, incl. child tools | captured, masked, tagged with the plugin, emitted as `debug` events with `stream=stdout\|stderr`; never parsed (results come only via gRPC) |
 | In-process plugin | `Log` API only; the conformance kit checks it doesn't print |
@@ -41,7 +41,7 @@ Captured output is shown in full when that plugin's step fails, live with `-v`/`
 ## 3. Logging flags and filters
 
 | Flag / env | Effect |
-|---|---|
+| --- | --- |
 | (default) | `semoxide=info`, dependencies `warn` |
 | `-q` / `-qq` | `warn` / `error`; the final result line still prints |
 | `-v` / `-vv` | `semoxide=debug` / `trace`; live plugin output |
@@ -83,7 +83,7 @@ flowchart TD
 `SecretRegistry`: one per run, an `Arc` Aho-Corasick automaton rebuilt on insert. Replacement text: `[secure]`.
 
 | Secret source | Registered |
-|---|---|
+| --- | --- |
 | Secret env vars declared in a plugin's manifest | before the plugin is spawned |
 | `Env` vars whose name matches `token\|password\|credential\|secret\|private` with value ≥ 5 chars (upstream rule, [SEMANTIC-RELEASE-SPEC](specs/SEMANTIC-RELEASE-SPEC.md)) | at run start |
 | Env names listed in `mask_env = [...]` ([CONFIG.md](CONFIG.md)) | at run start |
@@ -101,7 +101,7 @@ Embedders get at-source masking with any subscriber. Dependency events are maske
 **GitHub Actions** (`--log-format=github`):
 
 | Command / file | Use |
-|---|---|
+| --- | --- |
 | `::group::` / `::endgroup::` | one per step (groups don't nest) |
 | `::error title=<CODE>::` / `::warning::` | errors/warnings; `file=`/`line=` for config spans |
 | `::notice::` | final line: released version or no-release reason |
@@ -120,7 +120,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 `NoReleaseReason` is a fixed, public enum. Every run without a release ends with one, logged at `info` with a hint and included in `RunReport`:
 
 | Reason | Hint content |
-|---|---|
+| --- | --- |
 | `NotCi` | outside CI: the run is forced to dry-run, and the report also carries `dry_run: forced (not_ci)` with the would-be outcome (version + plan, or the would-be reason) |
 | `PullRequest` | detected CI context |
 | `BranchNotConfigured` | closest configured branch glob |
@@ -146,7 +146,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 Command syntax and flags: [CLI.md](CLI.md). What each shows or checks:
 
 | Command | Content |
-|---|---|
+| --- | --- |
 | `explain [--commit <sha>]` | offline, read-only decision trace: branch rule → last release → each commit's verdict (skip marker, merge/fixup skips, unparsable commits with their parse error, a `Release-As:` footer as the reason; [CONFIG.md](CONFIG.md)) → next version or no-release reason |
 | `doctor` | repo, shallow clone, tags, CI vendor, token env **names**, plugin download/checksum lock, manifests, handshakes, `describe` schema validation |
 | `doctor --online` | adds token auth probes, push rights, tag-delete rights |

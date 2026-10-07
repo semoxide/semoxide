@@ -1,0 +1,9 @@
+# Project rules checked by semgrep (via qlty). Add a rule when a review finds a pattern clippy can't express.
+rules:
+  - id: unsafe-needs-safety-comment
+    languages: [generic]
+    paths:
+      include: ["*.rs"]
+    severity: ERROR
+    message: "An `unsafe` block needs a `// SAFETY:` comment on the line directly above it (CLAUDE.md, Rust rule 6)."
+    pattern-regex: '(?m)^(?![ \t]*// SAFETY:)[^\n]*\n[ \t]*(?:let\s+\w+\s*=\s*)?unsafe\s*\{'

@@ -5,7 +5,7 @@ How semoxide is tested, from pure functions to real releases. Per-area test-firs
 ## Where tests live
 
 | Repo | Tests |
-|---|---|
+| --- | --- |
 | `semoxide` | core: config, planning, release units, git2 layer, step pipeline, host services, CLI |
 | `semoxide-plugin-protocol` | SDK, host launcher, the conformance kit itself |
 | `semoxide-plugin-<name>` | the plugin's own logic (cases derived from upstream behaviour), its registry/forge fakes, the conformance kit in CI |
@@ -47,7 +47,7 @@ flowchart TB
 ```
 
 | # | Tests | Tooling |
-|---|---|---|
+| --- | --- | --- |
 | 1 | CC parser, bump rules, next/last release, branch normalization, notes context, templates, config merge + plugin schema validation, env-ci table, secret masking | `rstest`, `insta`, `proptest`, `cargo-fuzz` |
 | 2 | Every git op from the [git2 PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-ops) table, plus the [guards](#git) | `tempfile`, [fixtures](#fixtures), `file://` bare remotes; `git daemon` for shallow |
 | 3 | Protocol compliance; per-plugin API calls, retry/throttle | [conformance kit](#plugin-conformance), `wiremock`, `tokio::time::pause` |
@@ -62,6 +62,7 @@ When each layer runs: [CI](#ci).
 ## Fixtures
 
 - **Fixture DSL** (`semoxide-test-support`): builder for commits, tags, notes, merges (ff/no-ff/rebase), shallow clone, detached HEAD, modeled on upstream's `git-utils.js`. It writes history with the real git CLI, an independent oracle; tests also use `git daemon` and git cross-checks. Test machines and CI need git installed (only the tool itself is git-CLI-free).
+- **Fake secrets:** token-shaped test values always contain `SEMOXIDE_FAKE` (e.g. `ghp_SEMOXIDE_FAKE_0001`); gitleaks allowlists only that shape.
 - **Deterministic SHAs:** fixed author/committer dates and identity, `core.autocrlf=false`.
 - **Golden histories:** `tests/histories/*.toml` = commit script + branch config + expected next version, channel and notes (`insta`). Shared by layers 2 and 4 and dry-run snapshots.
 - **Remotes:** `file://` bare repos by default. libgit2 refuses shallow over `file://`, so shallow/unshallow tests use a `git daemon` or HTTP server.
@@ -71,7 +72,7 @@ When each layer runs: [CI](#ci).
 Required guard tests:
 
 | Guard | Test |
-|---|---|
+| --- | --- |
 | Tag clobber | remote already has the tag at another commit: `push_negotiation` rejects, remote unchanged (libgit2 would fast-forward it) |
 | Per-ref push status | pre-receive hook / protected branch declines: `push()` returns Ok, the per-ref status error must fail the step |
 | Credential retry cap | server answers 401 forever: the callback gives up after N attempts instead of looping |
@@ -90,7 +91,7 @@ semoxide is not a 1:1 rewrite, so upstream test files are not ported. Their suit
 `semoxide-plugin-conformance` (protocol repo) runs against any plugin, in any language; every plugin repo runs it in CI. It uses `semoxide-plugin-host`, the launcher semoxide uses. PoC: [plugin-grpc](https://github.com/semoxide/semoxide-poc/tree/main/plugin-grpc).
 
 | Check | Fails when |
-|---|---|
+| --- | --- |
 | Transport | gRPC over the local socket (UDS / named pipe) fails, or the per-run token is not presented |
 | Handshake | protocol major differs, `steps` invalid, or unknown fields/steps are rejected |
 | Manifest | handshake `secret_env` disagrees with the manifest |
@@ -114,7 +115,7 @@ Behavior: [CLI](CLI.md). Tests:
 One named regression test per row. Rollback and step-order rules: [ARCHITECTURE](ARCHITECTURE.md).
 
 | Case | Injection | Expected | Layer |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Publish fails after tag push (upstream #896, #2381) | stub publisher fails | `rollback` runs for each plugin; tag deleted via Git service; irreversible plugin logs a warning | 4 |
 | Rollback without delete rights | remote refuses tag deletion | partial failure, partial-failure exit code ([CLI](CLI.md)), message names the leftover tag | 4, 6 |
 | Plugin timeout / crash | plugin hangs or exits mid-step | tree killed, step fails, `rollback`/`fail` run | 4 |
@@ -155,7 +156,7 @@ Development phase only. A scheduled job runs a pinned semantic-release version i
 - One aggregate `required-checks` job gates merges.
 
 | Job | OS | Trigger |
-|---|---|---|
+| --- | --- | --- |
 | Quality checks ([CODE-ARCHITECTURE](CODE-ARCHITECTURE.md)) | Linux | PR |
 | Layers 1 to 4 + CLI | Linux, Windows | PR |
 | `cargo insta test --unreferenced reject` | Linux | PR |

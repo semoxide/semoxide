@@ -7,7 +7,7 @@ Scope: how the upstream GitHub plugin behaves (options, API calls, step logic, s
 ## 1. Features
 
 | Feature | File |
-|---|---|
+| --- | --- |
 | Steps share one module-global `verified` flag. If `verifyConditions` did not run, every other step runs verify lazily | `index.js:12,58-104` |
 | verifyConditions borrows `assets`/`successComment`/`failComment`/`failTitle`/`labels`/`assignees`/`discussionCategoryName` from the `publish` entry to validate early | `index.js:21-48` |
 | Option validation collects every error (AggregateError of `SemanticReleaseError`) | `lib/verify.js:21-47,82-92` |
@@ -33,7 +33,7 @@ Scope: how the upstream GitHub plugin behaves (options, API calls, step logic, s
 Resolved in `lib/resolve-config.js`. Options win over env vars.
 
 | Option | Env fallback | Default | Validation / notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | (token) | `GH_TOKEN` \|\| `GITHUB_TOKEN` | – | Required (`ENOGHTOKEN`) |
 | `githubUrl` | `GH_URL` \|\| `GITHUB_URL` | – (api.github.com) | GHE server root. Also passed to `issue-parser` `hosts` |
 | `githubApiPathPrefix` | `GH_PREFIX` \|\| `GITHUB_PREFIX` | `""` | Joined to `githubUrl`, e.g. `/api/v3` |
@@ -47,7 +47,7 @@ Resolved in `lib/resolve-config.js`. Options win over env vars.
 | `failCommentCondition` | – | – | Template with `issue` = the existing SR issue or `undefined` |
 | `labels` | – | `["semantic-release"]` | For the fail issue. `false` = none (`semantic-release` is still always added) |
 | `assignees` | – | – | For the fail issue |
-| `releasedLabels` | – | `["released<%= nextRelease.channel ? ` on @${channel}` : "" %>"]` | Templated. `false` = none. Tied to the success-comment gate |
+| `releasedLabels` | – | `["released<%= nextRelease.channel ?` on @${channel}`: "" %>"]` | Templated. `false` = none. Tied to the success-comment gate |
 | `addReleases` | – | `false` | `false\|"top"\|"bottom"` |
 | `draftRelease` | – | `false` | bool |
 | `releaseNameTemplate` | – | `<%= nextRelease.name %>` | |
@@ -58,7 +58,7 @@ Resolved in `lib/resolve-config.js`. Options win over env vars.
 ## 3. Per-step behaviour
 
 | Step | Flow |
-|---|---|
+| --- | --- |
 | verifyConditions | validate options → parse URL → (if token and proxy valid) GET repo → rename check → if not `GITHUB_ACTION` and not `permissions.push`, HEAD `/installation/repositories` (success = App token, OK) → 401 → `EINVALIDGHTOKEN`, 404 → `EMISSINGREPO`, other errors rethrown |
 | addChannel | GET release by tag → PATCH `{name, prerelease, tag_name}`. On 404, POST a new release with `body: notes`. No `make_latest`, body not updated |
 | fail | GET repo → GraphQL find SR issue (first 100 open, label filter, marker in body) → evaluate condition → comment on the existing issue, or POST a new issue |
@@ -109,7 +109,7 @@ flowchart TD
 ### API calls (exhaustive)
 
 | # | Call | Purpose | Step | File |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | 1 | `GET /repos/{o}/{r}` | auth, existence, `permissions.push`, `clone_url` rename check | verify | `verify.js:111` |
 | 2 | `HEAD /installation/repositories?per_page=1` | detect App installation token | verify | `verify.js:134` |
 | 3 | `POST /repos/{o}/{r}/releases` | create the release (draft when assets or `draftRelease`) | publish, addChannel | `publish.js:69,85,100`, `add-channel.js:56` |
@@ -131,6 +131,7 @@ flowchart TD
 | 19 | `POST /repos/{o}/{r}/issues` | create the fail issue | fail | `fail.js:93` |
 
 PR/issue discovery:
+
 - PR nodes are mapped into REST-issue-shaped objects (`pull_request: true`, `user`, `labels`, `merged_at`…) so the `issue` passed to templates stays compatible (`success.js:534-607`).
 - GraphQL field sets are hard-coded; a field missing on GHE (`canBeRebased`) broke users ([#910](https://github.com/semantic-release/github/issues/910)).
 - The commit alias uses only the first 12 SHA characters (collision theoretically possible).
@@ -138,6 +139,7 @@ PR/issue discovery:
 ### Rate limiting and retry
 
 `lib/octokit.js`, `definitions/{retry,throttle}.js`:
+
 - `plugin-throttling` with default limits (concurrency 1 for writes, a delay between content-creating POSTs).
 - `onRateLimit` and `onSecondaryRateLimit` both retry while `retryCount <= 3`.
 - `plugin-retry`: `retries:3`, `doNotRetry:[400,401,403,422]`. 404 is retried on purpose (replication lag).
@@ -155,7 +157,7 @@ PR/issue discovery:
 ## 4. Side effects
 
 | Side effect | Step | Notes |
-|---|---|---|
+| --- | --- | --- |
 | GitHub release created or updated (draft, prerelease, `make_latest`, discussion) | publish, addChannel | Orphan draft on failed upload |
 | Release assets uploaded | publish | No overwrite or delete of an existing asset |
 | Comments on PRs and issues | success | Can be hundreds of POSTs, trips secondary rate limits |
@@ -170,7 +172,7 @@ PR/issue discovery:
 Tests inject `TestOctokit` (baseUrl `https://api.github.local`, `request.fetch = fetchMock.sandbox()`), a sinon logger stub, fixtures in `test/fixtures/files`.
 
 | File (tests) | Covers |
-|---|---|
+| --- | --- |
 | `verify.test.js` (69) | 401, 404, missing permissions with HEAD installation fallback, env permutations, AggregateError contents |
 | `publish.test.js` (17) | release creation, `upload_url` `{?name,label}`, content-type, body bytes |
 | `add-channel.test.js` (9) | update, 404 → POST |

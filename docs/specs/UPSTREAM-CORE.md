@@ -5,7 +5,7 @@ Scope: how semantic-release core actually behaves in code (algorithms, git calls
 ## Source map
 
 | Area | Source |
-|---|---|
+| --- | --- |
 | `run` orchestration, CI/PR/dry-run guards, `mergeRange` and range guards, JS API result | `index.js` |
 | 9 step definitions, output validators (`E<STEP>OUTPUT`), `[skip release]` filter, notes concat, prepare HEAD re-check | `lib/definitions/plugins.js` |
 | Config discovery, defaults (plugins, branches), `extends` | `lib/get-config.js` |
@@ -26,12 +26,14 @@ Scope: how semantic-release core actually behaves in code (algorithms, git calls
 ## Pipeline
 
 ### Entry (`index.js` default export)
+
 1. `hookStd(process.stdout, process.stderr, opts.stdout, opts.stderr)` passes every write through `hideSensitive(env)`.
 2. `context = {cwd, env, stdout, stderr, envCi: envCi({env,cwd})}`, then `context.logger` (signale, scope `semantic-release`).
 3. `getConfig(context, cliOptions)` produces `{options, plugins}`. Then `options.originalRepositoryURL = options.repositoryUrl` and `context.options = options`.
 4. `run(context, plugins)`. On throw: `callFail`, `logErrors`, `unhook`, rethrow.
 
 ### `run()` internals
+
 Leading numbers are the step ids of the run order in [SEMANTIC-RELEASE-SPEC.md](SEMANTIC-RELEASE-SPEC.md). G-numbers refer to [Git operations](#git-operations).
 
 ```mermaid
@@ -70,6 +72,7 @@ sequenceDiagram
 ```
 
 ### Plugin loading and normalization
+
 ```mermaid
 flowchart TD
     E["plugins/index.js: each options.plugins entry"] --> V{"validatePlugin"}
@@ -89,7 +92,9 @@ flowchart TD
 ```
 
 ### Pipeline hook points (`lib/plugins/pipeline.js`, `lib/definitions/plugins.js`)
+
 Sequential `pReduce` returning an array of results. Per-step semantics are in [SEMANTIC-RELEASE-SPEC.md](SEMANTIC-RELEASE-SPEC.md) (hooks table).
+
 - analyzeCommits: pre drops `[skip release]`; post picks the highest of patch < minor < major, else `undefined`.
 - generateNotes: `getNextInput` feeds accumulated notes; post joins `\n\n`, then `hideSensitive`.
 - prepare: `getNextInput` re-reads HEAD (G14) and re-runs generateNotes, mutating the shared context.
@@ -97,6 +102,7 @@ Sequential `pReduce` returning an array of results. Per-step semantics are in [S
 - success/fail: pre `hideSensitiveValues(releases|errors)`.
 
 ### Errors
+
 - `SemanticReleaseError(message, code, details)` (`@semantic-release/error`) carries `semanticRelease = true`. Core builds them with `getError(code, ctx)` from `lib/definitions/errors.js`: message plus markdown details with docs links.
 - `AggregateError` comes from verify, branches, plugin config, settleAll steps and addChannel; `extractErrors(err)` flattens it.
 - `callFail`: `fail` plugins run only if at least one error has `semanticRelease`, and receive only those errors. Errors thrown by `fail` itself are logged.
@@ -104,6 +110,7 @@ Sequential `pReduce` returning an array of results. Per-step semantics are in [S
 - Codes: `ENOGITREPO`, `ENOREPOURL`, `EINVALIDREPOURL`, `EGITNOPERMISSION`, `EINVALIDTAGFORMAT`, `ETAGNOVERSION`, `EPLUGINCONF`, `EPLUGINSCONF`, `EPLUGIN`, `EANALYZECOMMITSOUTPUT`, `EGENERATENOTESOUTPUT`, `EPUBLISHOUTPUT`, `EADDCHANNELOUTPUT`, `EINVALIDBRANCH`, `EINVALIDBRANCHNAME`, `EDUPLICATEBRANCHES`, `EMAINTENANCEBRANCH(ES)`, `ERELEASEBRANCHES`, `EPRERELEASEBRANCH(ES)`, `EINVALIDNEXTVERSION`, `EINVALIDMAINTENANCEMERGE`.
 
 ### Branch normalization (`lib/branches/normalize.js`)
+
 Implements the range algorithms in [SEMANTIC-RELEASE-SPEC.md](SEMANTIC-RELEASE-SPEC.md). Its output order (maintenance, release, prerelease) defines "higher branches" for `getReleaseToAdd`.
 
 ## Git operations
@@ -111,7 +118,7 @@ Implements the range algorithms in [SEMANTIC-RELEASE-SPEC.md](SEMANTIC-RELEASE-S
 All calls go through `execa("git", args, {cwd, env})`. `URL` is `options.repositoryUrl` after auth injection; credentials travel inside it (`https://<prefix><token>@host/...`). Every call taking a URL puts `--` before it to block option injection (tested with `--upload-pack` and `--receive-pack`). G5–G20 run with the CI git env (bot identity, `GIT_ASKPASS=echo`, `GIT_TERMINAL_PROMPT=0`); the identity only affects commits made by prepare plugins.
 
 | # | Command and args | Source | Purpose | When | Behaviour notes |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | G1 | `git --version` | `bin/semantic-release.js` | require ≥ 2.7.1 | CLI start | |
 | G2 | `git config --get remote.origin.url` | `git.js:177` repoUrl | default repositoryUrl | config, if `package.json#repository` is missing | errors swallowed |
 | G3 | `git rev-parse --git-dir` | `git.js:192` isGitRepo | is cwd a repo (walks up) | verify | |
@@ -141,7 +148,7 @@ All calls go through `execa("git", args, {cwd, env})`. `URL` is `options.reposit
 ## Side effects
 
 | Kind | Detail |
-|---|---|
+| --- | --- |
 | Env read | auth token vars, `DEBUG`, env-ci vars, every env var name (masking scan) |
 | Env written | mutates the passed `env` (default `process.env`) with the CI git env |
 | Files read | config files (cwd only, cosmiconfig v9 default), `package.json` (read-package-up, **walks up**), plugin and shareable-config modules (node resolution), `.git` |
@@ -155,7 +162,7 @@ All calls go through `execa("git", args, {cwd, env})`. `URL` is `options.reposit
 ## Library semantics that leak into behaviour
 
 | npm dep | Behaviour it defines |
-|---|---|
+| --- | --- |
 | `semver` (node-semver) | `inc("prerelease")`, `diff`, `satisfies`, `validRange`, prerelease range matching, `-0` upper-bound quirk; only `>=a <b` ranges are generated |
 | `micromatch` | branch globs incl. extglob/braces (default `+([0-9])?(.{+([0-9]),x}).x`) |
 | `lodash` `template` | tagFormat and branch fields; core interpolates only `${version}` and `${name}` |
@@ -168,7 +175,7 @@ All calls go through `execa("git", args, {cwd, env})`. `URL` is `options.reposit
 ## Tests
 
 | Item | Detail |
-|---|---|
+| --- | --- |
 | Framework | ava 8 (`test/**/*.test.js`, 2m timeout), c8, testdouble `replaceEsm` (mocks env-ci, logger, modules), sinon, stream-buffers |
 | Unit (~270) | `git.test.js` (34, real temp repos), `get-config` (27), `get-git-auth-url` (30), `hide-sensitive` (26), `plugins/*` (50), `branches/*` (26), `definitions/*`, `get-next-version`, `get-last-release`, `get-release-to-add`, `utils`, `verify`, `cli` (12) |
 | Integration (38, `integration.test.js`) | full `index.js` against local bare repos via `file://` URLs (tempy + `git init --bare`), plugins as sinon stubs, env-ci mocked. Covers addChannel through ff/no-ff/rebase merges, prereleases, maintenance, dry-run, fail/success semantics, masking, shallow-clone unshallow |

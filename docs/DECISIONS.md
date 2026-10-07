@@ -3,6 +3,7 @@
 Why each non-obvious choice was made. The rules themselves live in the linked docs.
 
 ## Scope and compatibility
+
 - **Familiar, not compatible** — the gap among release tools is a single-binary, plugin-based, library-first tool that semantic-release's user base can migrate to; runtime compatibility would bring back every JS-only problem. (→ [REQUIREMENTS](REQUIREMENTS.md), [DIFFERENCES](DIFFERENCES.md))
 - **`migrate` instead of reading `.releaserc`** — migration, not feature count, is the differentiator; without it semoxide is "another knope". (→ [CLI](CLI.md))
 - **No JS plugin bridge** — it would need a Node runtime and reintroduce npm resolution, user JS functions and stdout-fragile plugins. (→ [REQUIREMENTS](REQUIREMENTS.md))
@@ -12,6 +13,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **`conventionalcommits` as default preset** — it recognises `!`, matches the spec, and is upstream's planned next default. (→ [CONFIG](CONFIG.md))
 
 ## Config and templates
+
 - **TOML only** — `serde_yaml` is deprecated and its forks stalled; TOML is native to the Rust ecosystem and has editor schema support. (→ [CONFIG](CONFIG.md))
 - **Own layer merge, not figment/config** — figment is stalled since 2024, `config` is weakly typed; the merge is ~200 lines. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 - **No env→config layer** — env config is invisible and typo-prone, flags are as easy in CI, and upstream has none; env holds only secrets and a fixed var list. (→ [CLI](CLI.md#environment-variables))
@@ -33,6 +35,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **`semver` crate + own bump/range** — strict SemVer 2.0.0 parsing used by cargo; it lacks bump and npm ranges, which are small to write. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 
 ## Git
+
 - **git2, not gix** — gix has no push and no ETA for it. (→ [ARCHITECTURE](ARCHITECTURE.md))
 - **No git CLI** — a hard requirement; git2 covers every operation, proven by PoC against real GitHub. (→ [ARCHITECTURE](ARCHITECTURE.md))
 - **Retry a bare per-ref `failed` once** — GitHub answered ~1 in 30 tag pushes that way in the PoC and a retry succeeded; the commit check makes the retry safe. (→ [ARCHITECTURE](ARCHITECTURE.md#6-git-and-credentials))
@@ -46,6 +49,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **Only the core deletes tags** — a plugin must never be able to remove a release tag. (→ [ARCHITECTURE](ARCHITECTURE.md))
 
 ## Plugins
+
 - **Process plugins over a local socket, not stdio** — a stray `println!` or a child such as `npm publish` corrupts a stdout protocol (measured; Nushell has the same flaw); a socket leaves stdout/stderr free to capture as logs. (→ [ARCHITECTURE](ARCHITECTURE.md))
 - **gRPC/Protobuf** — codegen for any language, deadlines, cancellation and field-evolution rules built in, at ~4 ms per plugin (measured); the HashiCorp go-plugin model. (→ [ARCHITECTURE](ARCHITECTURE.md))
 - **Not WASM** — plugins must run tools (`cargo publish`, `npm publish`), which WASI can't without a host exec escape hatch that defeats the sandbox; +21 MB to the host. (→ [ARCHITECTURE](ARCHITECTURE.md))
@@ -62,6 +66,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **npm not in the first plugin set** — its design (hybrid package manager + native HTTP) is still tentative. (→ [ARCHITECTURE](ARCHITECTURE.md))
 
 ## Code
+
 - **Async only in the plugin host and SSH bridge** — async only where concurrency is real; a private runtime on its own thread also works inside an embedder's tokio runtime. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 - **`semoxide-error` as its own crate** — every crate, including the pure ones, implements `ErrorInfo` without pulling in any dependency. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 - **Crates split by purity and heavy deps** — the engine and schema build and test without git2, tonic or tokio: fast rebuilds, and miri can run them. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
@@ -70,6 +75,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **Individual write steps not public** — embedders can't bypass the safety rules. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 
 ## Observability and CLI
+
 - **`semoxide release`, bare `semoxide` prints help** — typing the tool name must never release; an explicit verb is clearer for agents and matches the other subcommands. (→ [CLI](CLI.md))
 - **Generic `--set key=value` instead of per-option flags** — covers every key incl. plugin options with one rule and no flag list to maintain (cargo `--config` model). (→ [CLI](CLI.md))
 - **Library never prints; env snapshot** — the embedder decides output, and the library never reads or changes process state. (→ [OBSERVABILITY](OBSERVABILITY.md))
@@ -85,6 +91,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **No MCP server in v1** — the MCP spec and its Rust SDK haven't settled; a release must never be one tool call away. (→ [CLI](CLI.md))
 
 ## Testing and quality
+
 - **Fixtures via the real git CLI** — independent of the code under test; only the tool itself must be git-CLI-free. (→ [TESTING](TESTING.md))
 - **Upstream tests read, not ported** — semoxide is not a 1:1 rewrite, so upstream suites serve as a source of edge cases; our own cases cover deliberately matching behaviour. (→ [TESTING](TESTING.md))
 - **Containers per repo** — core runs only the git-http container on PRs; registry containers live in the plugin repos that publish to them. (→ [TESTING](TESTING.md))
@@ -93,8 +100,15 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **Upstream comparison in development only** — after the first release semoxide's own tests are the spec. (→ [TESTING](TESTING.md))
 - **Sandbox token from inside the sandbox repo** — scoped to one repo and one run; no long-lived PAT. (→ [TESTING](TESTING.md))
 - **Findings fixed, rules never loosened** — loosened rules hide real problems. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **lefthook runs the hooks** — qlty's own hook scripts are regenerated on install, so extra steps (typos, nextest) can't be added there. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#quality-tooling))
+- **gitleaks with one fake-token shape** — offline and catches revoked keys too; a fixed `SEMOXIDE_FAKE` shape avoids per-fixture allowlist approvals. trufflehog reports only live-verified keys and needs network. (→ [TESTING](TESTING.md))
+- **osv-scanner, not trivy** — trivy duplicates gitleaks (secrets) and osv (lockfiles); its Dockerfile scanner is revisited once there is an image. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#quality-tooling))
+- **semgrep with our own rules only** — registry packs need network and aren't OSI-licensed; our rules cover what clippy can't express. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#quality-tooling))
+- **Only `target/` excluded from qlty** — its web-project defaults (`config/`, `templates/`, …) would skip real source. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#quality-tooling))
+- **markdownlint MD013 off** — table rows can't be wrapped and hard-wrapped prose makes doc diffs noisy; doc length is governed by the "short docs" rule. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#quality-tooling))
 
 ## Project
+
 - **`MIT OR Apache-2.0`** — the Rust norm; Apache adds a patent grant, MIT stays GPLv2-compatible, both accept the incoming MIT/ISC/CC BY material. (→ [REQUIREMENTS](REQUIREMENTS.md))
 - **Repos public, sandbox private** — on the Free plan private repos lack protected branches, rulesets, environments, attestations and Pages, and public Actions minutes are free; the sandbox holds test credentials. (→ [REQUIREMENTS](REQUIREMENTS.md))
 - **PoCs in `semoxide-poc`** — throwaway code stays out of the product repo while the evidence stays linkable. (→ [REQUIREMENTS](REQUIREMENTS.md))

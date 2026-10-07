@@ -5,7 +5,7 @@ Commands, flags, dry-run, JSON contract, exit codes and agent support. Logging f
 ## Commands
 
 | Command | Purpose | Key flags |
-|---|---|---|
+| --- | --- | --- |
 | `semoxide release` | the release run: release, promote or report why not | `--dry-run`, `--no-ci`, `--verify-push`, `--fail-on-no-release` |
 | `semoxide version` | prints only the next version. No release: empty stdout, reason on stderr, exit 0 (6 with `--fail-on-no-release`) | `--fail-on-no-release` |
 | `semoxide explain` | offline, read-only decision trace: branch rule → last release → each commit's verdict → next version or no-release reason | `--commit <sha>`, `--limit`, `--notes-preview-lines <N>` |
@@ -19,6 +19,7 @@ Commands, flags, dry-run, JSON contract, exit codes and agent support. Logging f
 Bare `semoxide` prints help; it never starts a release.
 
 `init`:
+
 - Detects the forge (git remote), the ecosystem (`Cargo.toml`, `package.json`, …) and the release branch.
 - Writes a short `semoxide.toml`: default branches, the matching forge plugin, analyzer/notes defaults.
 - If a `.releaserc` exists, offers `migrate` instead.
@@ -29,7 +30,7 @@ Bare `semoxide` prints help; it never starts a release.
 ## Global flags
 
 | Flag | Effect |
-|---|---|
+| --- | --- |
 | `--output=text\|json` | data format on stdout ([JSON contract](#json-contract)); no separate `--json` |
 | `--set <key>=<value>` | overrides one config key (repeatable); value in TOML syntax, validated like the file (`--set plugins.github.draft=true`). The only way to set config from the CLI ([CONFIG.md](CONFIG.md)) |
 | `--dry-run` | [dry-run](#dry-run) |
@@ -46,7 +47,7 @@ Logs go to stderr; stdout carries only data (JSON, the printed version), so pipi
 Config is never read from env ([CONFIG.md](CONFIG.md)). Env carries only secrets (tokens, [ARCHITECTURE.md](ARCHITECTURE.md#6-git-and-credentials)) and this fixed list:
 
 | Variable | Effect |
-|---|---|
+| --- | --- |
 | `SEMOXIDE_LOG` | log filter ([OBSERVABILITY.md](OBSERVABILITY.md)) |
 | `SEMOXIDE_CI_BRANCH` | overrides the detected branch on any CI |
 | `SEMOXIDE_CI_IS_PR` | overrides the detected PR state on any CI |
@@ -82,7 +83,7 @@ flowchart TD
 Error object fields:
 
 | Field | Meaning |
-|---|---|
+| --- | --- |
 | `code` | namespaced error code, e.g. `git::push_rejected` (catalog: [OBSERVABILITY.md](OBSERVABILITY.md)) |
 | `message`, `help`, docs link | as rendered in text output |
 | config pointer | line in `semoxide.toml`, for config errors |
@@ -94,7 +95,7 @@ Retrying is safe only when `retryable && !remote_writes_happened`.
 ## Exit codes
 
 | Code | Meaning |
-|---|---|
+| --- | --- |
 | 0 | released, promoted, or no release |
 | 1 | any other failure before a remote write (git, network, plugin error, rejected push); check `retryable` |
 | 2 | CLI usage |

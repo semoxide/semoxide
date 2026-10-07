@@ -20,7 +20,7 @@ flowchart TD
 ```
 
 | Crate | Holds | Heavy deps | Published |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `semoxide-error` | `ErrorInfo` trait and error-code type (§4); bottom of the graph | none | yes, internal (§5) |
 | `semoxide-schema` | `semoxide.toml` types, JSON Schema generation | none (serde, schemars) | yes, internal |
 | `semoxide-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal |
@@ -35,7 +35,7 @@ The engine and schema compile and test without git2, tonic, russh or tokio; miri
 Key libraries for domain logic:
 
 | Need | Library | Rule |
-|---|---|---|
+| --- | --- | --- |
 | versions | `semver` | parse/compare only; own `Range { min, max_exclusive }` and bump code (the crate has no bump API, and `VersionReq` is cargo semantics) |
 | commit parsing | `git-conventional` (in the commit-analyzer repo) | used as-is; its deviations from Conventional Commits are documented, not patched ([CONFIG](CONFIG.md)) |
 | templates | `minijinja` | notes, messages, `tag_metadata` |
@@ -46,7 +46,7 @@ Key libraries for domain logic:
 ## 2. Crate boundaries and enforcement
 
 | Crate | May depend on | Must never use |
-|---|---|---|
+| --- | --- | --- |
 | `semoxide-error` | nothing | any dependency |
 | `semoxide-schema` | `error`, serde, schemars | anything with I/O |
 | `semoxide-engine` | `schema` | any I/O: `std::fs`, `std::net`, `std::process`, `std::env`, git2, tokio, printing |
@@ -56,6 +56,7 @@ Key libraries for domain logic:
 | `semoxide-cli` | the façade only | inner crates directly |
 
 Enforced in CI by:
+
 - the Cargo dependencies themselves
 - a `clippy.toml` per crate with `disallowed-methods` / `disallowed-types`, each ban with a reason
 - cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `engine`/`schema`)
@@ -104,27 +105,31 @@ Placement, kinds and how tests run: [TESTING](TESTING.md).
 
 **Findings are fixed in the code. Rules and thresholds are never loosened without the user's explicit approval.**
 
-Git hooks via qlty (`qlty githooks install`): pre-commit auto-formats; pre-push runs qlty's checks plus `cargo nextest run`. Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
+Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pre-commit runs `qlty fmt` and typos on staged files; pre-push runs `qlty check` on the pushed changes plus `cargo nextest run`. qlty config: `.qlty/qlty.toml` (only `target/` excluded, plugins pinned). Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
 
 | Tool | Catches | Runs |
-|---|---|---|
-| rustfmt | formatting | pre-commit (qlty) + CI |
-| clippy: `pedantic` on, selected `restriction` lints, `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, architecture rules (§2) | pre-push (qlty) + CI, warnings as errors |
+| --- | --- | --- |
+| rustfmt | formatting | pre-commit + CI |
+| clippy: `pedantic` on, selected `restriction` lints, `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, architecture rules (§2) | pre-push + CI, warnings as errors |
 | rustc + rustdoc lints (`missing_docs` on published crates, broken doc links) | undocumented API | CI |
-| qlty maintainability (complexity, duplication, smells) | complex or duplicated code | pre-push + CI |
-| qlty security: Gitleaks/TruffleHog, OSV-Scanner/Trivy, Semgrep | secrets, vulnerable deps, SAST | CI (secrets also pre-push) |
-| cargo-deny | licenses, RustSec, banned/duplicate deps, sources | CI |
+| qlty maintainability (complexity, duplication, smells; `mode = "block"`) | complex or duplicated code | pre-push + CI |
+| gitleaks (`.gitleaks.toml`: default rules; only test tokens containing `SEMOXIDE_FAKE` allowlisted) | secrets | pre-push + CI |
+| osv-scanner | known-vulnerable versions in `Cargo.lock` | pre-push (when the lockfile changes) + CI |
+| semgrep, our own rules only (`.semgrep.yaml`, e.g. `unsafe` needs `// SAFETY:`) | patterns clippy can't express | pre-push + CI |
+| markdownlint (`.markdownlint.json`: MD013 line length off) | broken Markdown structure in docs | pre-commit (autofix) + pre-push + CI |
+| actionlint | incorrect GitHub Actions workflows | pre-push + CI |
+| cargo-deny | licenses, RustSec, banned/duplicate deps, sources | CI on PRs + daily schedule |
 | cargo-shear | unused deps | CI |
 | dependency budget (max `Cargo.lock` packages; number set once code exists) | dependency bloat | CI |
 | typos | spelling (code, docs, messages) | pre-commit + CI |
 | cargo-semver-checks | breaking changes in the façade (§5) | CI |
 | cargo-mutants | tests that test nothing | `--in-diff` on PRs for the pure crates (gating once the baseline is clean, A2); full runs scheduled |
-| zizmor | insecure GitHub Actions workflows | CI |
+| zizmor | insecure GitHub Actions workflows | pre-push + CI |
 
 ## 8. Where things go
 
 | I need to add… | Goes in | Rules |
-|---|---|---|
+| --- | --- | --- |
 | a config option | type in `semoxide-schema`; loading/merge in `semoxide-runtime` (config module) | P4, P5; schema regenerated; documented in [CONFIG](CONFIG.md) |
 | version / bump / branch / channel logic | `semoxide-engine` | pure (P1), newtypes (P8), strict TDD (A2) |
 | a git operation | `semoxide-git` | guards and credential rules ([ARCHITECTURE](ARCHITECTURE.md)); characterization test against a real repo |
@@ -144,7 +149,7 @@ Git hooks via qlty (`qlty githooks install`): pre-commit auto-formats; pre-push 
 ## 9. Patterns
 
 | # | Pattern | Where |
-|---|---|---|
+| --- | --- | --- |
 | P1 | Pure core, I/O at the edges | `semoxide-engine` takes and returns data |
 | P2 | Traits only at real seams; concrete types until a 2nd implementation exists | `Plugin` (in-process / process), SSH transport (russh / system `ssh`) |
 | P3 | Façade crate | `semoxide` re-exports the stable API |
@@ -171,7 +176,7 @@ Git hooks via qlty (`qlty githooks install`): pre-commit auto-formats; pre-push 
 - **A2. Test-first, per area.**
 
   | Area | Approach |
-  |---|---|
+  | --- | --- |
   | Pure core (SemVer, bump rules, next version, channels, branches, commit parser, config merge) | strict spec-first TDD; cases derived from upstream behaviour, specs and proptest laws are the failing tests |
   | Notes, templates | a few hand-written expected outputs plus approved snapshots |
   | CLI, JSON, `explain`, plan | outside-in: the `assert_cmd` case first |

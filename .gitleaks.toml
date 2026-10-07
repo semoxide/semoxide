@@ -1,0 +1,7 @@
+# Test fixtures use the agreed fake-token shape (TESTING.md); only that shape is allowlisted.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "fake test tokens containing SEMOXIDE_FAKE"
+regexes = ['''SEMOXIDE_FAKE''']

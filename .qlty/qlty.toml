@@ -1,0 +1,52 @@
+# qlty: formatters, linters, security scanners and maintainability checks.
+# Rules: docs/CODE-ARCHITECTURE.md#quality-tooling. Findings are fixed in code; never loosen rules without approval.
+# Reference: https://qlty.sh/d/qlty-toml
+config_version = "0"
+
+# Only build output is excluded, so every source file is checked.
+exclude_patterns = ["**/target/**"]
+
+# Our test layout: unit tests in `foo/tests.rs`, integration tests in `tests/`.
+test_patterns = ["**/tests.rs", "**/tests/**"]
+
+[smells]
+mode = "block"
+
+[[source]]
+name = "default"
+default = true
+
+# rustfmt and clippy run on the toolchain pinned in rust-toolchain.toml.
+[[plugin]]
+name = "rustfmt"
+
+[[plugin]]
+name = "clippy"
+
+[[plugin]]
+name = "gitleaks"
+version = "8.29.1"
+
+[[plugin]]
+name = "osv-scanner"
+version = "2.3.0"
+
+[[plugin]]
+name = "semgrep"
+version = "1.144.0"
+
+[[plugin]]
+name = "zizmor"
+version = "1.16.3"
+
+[[plugin]]
+name = "actionlint"
+version = "1.7.9"
+
+[[plugin]]
+name = "markdownlint"
+version = "0.46.0"
+
+# qlty's definition still lists only linux/macos; semgrep CE supports Windows natively since the Fall 2025 release.
+[plugins.definitions.semgrep]
+supported_platforms = ["linux", "macos", "windows"]

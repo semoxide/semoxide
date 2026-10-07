@@ -27,7 +27,7 @@ flowchart LR
 `extends = "<source>"` or a list; later entries override earlier ones, the file overrides all of them.
 
 | Source | Form | Since |
-|---|---|---|
+| --- | --- | --- |
 | Built-in preset | `preset:<name>` | v1 |
 | Local path | `./ci/release.toml` | v1 |
 | Git ref pinned to a commit SHA | `git+https://…@<sha>#<file>` | v1 |
@@ -41,7 +41,7 @@ flowchart LR
 `[branches]` defaults (upstream's full set):
 
 | Branch | Type |
-|---|---|
+| --- | --- |
 | `N.x`, `N.N.x` | maintenance (built-in matcher) |
 | `master`, `main`, `next`, `next-major` | release |
 | `beta` | prerelease (`beta`) |
@@ -77,7 +77,7 @@ flowchart LR
 - Default bump table:
 
 | Commit | Release |
-|---|---|
+| --- | --- |
 | breaking change | major |
 | `feat` | minor |
 | `fix`, `perf`, `revert` | patch |

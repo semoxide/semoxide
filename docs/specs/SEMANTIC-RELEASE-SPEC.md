@@ -2,9 +2,10 @@
 
 > Attribution: condensed and paraphrased from the [semantic-release](https://github.com/semantic-release/semantic-release) documentation, © semantic-release contributors, MIT-licensed while it was part of the semantic-release repository (until 2026-06), plus semoxide's own findings from the source code. Not affiliated with semantic-release.
 
-Sources: docs repo `semantic-release/docs` @ `b8513ff` (2026-10-04, site https://semantic-release.org; the old `semantic-release/semantic-release/docs` folder **no longer exists**). Where the docs are silent or wrong, the core source `semantic-release/semantic-release` @ `04c1923` was checked; those items are tagged **[src]**. Docs vs source conflicts are tagged **[conflict]**.
+Sources: docs repo `semantic-release/docs` @ `b8513ff` (2026-10-04, site <https://semantic-release.org>; the old `semantic-release/semantic-release/docs` folder **no longer exists**). Where the docs are silent or wrong, the core source `semantic-release/semantic-release` @ `04c1923` was checked; those items are tagged **[src]**. Docs vs source conflicts are tagged **[conflict]**.
 
 ## 1. Model
+
 Links: [How it works](https://semantic-release.org/foundation/how-it-works/) · [Considerations](https://semantic-release.org/foundation/considerations/) · [Intro](https://semantic-release.org/intro/)
 
 - Runs in CI after all tests pass, on a release branch. Answers three questions: release or not, which version, where to publish.
@@ -14,12 +15,13 @@ Links: [How it works](https://semantic-release.org/foundation/how-it-works/) · 
 - Commits whose message matches `/\[skip\s+release]|\[release\s+skip]/i` are dropped before `analyzeCommits` ([FAQ](https://semantic-release.org/support/faq/#can-i-exclude-commits-from-the-analysis), regex **[src]**).
 
 ## 2. Lifecycle
+
 Links: [Release steps](https://semantic-release.org/foundation/release-steps/) · [Plugins](https://semantic-release.org/foundation/plugins/)
 
 ### 2.1 Hooks
 
 | Hook | Req. | Runs in dry-run | Multi-plugin semantics | Return value |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `verifyConditions` | no | yes | all plugins run, errors aggregated (settleAll) **[src]** | ignored |
 | `analyzeCommits` | **yes**; defaults to `@semantic-release/commit-analyzer` if none is configured | yes | highest type wins | `"patch"\|"minor"\|"major"\|null/undefined`; anything else → `EANALYZECOMMITSOUTPUT` **[src]** |
 | `verifyRelease` | no | yes | settleAll **[src]** | ignored |
@@ -33,6 +35,7 @@ Links: [Release steps](https://semantic-release.org/foundation/release-steps/) �
 Plugins run in `plugins` array order within each step. Steps run in fixed order.
 
 ### 2.2 Actual run order [src] ([conflict] with the docs table)
+
 The docs put "Create Git Tag" before Prepare and "Add Channel" between tag and Prepare. The source does this (numbers are step ids used elsewhere):
 
 ```mermaid
@@ -81,6 +84,7 @@ flowchart TD
 ```
 
 ## 3. Configuration
+
 Link: [Configuration](https://semantic-release.org/usage/configuration/)
 
 **Sources** (cosmiconfig name `release`, first match wins): `.releaserc` (YAML/JSON, optional ext `.yaml|.yml|.json|.js|.ts|.cjs|.mjs`), `release.config.(js|ts|cjs|mjs)`, or the `package.json` `release` key.
@@ -88,7 +92,7 @@ Link: [Configuration](https://semantic-release.org/usage/configuration/)
 **Precedence (high→low):** CLI/API options > config file > `extends` configs (later entry overrides earlier) > defaults. Merges are **shallow**: `plugins` and `branches` replace, they never merge. `null`/`undefined` values fall back to defaults **[src]**.
 
 | Option | Type | Default | CLI |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `extends` | string \| string[] | — | `-e, --extends` |
 | `branches` | string \| object \| array (micromatch globs) | `['+([0-9])?(.{+([0-9]),x}).x','master','main','next','next-major',{name:'beta',prerelease:true},{name:'alpha',prerelease:true}]` | `--branches` (also `-b` **[src]**) |
 | `repositoryUrl` | string | `package.json` `repository`, else `git config remote.origin.url` | `-r, --repository-url` |
@@ -106,12 +110,13 @@ Link: [Configuration](https://semantic-release.org/usage/configuration/)
 - Adopting on an existing project: the last released commit must be in the release branch history and tagged per `tagFormat` ([Existing version tags](https://semantic-release.org/usage/configuration/#existing-version-tags)).
 
 ## 4. Branches, channels, ranges
+
 Links: [Workflow configuration](https://semantic-release.org/foundation/workflow-configuration/) · [Supported branching](https://semantic-release.org/foundation/supported-branching/) · recipes: [channels](https://semantic-release.org/recipes/release-workflow/distribution-channels/), [maintenance](https://semantic-release.org/recipes/release-workflow/maintenance-releases/), [pre-releases](https://semantic-release.org/recipes/release-workflow/pre-releases/)
 
 ### 4.1 Branch properties
 
 | Prop | Applies to | Default | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `name` | all | string value / each glob match | Required. A glob expands per matching **remote** branch (`git ls-remote --heads`). No match → definition silently ignored. |
 | `channel` | all | first release branch: `undefined` (default channel); others: `name` | `false` forces the default channel. String is a lodash template with `${name}`. |
 | `range` | maintenance | `name` | Must match `N.x`, `N.x.x` or `N.N.x`. Required unless `name` has that shape. |
@@ -120,6 +125,7 @@ Links: [Workflow configuration](https://semantic-release.org/foundation/workflow
 All string props are lodash templates evaluated with `{name}` **[src]**.
 
 ### 4.2 Type detection [src]
+
 - **maintenance**: `range` set (not `false`), or `name` matches `^\d+(\.(\d+|x))?\.x$`.
 - **prerelease**: `prerelease` set and not `false`.
 - **release**: everything else.
@@ -127,7 +133,7 @@ All string props are lodash templates evaluated with `{name}` **[src]**.
 ### 4.3 Validation errors
 
 | Code | Rule |
-|---|---|
+| --- | --- |
 | `ERELEASEBRANCHES` | 1 to 3 release branches (after glob expansion and dropping missing branches) |
 | `EMAINTENANCEBRANCH(ES)` | range shape invalid / ranges not unique |
 | `EPRERELEASEBRANCH(ES)` | invalid id / ids not unique |
@@ -136,11 +142,13 @@ All string props are lodash templates evaluated with `{name}` **[src]**.
 Branch order in the result: maintenance (sorted by range) → release (config order) → prerelease.
 
 ### 4.4 Tags, notes, last release
+
 - Branch tags come from `git tag --merged <branch>`. A tag counts as a release if it matches the regex built from `tagFormat` (with `version` → `(.+)`) and the captured version is valid semver.
 - Channels per tag live in git notes, JSON `{"channels":[null,"next",…]}` (`null` = default channel). Current ref is `refs/notes/semantic-release-<tag>` (per tag); the legacy shared `refs/notes/semantic-release` is still read **[src]**. A tag with no note means `[null]`. **[conflict]** The [troubleshooting page](https://semantic-release.org/support/troubleshooting/) still documents only the legacy ref.
 - Last release = highest version among branch tags that are non-prerelease, or (on a prerelease branch) prereleases with this branch's id that are on this branch's channel.
 
 ### 4.5 Next version [src]
+
 `pre` = the branch's prerelease id. Starting at `0.x` is unsupported ([FAQ](https://semantic-release.org/support/faq/#can-i-set-the-initial-release-version-of-my-package-to-001)).
 
 ```mermaid
@@ -156,7 +164,9 @@ flowchart TD
 ```
 
 ### 4.6 Range calculation [src]
+
 **Release branches** `R[0..n]`:
+
 - `lastVersion` = running max of each branch's latest release, starting from `R[0]` latest or `1.0.0`.
 - `bound` = the first version on `R[i+1]` that is higher than every version on `R[0..i]`. The last branch has no bound.
 - `range = ">=lastVersion <bound"`.
@@ -164,6 +174,7 @@ flowchart TD
 - `main` = (`i == 0`).
 
 **Maintenance branches**:
+
 - `min = max(branch latest || 1.0.0, maintenanceMin)`. `maintenanceMin` = lower bound of the range, except for a major range (`N.x`) that follows a non-major range: then it is the upper bound of the previous range.
 - `max = min(base, upper(range))`. `base` = the first version of `R[0]` not present on any maintenance branch.
 - `range = ">=min <max"`; `accept` derived as above.
@@ -174,15 +185,18 @@ flowchart TD
 Documented examples to use as test fixtures: [push to release](https://semantic-release.org/foundation/workflow-configuration/#pushing-to-a-release-branch), [push to maintenance](https://semantic-release.org/foundation/workflow-configuration/#pushing-to-a-maintenance-branch), [merge to maintenance](https://semantic-release.org/foundation/workflow-configuration/#merging-into-a-maintenance-branch), [pre-release](https://semantic-release.org/foundation/workflow-configuration/#pushing-to-a-pre-release-branch), plus all three recipe walkthroughs.
 
 ### 4.7 Supported workflows
+
 - Supported: trunk-based development, GitHub Flow.
 - Unsupported: git-flow, branch-for-release (except late-created maintenance branches), release-for-testing-then-promote, monorepos (semoxide: [ARCHITECTURE §8](../ARCHITECTURE.md)).
 
 ## 5. tagFormat
+
 - A lodash template with only `${version}` interpolation (`evaluate:false, escape:false`) **[src]**.
 - `version` must appear **exactly once** (`ETAGNOVERSION`).
 - The output must pass `git check-ref-format refs/tags/<t>` (`EINVALIDTAGFORMAT`). The same template is used to parse existing tags back.
 
 ## 6. CI, git and auth
+
 Links: [CI configuration](https://semantic-release.org/usage/ci-configuration/) · [CI recipes](https://semantic-release.org/recipes/ci-configurations/) · [SSH keys](https://semantic-release.org/recipes/git-hosted-services/git-auth-ssh-keys/) · [Git version](https://semantic-release.org/support/git-version/) · [Node version](https://semantic-release.org/support/node-version/)
 
 - **CI detection** uses the [`env-ci`](https://github.com/semantic-release/env-ci) package and provides `isCi`, `commit`, `branch`, `isPr`, `prBranch`. A PR build means no release.
@@ -195,7 +209,7 @@ Links: [CI configuration](https://semantic-release.org/usage/ci-configuration/) 
   3. On failure, rebuild as https with basic auth from env:
 
 | Env | Credential prefix |
-|---|---|
+| --- | --- |
 | `GIT_CREDENTIALS` | none (`user:pass`, each part URL-encoded) |
 | `GH_TOKEN` | none |
 | `GITHUB_TOKEN` | `x-access-token:` only when `GITHUB_ACTION` is set |
@@ -204,18 +218,21 @@ Links: [CI configuration](https://semantic-release.org/usage/ci-configuration/) 
 | `BB_TOKEN_BASIC_AUTH`, `BITBUCKET_TOKEN_BASIC_AUTH` | none (`user:token`) |
 
   If several of these are set, each is tried and the first that passes `push --dry-run` wins.
+
 - **Plugin tokens** (`NPM_TOKEN`, `GH_TOKEN`, …) are the plugins' concern. OIDC trusted publishing is recommended.
 - **GitHub Actions job permissions:** `contents: write`, `issues: write`, `pull-requests: write`, `id-token: write`.
 - **GitHub Actions pitfalls:** don't set `setup-node` `registry-url`. The default `GITHUB_TOKEN` can't push to protected branches; use a GitHub App token.
 - **Secret masking** [src]: every output stream and the `success`/`fail` payloads are filtered. Values of env vars whose name matches `/token|password|credential|secret|private|key|auth|webhook/i` (length ≥ 5, `GOPRIVATE` excluded) are replaced with `[secure]`, in raw and URL-encoded forms.
 
 ## 7. Dry-run and local runs
+
 - Skips `prepare`, `publish`, `addChannel`, `success`, `fail` and tag/note creation and push.
 - Still runs config load, branch fetch, **push-permission check**, `verifyConditions`, `analyzeCommits`, `verifyRelease`, `generateNotes`. Prints the next version and notes.
 - Local release: `--no-ci` plus credentials in env. Discouraged ([FAQ](https://semantic-release.org/support/faq/#can-i-run-semantic-release-on-my-local-machine-rather-than-on-a-ci-server)).
 - Recommended invocation is `npx semantic-release@<major>` with pinned plugins ([Running](https://semantic-release.org/usage/running/)).
 
 ## 8. JS API
+
 Link: [JS API](https://semantic-release.org/developer-guide/js-api/)
 
 `semanticRelease(options?, {cwd=process.cwd(), env=process.env, stdout, stderr}?) → Promise<Result|false>`
@@ -225,7 +242,7 @@ Link: [JS API](https://semantic-release.org/developer-guide/js-api/)
 - `debug` isn't an API option (`require('debug').enable(...)`).
 
 | Result field | Shape |
-|---|---|
+| --- | --- |
 | `lastRelease` | `{version, gitHead, gitTag, channel}`; `{}` if none. **[conflict]** The plugin context doc lists `channels[]` and `name`; the source returns `channels` |
 | `commits[]` | `{commit:{long,short}, tree:{long,short}, author:{name,email,date}, committer:{…}, subject, body, message, hash, committerDate, gitTags}`. Docs typo `author.short` = `date` |
 | `nextRelease` | `{type, version, gitHead, gitTag, name, notes, channel}` (`channel` `null` = default) |
@@ -234,6 +251,7 @@ Link: [JS API](https://semantic-release.org/developer-guide/js-api/)
 The result is `false` when nothing is released. If only a merged-channel promotion happened, the result is `{releases}` alone **[src]**.
 
 ## 9. Plugin contract
+
 Links: [Plugin development](https://semantic-release.org/developer-guide/plugin/) · [Plugins list](https://semantic-release.org/extending/plugins-list/)
 
 - **Module shape:** exports named hook functions, or a default function, which is treated as a single-step plugin **[src]**.
@@ -244,7 +262,7 @@ Links: [Plugin development](https://semantic-release.org/developer-guide/plugin/
 Context keys by stage (cumulative):
 
 | Stage | Adds |
-|---|---|
+| --- | --- |
 | all | `cwd, env, envCi{isCi,commit,branch,…}, options, logger, stdout, stderr, branch{name,type,channel,range,accept,tags,main,prerelease?,mergeRange?}, branches[]` |
 | `analyzeCommits` | `commits[], releases[], lastRelease{version,gitTag,channels,gitHead,name}` |
 | `verifyRelease` | `nextRelease{type,channel,gitHead,version,gitTag,name}` |
@@ -258,7 +276,7 @@ Context keys by stage (cumulative):
 Official plugins:
 
 | Plugin | Hooks |
-|---|---|
+| --- | --- |
 | commit-analyzer | analyzeCommits |
 | release-notes-generator | generateNotes |
 | npm | verifyConditions, prepare, publish |
@@ -272,6 +290,7 @@ Official plugins:
 The first four are bundled with core. The plugins list page omits `addChannel` for npm and github, but channel promotion needs it. Check the plugin READMEs. The maintenance recipe text says the dist-tag is `@release-1.x` while its diagrams say `@1.x`.
 
 ## 10. Shareable configs
+
 Links: [Shareable configurations](https://semantic-release.org/foundation/shareable-configurations/) · [Development](https://semantic-release.org/developer-guide/shareable-configuration/) · [List](https://semantic-release.org/extending/shareable-configurations-list/)
 
 - A package or file that exports a plain config object.
@@ -280,6 +299,7 @@ Links: [Shareable configurations](https://semantic-release.org/foundation/sharea
 - Shallow override: redefining `plugins` locally replaces the inherited array.
 
 ## 11. Documented limitations / non-goals
+
 - No `0.x` versions; no manual "release version X".
 - No monorepo support (semoxide: [ARCHITECTURE §8](../ARCHITECTURE.md)).
 - Max 3 release branches.
@@ -292,4 +312,5 @@ Links: [Shareable configurations](https://semantic-release.org/foundation/sharea
 - Angular revert format differs from `git revert`.
 
 ## 12. JS-specific parts
+
 How semoxide replaces them: [DIFFERENCES](../DIFFERENCES.md).

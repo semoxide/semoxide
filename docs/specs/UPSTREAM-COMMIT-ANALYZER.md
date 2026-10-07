@@ -5,7 +5,7 @@ Scope: how `@semantic-release/commit-analyzer` (the `analyzeCommits` step) actua
 ## Source map
 
 | Feature | File |
-|---|---|
+| --- | --- |
 | Single export `analyzeCommits(pluginConfig, context)`; loops over commits, returns the highest type | `index.js` |
 | Skips commits whose message is empty or whitespace (debug log only) | `index.js:36` |
 | `CommitParser(config).parse(message)` merged into the raw commit object | `index.js:44` |
@@ -21,7 +21,7 @@ Scope: how `@semantic-release/commit-analyzer` (the `analyzeCommits` step) actua
 ## Options
 
 | Option | Type | Default | Behaviour |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `preset` | string | `angular` (implicit) | Lowercased; imports `conventional-changelog-${preset}` from the plugin dir, then `cwd`; calls `fn(presetConfig)`; only `.parser` is used. **Wins over `config`.** |
 | `config` | string | – | Package name or path, imported the same way, called **without args**; only `.parser` is used |
 | `parserOpts` | object | – | Shallow `{...preset.parser, ...parserOpts}`. Angular is always the base (README claim "only parserOpts are used" is wrong) |
@@ -61,6 +61,7 @@ flowchart TD
 Final log: `Analysis of %s commits complete: %s release` with `commits.length` (including skipped empty commits) and `result || "no"`.
 
 ### `analyzeCommit(rules, commit)`
+
 1. A rule matches if all hold:
    - `breaking` truthy ⇒ `commit.notes.length > 0` (**any** note counts, not only `BREAKING CHANGE`).
    - `revert` truthy ⇒ `commit.revert` truthy (set by the parser's `revertPattern`).
@@ -81,6 +82,7 @@ flowchart TD
 Because `idx(false|null) = -1`, a falsy type after a truthy one also replaces it (unless `major` already stopped the fold): a trailing `{release:false}` is an order-dependent veto. Otherwise the higher type wins.
 
 ### Matching details
+
 - Rule values are **globs, not regexes**. A JS RegExp falls through to `isEqual` and never matches a string. micromatch is path-oriented: `*` does not cross `/`, a leading `.` is treated as a dotfile, picomatch on win32 converts `\` to `/`. Braces and extglobs work. Case-sensitive.
 - Rule keys can be any field of the merged commit. Parser fields (`type, scope, subject, header, body, footer, notes, references, mentions, merge, revert`, plus custom `headerCorrespondence` names such as eslint `tag`/`message`) **override** raw commit fields of the same name (`subject`, `body`, `message`). Raw fields (`hash`, `author.email`, `committerDate`, …) stay matchable.
 - Any matching custom rule **suppresses all default rules for that commit**: with `{type:"refactor", release:"patch"}`, `refactor!:` gives only patch unless `{breaking:true, release:"major"}` is also configured.
@@ -90,7 +92,7 @@ Because `idx(false|null) = -1`, a falsy type after a truthy one also replaces it
 ### Default rules
 
 | Rule | Release |
-|---|---|
+| --- | --- |
 | `breaking:true` | major |
 | `revert:true` | patch |
 | `type`: feat / fix / perf | minor / patch / patch |
@@ -110,7 +112,7 @@ Because `idx(false|null) = -1`, a falsy type after a truthy one also replaces it
 ## Tests (ava, `test/`)
 
 | File | # | Covers | Portable |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `compare-release-types.test.js` | 1 test, 13 asserts | ordering, falsy candidates | yes, as `(cur, new, expected)` table |
 | `analyze-commit.test.js` | 12 | breaking, revert, combined criteria, glob, highest wins, `false`/`null` result, no match | yes, as `(rules, commit, expected)` table |
 | `load-release-rules.test.js` | 9 | inline array, module path, undefined, preserving `false`/`null`, invalid type, missing `release`, non-array, `undefined` item | validation cases only |
