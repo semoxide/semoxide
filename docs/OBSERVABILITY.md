@@ -134,6 +134,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 
 - Library errors are `thiserror` enums implementing `ErrorInfo` ([CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md)): code, message, help line, docs URL, and for config errors a label pointing at the line in `semoxide.toml`. `miette` is used only by the CLI for rendering.
 - Codes are namespaced names: `core::no_git_repo`, `git::push_rejected`, `github::release_exists`; a plugin's name is its namespace. The docs map upstream mnemonics (`ENOGITREPO` → `core::no_git_repo`).
+- Message wording, help lines and the page template: [docs/errors/README.md](errors/README.md).
 - Every code has a page `docs/errors/<slug>.md` (until the docs site exists); each crate lists its codes in `codes::ALL`, and a test fails on a missing page, an orphan page, a duplicate code or a code used in the source but missing from `ALL`.
 - All errors from a step are collected and reported together (`related`).
 - Plugin errors arrive as gRPC `Status`; a timeout is `CANCELLED` or `DEADLINE_EXCEEDED`.
