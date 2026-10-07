@@ -1,3 +1,4 @@
+// LOCKED: approved in 8e1d295. Do not edit; if a test looks wrong, stop and report.
 //! How a test reads a golden history from `tests/histories/` and builds it, and which files the
 //! loader rejects.
 
