@@ -58,7 +58,9 @@ Key libraries for domain logic:
 Enforced in CI by:
 
 - the Cargo dependencies themselves
-- a `clippy.toml` per crate with `disallowed-methods` / `disallowed-types`, each ban with a reason
+- one root `clippy.toml` with `disallowed-methods` (env reads, process spawning, stdout/stderr handles, `temp_dir`, TLS "danger" methods) and `max-fn-params-bools = 0`, each ban with a reason; allowed sites carry `#[expect(clippy::disallowed_methods, reason = …)]`
+- `scripts/check-forbid-unsafe.sh` (CI): every crate root except semoxide-git has `#![forbid(unsafe_code)]`
+- `clippy::exhaustive_enums` / `exhaustive_structs` in the façade crate (P14)
 - cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `engine`/`schema`)
 
 ## 3. Sync vs async

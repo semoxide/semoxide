@@ -1,5 +1,28 @@
+# One file for the whole workspace: clippy reads only the nearest clippy.toml, so per-crate files would
+# replace this one instead of extending it. Allowed sites use `#[expect(clippy::disallowed_methods, reason = "…")]`.
+
+# Rust rule 1 applies outside tests only.
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
 allow-print-in-tests = true
+
+# Rust rule 3: no `bool` parameters.
+max-fn-params-bools = 0
+
+# `allow-invalid`: the crate isn't a dependency yet; the ban applies once it is.
+disallowed-methods = [
+  { path = "std::env::var", reason = "only the env snapshot reads the process env (OBSERVABILITY P3)" },
+  { path = "std::env::var_os", reason = "only the env snapshot reads the process env (OBSERVABILITY P3)" },
+  { path = "std::env::vars", reason = "only the env snapshot reads the process env (OBSERVABILITY P3)" },
+  { path = "std::env::vars_os", reason = "only the env snapshot reads the process env (OBSERVABILITY P3)" },
+  { path = "std::env::temp_dir", reason = "use tempfile, never a shared temp dir (CODE-ARCHITECTURE P11)" },
+  { path = "std::process::Command::new", reason = "only semoxide-git and the plugin host spawn processes (CODE-ARCHITECTURE §2)" },
+  { path = "tokio::process::Command::new", reason = "only semoxide-git and the plugin host spawn processes (CODE-ARCHITECTURE §2)", allow-invalid = true },
+  { path = "std::io::stdout", reason = "the library never prints; only the CLI's output module writes stdout (OBSERVABILITY P1)" },
+  { path = "std::io::stderr", reason = "the library never prints; only the CLI's output module writes stderr (OBSERVABILITY P1)" },
+  { path = "reqwest::ClientBuilder::danger_accept_invalid_certs", reason = "never disable certificate checks", allow-invalid = true },
+  { path = "reqwest::ClientBuilder::danger_accept_invalid_hostnames", reason = "never disable hostname checks", allow-invalid = true },
+  { path = "rustls::ClientConfig::dangerous", reason = "never bypass TLS verification", allow-invalid = true },
+]
