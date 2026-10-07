@@ -5,6 +5,8 @@ use std::fmt;
 use std::str::FromStr;
 
 #[cfg(test)]
+mod message_tests;
+#[cfg(test)]
 mod tests;
 
 const MAX_LEN: usize = 64;
