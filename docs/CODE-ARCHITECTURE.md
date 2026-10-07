@@ -115,7 +115,7 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 | qlty maintainability (complexity, duplication, smells; `mode = "block"`) | complex or duplicated code | pre-push + CI |
 | gitleaks (`.gitleaks.toml`: default rules; only test tokens containing `SEMOXIDE_FAKE` allowlisted) | secrets | pre-push + CI |
 | osv-scanner | known-vulnerable versions in `Cargo.lock` | pre-push (when the lockfile changes) + CI |
-| semgrep, our own rules only (`.semgrep.yaml`, e.g. `unsafe` needs `// SAFETY:`) | patterns clippy can't express | pre-push + CI |
+| semgrep, our own rules only (`.semgrep.yaml`: private fields, no `get_`, no inline test modules, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests, `// SAFETY:`) | patterns clippy can't express | pre-push + CI; every rule has cases in `tests/semgrep/rules.rs`, checked by `semgrep --test` in CI |
 | markdownlint (`.markdownlint.json`: MD013 line length off) | broken Markdown structure in docs | pre-commit (autofix) + pre-push + CI |
 | actionlint | incorrect GitHub Actions workflows | pre-push + CI |
 | cargo-deny | licenses, RustSec, banned/duplicate deps, sources | CI on PRs + daily schedule |

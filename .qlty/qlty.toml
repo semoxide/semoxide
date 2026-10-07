@@ -50,3 +50,8 @@ version = "0.46.0"
 # qlty's definition still lists only linux/macos; semgrep CE supports Windows natively since the Fall 2025 release.
 [plugins.definitions.semgrep]
 supported_platforms = ["linux", "macos", "windows"]
+
+# The semgrep rule fixture is deliberately bad code; `semgrep --test` (CI) proves every rule still fires on it.
+[[ignore]]
+file_patterns = ["tests/semgrep/**"]
+plugins = ["semgrep"]

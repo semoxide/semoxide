@@ -1,5 +1,5 @@
 // Project settings for Zed: the editor uses the same tools as the hooks and CI (docs/CODE-ARCHITECTURE.md#quality-tooling).
-// Recommended extensions: markdownlint, typos, toml, github-actions, semgrep.
+// Recommended extensions: markdownlint, typos, toml, github-actions, semgrep (needs `uv` for uvx).
 {
   "ensure_final_newline_on_save": true,
   "remove_trailing_whitespace_on_save": true,
@@ -21,6 +21,20 @@
     "rust-analyzer": {
       "initialization_options": {
         "check": { "command": "clippy" }
+      }
+    },
+    // Semgrep extension: the version qlty pins (via uvx, no global install), our rules only
+    // (its default "auto" pulls registry rules over the network).
+    "semgrep": {
+      "binary": {
+        "path": "uvx",
+        "arguments": ["semgrep@1.144.0", "lsp"]
+      },
+      "initialization_options": {
+        "scan": {
+          "configuration": [".semgrep.yaml"],
+          "only_git_dirty": false
+        }
       }
     }
   }
