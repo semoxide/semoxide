@@ -24,8 +24,8 @@ Hard requirements: [CLAUDE.md](../CLAUDE.md). Reasons: [DECISIONS](DECISIONS.md)
 
 ## License
 - `MIT OR Apache-2.0` for every semoxide repo (core, protocol, plugins, PoCs): `LICENSE-MIT`, `LICENSE-APACHE`, and `license = "MIT OR Apache-2.0"` in every `Cargo.toml`.
-- Ported upstream material (MIT/ISC tests, fixtures, templates):
-  - a header in each ported file: `Ported from <repo>@<sha>/<path>, <license>, (c) <holder>`
+- Upstream material copied into a repo (MIT/ISC; e.g. notes templates; tests are not copied):
+  - a header in each copied file: `Copied from <repo>@<sha>/<path>, <license>, (c) <holder>`
   - the full upstream license texts and copyright lines in `THIRD_PARTY_LICENSES.md`, also shipped with release artifacts when templates are embedded in the binary.
 - Condensed spec text (SemVer, Conventional Commits; CC BY 3.0): each `docs/specs/*.md` names the source, the author, the license (with link) and states "condensed and modified".
 - The README says semoxide is inspired by, and not affiliated with or endorsed by, semantic-release. No `semantic-release*` names or logo.

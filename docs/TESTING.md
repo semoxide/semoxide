@@ -8,7 +8,7 @@ How semoxide is tested, from pure functions to real releases. Per-area test-firs
 |---|---|
 | `semoxide` | core: config, planning, release units, git2 layer, step pipeline, host services, CLI |
 | `semoxide-plugin-protocol` | SDK, host launcher, the conformance kit itself |
-| `semoxide-plugin-<name>` | the plugin's own logic (ported upstream tests), its registry/forge fakes, the conformance kit in CI |
+| `semoxide-plugin-<name>` | the plugin's own logic (cases derived from upstream behaviour), its registry/forge fakes, the conformance kit in CI |
 
 Inside a crate:
 
@@ -23,7 +23,7 @@ Inside a crate:
 - **Unit** and **integration** (library API against real temporary repos).
 - **CLI end-to-end:** `assert_cmd`.
 - **Snapshot:** `insta` is the backbone (notes, JSON, errors, `explain`, plan).
-- **Data-driven:** ported upstream tables (`rstest`).
+- **Data-driven:** `rstest` tables, incl. cases derived from upstream behaviour.
 - **Property-based:** `proptest` for parsers and the version engine (incl. semver round trip).
 - **Fuzzing:** `cargo-fuzz` for the commit, config and tag parsers.
 - **Doc tests.**
@@ -53,7 +53,7 @@ flowchart TB
 | 3 | Protocol compliance; per-plugin API calls, retry/throttle | [conformance kit](#plugin-conformance), `wiremock`, `tokio::time::pause` |
 | 4 | Full pipeline: branches, channels, prerelease, maintenance, multiple units, dry-run, `fail`/`rollback`, error aggregation, host `Git` service rules | lib API + stub plugins (process and in-process), `wiremock` |
 | 4b | CLI: args, exit codes, output, `migrate` | `assert_cmd` + `insta` |
-| 5 | Real registry publishes, git over HTTP with auth, shallow/unshallow | `testcontainers`: `kellnr` (cargo), Verdaccio (npm), a git-http container |
+| 5 | core: git over HTTP with auth, shallow/unshallow; plugin repos: real registry publishes | `testcontainers`: a git-http container (core); `kellnr` (cargo plugin), Verdaccio (npm plugin) |
 | 6 | Real GitHub push, releases, assets, comments, channels | [sandbox](#sandbox-repo) |
 | 7 | Self-release; dry-run per PR and nightly on main | dogfooding ([CODE-ARCHITECTURE](CODE-ARCHITECTURE.md) A8) |
 
@@ -76,24 +76,14 @@ Required guard tests:
 | Per-ref push status | pre-receive hook / protected branch declines: `push()` returns Ok, the per-ref status error must fail the step |
 | Credential retry cap | server answers 401 forever: the callback gives up after N attempts instead of looping |
 | One tag only | unrelated local tags exist: remote gains exactly the release tag |
+| Bare `failed` retry | first push answers a reasonless per-ref `failed`: one logged retry; a retry reporting "exists" succeeds only if the remote tag points at our commit |
+| Lookup by version | tags `v1.2.3+a` and `v1.2.3+b` exist: both are 1.2.3; clobber guard, rerun and promotion find them by version, never by a built name |
 
 Real-remote items (GitHub 401 vs 403, SSH agent, proxies, smart-HTTP shallow) are layer 6.
 
-## Ported upstream tests
+## Upstream tests as reference
 
-Ported into the repo that owns the logic.
-
-| Upstream suite | Port as | Lands in |
-|---|---|---|
-| core pure logic, `git.test`, `integration.test` | `rstest` tables, layer 2/4 scenarios | `semoxide` |
-| conventional-commits-parser specs | parser corpus | `semoxide-plugin-commit-analyzer` |
-| commit-analyzer | tables `(rules, messages, expected)` | `semoxide-plugin-commit-analyzer` |
-| release-notes-generator | full-output `insta` goldens | `semoxide-plugin-release-notes` |
-| github | `wiremock` | `semoxide-plugin-github` |
-| npm | tables, `wiremock`, Verdaccio | npm plugin |
-| not ported | JS module loading, ESM plugins, preset resolution, Node HTTP specifics | |
-
-**License header:** each 1:1 ported file starts with `// Ported from <repo>@<sha>/<path>, <MIT|ISC>, (c) <holder>`; the holder goes into `THIRD_PARTY_LICENSES.md`. One pinned upstream SHA per batch. Re-derived cases need no header.
+semoxide is not a 1:1 rewrite, so upstream test files are not ported. Their suites ([UPSTREAM-*](SPECIFICATIONS.md)) are read for edge cases and known bugs; where semoxide deliberately behaves the same, we write our own cases for it (`rstest` tables, golden histories, `insta`). Intentional differences: [DIFFERENCES](DIFFERENCES.md).
 
 ## Plugin conformance
 
@@ -138,7 +128,7 @@ One named regression test per row. Rollback and step-order rules: [ARCHITECTURE]
 | Branch behind remote | remote advances after clone | abort before tagging, remote unchanged | 4 |
 | Several tags on one commit (#4073) | two tags, one commit | each tag's note read separately | 2 |
 | Secret leak (upstream `plugin-log-env`) | plugin logs its env | masked everywhere | 3, 4 |
-| `success` failure fails the run (github#738) | 500 on comments | non-fatal policy followed | 3 |
+| `success` failure (github#738) | 500 on comments | default: outcome `Released`, warnings + `success_errors`, exit 0, no rollback, no `fail`; `success_errors = "fail"`: exit 5, no rollback | 3, 4 |
 
 ## Sandbox repo
 
@@ -173,7 +163,7 @@ Development phase only. A scheduled job runs a pinned semantic-release version i
 | miri, pure-Rust crates | Linux | PR |
 | `cargo hack --each-feature`, published crates | Linux | PR |
 | MSRV | Linux | PR |
-| Layer 5 containers | Linux | PR |
+| Layer 5: git-http container | Linux | PR |
 | musl static build; aarch64 build check | Linux | PR |
 | aarch64 tests | Linux aarch64 | scheduled |
 | Fuzz (time-boxed), beta toolchain | Linux | nightly |
@@ -182,5 +172,6 @@ Development phase only. A scheduled job runs a pinned semantic-release version i
 | Live E2E (sandbox), dogfood dry-run on main | Linux | nightly + manual |
 | Upstream comparison (development phase) | Linux | scheduled |
 | Conformance kit | per plugin repo, Linux + Windows | PR |
+| Layer 5: registry container (`kellnr`, Verdaccio) | per plugin repo, Linux | PR |
 
 Windows-specific cases: CRLF in messages, path separators in asset globs, named pipes, Job Object kill, `PATHEXT` resolution (`npm` → `npm.cmd`).

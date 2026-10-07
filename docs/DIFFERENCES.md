@@ -10,7 +10,7 @@ Every row is intentional. The linked doc owns the full rule.
 
 | Area | semantic-release | semoxide | Details |
 |---|---|---|---|
-| Config file | cosmiconfig: `.releaserc*`, `release.config.{js,ts,mjs,cjs}`, `package.json#release` | TOML only: `semoxide.toml`, fallback `.config/semoxide.toml`; data only, layered with env vars and flags | [CONFIG.md](CONFIG.md) |
+| Config file | cosmiconfig: `.releaserc*`, `release.config.{js,ts,mjs,cjs}`, `package.json#release` | TOML only: `semoxide.toml`, fallback `.config/semoxide.toml`; data only, layered with `--set` flags; config is never read from env vars | [CONFIG.md](CONFIG.md) |
 | Computed config | JS config files may compute options or pass functions | No code in config; everything is declarative | [CONFIG.md](CONFIG.md) |
 | Shareable configs | `extends` resolves npm packages; plugins resolved relative to the config package | `extends` takes built-in presets, local paths and SHA-pinned git refs (HTTPS + `sha256` later); no npm resolution; plugins come from their own pinned versions | [CONFIG.md](CONFIG.md) |
 | Layer merge | shallow: a redefined top-level key (`plugins`, `branches`) replaces the inherited value | deep merge of tables, arrays replace; `merge = "shallow"` restores upstream behaviour | [CONFIG.md](CONFIG.md) |
@@ -37,7 +37,8 @@ Every row is intentional. The linked doc owns the full rule.
 | Rule globs | micromatch; `*` stops at `/` in `releaseRules` values | `globset`; `*` also matches `/` in bump-rule values | [CONFIG.md](CONFIG.md) |
 | Extended globs | micromatch extglob (`+(…)`, `?(…)`) | Not supported; `migrate` rewrites recognised patterns and reports the rest | [CONFIG.md](CONFIG.md) |
 | User regexes | JS regexes via `parserOpts` | `fancy-regex` (lookaround, backrefs); backtracking patterns run under a backtrack limit and fail with an error naming pattern and commit | [CONFIG.md](CONFIG.md) |
-| Parser | `conventional-commits-parser` | Built-in parser based on `git-conventional` | [CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md) |
+| Parser | `conventional-commits-parser` | `git-conventional`, used as-is (deviations documented) | [CONFIG.md](CONFIG.md) |
+| Unparsable commits | silently ignored | ignored by default but always listed by `explain` with the parse error; `strict` fails the release on them (merges/fixups exempt unless `strict_merges`) | [CONFIG.md](CONFIG.md) |
 
 ## Versions and branches
 
@@ -70,6 +71,7 @@ Every row is intentional. The linked doc owns the full rule.
 | SSH | System `ssh` via the git CLI | Built-in pure-Rust SSH (no libssh2, no external binary); system `ssh` transport opt-in | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Credential choice | Credentials already on the remote URL can win over the token | A configured token (`GITHUB_TOKEN`, `GITLAB_TOKEN`, …) always wins; `git@host:` pushed over HTTPS when a token exists | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Credential logging | Logged only at debug level, only when several token vars exist | The credential used is logged by name; a warning when the token won't trigger downstream CI | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Channel notes | `refs/notes/semantic-release-<tag>` (+ legacy shared ref), read with one glob that can concatenate notes into invalid JSON (#4073) | writes `refs/notes/semoxide-<tag>`; reads upstream's refs too, each separately | [ARCHITECTURE.md](ARCHITECTURE.md#6-git-and-credentials) |
 | Commit-back | `@semantic-release/git` commits assets | Tags only by default; configuring the `git` plugin opts in to commit-back | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Bot identity | `semantic-release-bot <semantic-release-bot@martynus.net>`, set on CI only when `GIT_AUTHOR_*`/`GIT_COMMITTER_*` are unset | Config → `GIT_AUTHOR_*`/`GIT_COMMITTER_*` → CI platform bot → `semoxide-bot` | [ARCHITECTURE.md](ARCHITECTURE.md) |
 
@@ -90,8 +92,11 @@ Every row is intentional. The linked doc owns the full rule.
 |---|---|---|---|
 | Streams | `log`/`success` and dry-run notes on stdout, `warn`/`error` on stderr | Logs on stderr, data only on stdout | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | Machine output | None | `--output=json` on every command with a versioned schema | [CLI.md](CLI.md) |
+| Next version only | no command ([#1647](https://github.com/semantic-release/semantic-release/issues/1647)); `--dry-run` + exec workaround writes nothing when there is no release | `semoxide version`: the version, or empty stdout + exit 0 when there is no release | [CLI.md](CLI.md) |
 | CLI config flags | `-b -r -t -p -e` and long forms for a few options | generic `--set key=value` for any key; only `-v`/`-q` short flags; `migrate` rewrites old flags | [CLI.md](CLI.md) |
 | Release command | bare `semantic-release` runs the release | `semoxide release`; bare `semoxide` prints help | [CLI.md](CLI.md) |
+| CI outputs | none in core; wrapper actions (e.g. cycjimmy) write step outputs | the core writes `$GITHUB_OUTPUT` with the cycjimmy action's names, plus a step summary | [OBSERVABILITY.md](OBSERVABILITY.md) |
+| `success` step fails | `fail` runs (opens a "release failed" issue), exit 1, though published ([github#738](https://github.com/semantic-release/github/issues/738)) | release stands, warnings, exit 0 by default; `success_errors = "fail"` → exit 5; never rollback | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Exit codes | 0 or 1 | Distinct codes per failure class (usage, config, verify, partial failure, …) | [CLI.md](CLI.md) |
 | Error codes | Mnemonics like `ENOGITREPO` | Namespaced names like `core::no_git_repo`, `github::release_exists`; each with a docs page | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | Masking | Patches global stdout/stderr; raw and URL-encoded forms | Masking at source plus an output pass; also base64 forms, runtime-registered secrets and a `mask_env` list | [OBSERVABILITY.md](OBSERVABILITY.md) |
@@ -101,6 +106,7 @@ Every row is intentional. The linked doc owns the full rule.
 
 | Area | semantic-release | semoxide | Details |
 |---|---|---|---|
+| Runtime | Node.js ≥ 22 required to run (npm package) | a single static binary; no Node, npm or other runtime | [ARCHITECTURE.md](ARCHITECTURE.md#9-distribution) |
 | Environment | Core mutates `process.env` (`GIT_ASKPASS`, `GIT_AUTHOR_*`, …) | Never mutates the env; reads an explicit snapshot and builds child envs from it | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | CI detection | env-ci, ~31 vendors | GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, Bitbucket Pipelines, plus `SEMOXIDE_CI_BRANCH` / `SEMOXIDE_CI_IS_PR` overrides on any CI | [ARCHITECTURE.md](ARCHITECTURE.md) |
 

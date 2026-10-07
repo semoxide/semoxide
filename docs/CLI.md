@@ -7,8 +7,8 @@ Commands, flags, dry-run, JSON contract, exit codes and agent support. Logging f
 | Command | Purpose | Key flags |
 |---|---|---|
 | `semoxide release` | the release run: release, promote or report why not | `--dry-run`, `--no-ci`, `--verify-push`, `--fail-on-no-release` |
-| `semoxide version` | prints only the next version (nothing else on stdout) | |
-| `semoxide explain` | offline, read-only decision trace: branch rule → last release → each commit's verdict → next version or no-release reason | `--commit <sha>`, `--limit`, `--notes-preview` |
+| `semoxide version` | prints only the next version. No release: empty stdout, reason on stderr, exit 0 (6 with `--fail-on-no-release`) | `--fail-on-no-release` |
+| `semoxide explain` | offline, read-only decision trace: branch rule → last release → each commit's verdict → next version or no-release reason | `--commit <sha>`, `--limit`, `--notes-preview-lines <N>` |
 | `semoxide doctor` | checks the setup without releasing (check list: [OBSERVABILITY.md](OBSERVABILITY.md)) | `--online`, `--limit` |
 | `semoxide doctor --bundle` | masked support bundle, Markdown by default, paste-ready for an issue (contents: [OBSERVABILITY.md](OBSERVABILITY.md)) | `--bundle-format=json`, `--out <file>` (default: stdout) |
 | `semoxide init` | creates `semoxide.toml` | flags for each detection |
@@ -33,10 +33,10 @@ Bare `semoxide` prints help; it never starts a release.
 | `--output=text\|json` | data format on stdout ([JSON contract](#json-contract)); no separate `--json` |
 | `--set <key>=<value>` | overrides one config key (repeatable); value in TOML syntax, validated like the file (`--set plugins.github.draft=true`). The only way to set config from the CLI ([CONFIG.md](CONFIG.md)) |
 | `--dry-run` | [dry-run](#dry-run) |
-| `--no-ci` | outside CI, semoxide forces dry-run unless this is passed |
+| `--no-ci` | outside CI, semoxide forces dry-run unless this is passed; the outcome is then `NoRelease(NotCi)` plus the would-be result ([OBSERVABILITY.md](OBSERVABILITY.md#7-no-release-reasons)). An explicit `--dry-run` reports only the dry-run result |
 | `--no-input` | [non-interactive rule](#non-interactive-rule) even with a TTY |
 | `--limit N` | caps list-like output (`explain` verdicts, `doctor` details) |
-| `--notes-preview` | caps the notes preview in dry-run/`explain` output; notes in the release itself are never cut |
+| `--notes-preview-lines <N>` | caps the notes preview shown in dry-run/`explain` output (a preview is always shown); notes in the release itself are never cut |
 | logging (`-q`, `-v`, `--debug`, `--log-format`, `--log-file`, `--color`) | [OBSERVABILITY.md](OBSERVABILITY.md) |
 
 Logs go to stderr; stdout carries only data (JSON, the printed version), so piping works.
@@ -96,11 +96,11 @@ Retrying is safe only when `retryable && !remote_writes_happened`.
 | Code | Meaning |
 |---|---|
 | 0 | released, promoted, or no release |
-| 1 | failed before any remote write |
+| 1 | any other failure before a remote write (git, network, plugin error, rejected push); check `retryable` |
 | 2 | CLI usage |
 | 3 | config invalid (incl. plugin schema) |
-| 4 | verify failed |
-| 5 | partial failure: tag pushed, a later step failed; rollback result in the summary ([ARCHITECTURE.md](ARCHITECTURE.md)) |
+| 4 | a `verify_conditions` / `verify_release` step failed: fix the setup (credentials, config, permissions); a rerun won't help |
+| 5 | partial failure: tag pushed, a later step failed; rollback result in the summary ([ARCHITECTURE.md](ARCHITECTURE.md)). Also a failed `success` step when `success_errors = "fail"` (no rollback) |
 | 6 | no release, only with `--fail-on-no-release` |
 | 101 | panic |
 | 130 | interrupted |
@@ -113,7 +113,7 @@ Retrying is safe only when `retryable && !remote_writes_happened`.
 
 ## Agent experience
 
-- Agents are treated like humans: no agent detection. Outside CI they get dry-run unless `--no-ci`.
+- Agents are treated like humans: no agent detection.
 - Shipped with the user docs site:
   - an Agent Skill (`SKILL.md`): `doctor` → `explain` → `--dry-run --output=json` → review the plan → release;
   - `llms.txt` plus `.md` copies of every docs page, including each error code.

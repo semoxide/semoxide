@@ -172,7 +172,7 @@ Git hooks via qlty (`qlty githooks install`): pre-commit auto-formats; pre-push 
 
   | Area | Approach |
   |---|---|
-  | Pure core (SemVer, bump rules, next version, channels, branches, commit parser, config merge) | strict spec-first TDD; ported upstream tables, specs and proptest laws are the failing tests |
+  | Pure core (SemVer, bump rules, next version, channels, branches, commit parser, config merge) | strict spec-first TDD; cases derived from upstream behaviour, specs and proptest laws are the failing tests |
   | Notes, templates | a few hand-written expected outputs plus approved snapshots |
   | CLI, JSON, `explain`, plan | outside-in: the `assert_cmd` case first |
   | git2, plugin host, forge, npm | PoC first, then characterization tests |

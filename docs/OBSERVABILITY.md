@@ -76,7 +76,7 @@ flowchart TD
 
 - A `TimingLayer` prints `✔ publish 1.2s` per step and a table at the end; durations are also in `RunReport.timings`.
 - `http` spans exist only for core and in-process plugins; process plugins log their own HTTP via `Log`.
-- libgit2 internals: `git2::trace_set` is bridged into the `git2` target (callback output unverified).
+- libgit2 internals: `git2::trace_set` is bridged into the `git2` target, pending a PoC (does the vendored build emit anything, can lines carry credentials, the hook is process-global).
 
 ## 5. Secret masking
 
@@ -106,7 +106,7 @@ Embedders get at-source masking with any subscriber. Dependency events are maske
 | `::error title=<CODE>::` / `::warning::` | errors/warnings; `file=`/`line=` for config spans |
 | `::notice::` | final line: released version or no-release reason |
 | `::add-mask::` | every registered secret and encoded form, bypassing `MaskingWriter` |
-| `$GITHUB_OUTPUT` | `released`, `version`, `tag`, `channel`, `type`, `last_version`, `notes` |
+| `$GITHUB_OUTPUT` | names of the most-used upstream wrapper action, so migrated workflows keep working: `new_release_published`, `new_release_version`, `new_release_major_version`, `new_release_minor_version`, `new_release_patch_version`, `new_release_channel`, `new_release_notes`, `new_release_git_head`, `new_release_git_tag`, `last_release_version`, `last_release_git_head`, `last_release_git_tag`. Public contract: names are never renamed |
 | `$GITHUB_STEP_SUMMARY` | outcome, reason, versions, timings, rollback result, notes |
 
 Untrusted text (plugin output, commit subjects, notes) starting with `::` is escaped (workflow-command injection guard).
@@ -121,14 +121,14 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 
 | Reason | Hint content |
 |---|---|
-| `NotCi`, `PullRequest` | detected CI context |
+| `NotCi` | outside CI: the run is forced to dry-run, and the report also carries `dry_run: forced (not_ci)` with the would-be outcome (version + plan, or the would-be reason) |
+| `PullRequest` | detected CI context |
 | `BranchNotConfigured` | closest configured branch glob |
 | `NoCommitsSince` | last release tag |
 | `NoRelevantCommits` | per-commit verdicts at `-v` |
 | `AllCommitsSkipped` | every relevant commit carries the [skip marker](CONFIG.md) |
 | `TagsNotFound` | shallow clone, `tag_format` near-misses |
 | `PathFiltered` | the monorepo unit's path filter ([ARCHITECTURE.md](ARCHITECTURE.md)) |
-
 
 ## 8. Errors
 
@@ -147,7 +147,7 @@ Command syntax and flags: [CLI.md](CLI.md). What each shows or checks:
 
 | Command | Content |
 |---|---|
-| `explain [--commit <sha>]` | offline, read-only decision trace: branch rule → last release → each commit's verdict (skip-marked commits shown as "skipped by marker") → next version or no-release reason |
+| `explain [--commit <sha>]` | offline, read-only decision trace: branch rule → last release → each commit's verdict (skip marker, merge/fixup skips, unparsable commits with their parse error, a `Release-As:` footer as the reason; [CONFIG.md](CONFIG.md)) → next version or no-release reason |
 | `doctor` | repo, shallow clone, tags, CI vendor, token env **names**, plugin download/checksum lock, manifests, handshakes, `describe` schema validation |
 | `doctor --online` | adds token auth probes, push rights, tag-delete rights |
 | `doctor --bundle` | support bundle, below |
@@ -156,4 +156,4 @@ Command syntax and flags: [CLI.md](CLI.md). What each shows or checks:
 
 ## 10. Crates
 
-`tracing`; `tracing-subscriber` (`env-filter`, `fmt`, `json`) in the CLI and the `observe` feature; `tracing-error`; `miette` (`fancy`, CLI only, chosen over `color-eyre`); `thiserror`; `secrecy`; `aho-corasick`; `percent-encoding` + `base64`; `anstream`/`anstyle`; `serde_json`; `reqwest-tracing` (drops query and headers); `git2::trace_set`.
+`tracing`; `tracing-subscriber` (`env-filter`, `fmt`, `json`) in the CLI and the `observe` feature; `tracing-error`; `miette` (`fancy`, CLI only); `thiserror`; `secrecy`; `aho-corasick`; `percent-encoding` + `base64`; `anstream`/`anstyle`; `serde_json`; `reqwest-tracing` (drops query and headers); `git2::trace_set`.

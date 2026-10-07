@@ -42,7 +42,7 @@ flowchart TD
 | Component | Responsibility |
 |---|---|
 | Config | load and merge layers (defaults → extends → file → flags), validate against core and plugin schemas ([CONFIG](CONFIG.md)) |
-| CI context | detect CI, branch, PR and commit; env snapshot. Table-driven, ported from env-ci (code + tests). v1: GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, Bitbucket Pipelines; elsewhere branch/commit come from git2 |
+| CI context | detect CI, branch, PR and commit; env snapshot. Table-driven, derived from env-ci's detection table. v1: GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, Bitbucket Pipelines; elsewhere branch/commit come from git2 |
 | Git | all repo access via git2: tags, notes, log ranges, fetch/unshallow, guarded push, SSH transports, credentials ([§6](#6-git-and-credentials)) |
 | Version engine | **pure, no I/O**: branch model, ranges, last and next version, bump rules, skip marker |
 | Plugin host | start, connect, sync and lock plugins (via `semoxide-plugin-host`); host services; in-process plugins ([§5](#5-plugins)) |
@@ -73,7 +73,7 @@ sequenceDiagram
     participant C as core
     participant G as git (git2)
     participant P as plugins
-    C->>C: load config (file, extends, env, flags)
+    C->>C: load config (defaults, extends, file, flags)
     C->>C: detect CI, branch, PR
     C->>P: sync check, start plugins (manifest env, token, socket)
     C->>G: fetch / unshallow, read tags + notes, find last release
@@ -184,7 +184,7 @@ Config keys: [CONFIG](CONFIG.md).
 ## 6. Git and credentials
 
 - **git2** (vendored libgit2, `https` feature) is the only git library: no git CLI, no gix.
-- **SSH:** git2 is built without its `ssh` feature (no libssh2). A custom transport is registered for `ssh://` and `git@host:` URLs ([git2-russh PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-russh)). libssh2 on Windows (WinCNG) accepts only PEM RSA key files, hangs on OpenSSH-format memory keys and fails handshakes intermittently.
+- **SSH:** git2 is built without its `ssh` feature (no libssh2). A custom transport is registered for `ssh://` and `git@host:` URLs ([git2-russh PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-russh)). Why not libssh2: [DECISIONS](DECISIONS.md).
 
 | SSH backend | Selected | Behaviour |
 |---|---|---|
@@ -192,6 +192,8 @@ Config keys: [CONFIG](CONFIG.md).
 | system `ssh` (opt-in) | `SEMOXIDE_SSH_BACKEND=exec` or `GIT_SSH_COMMAND` / `GIT_SSH` | runs `ssh -o BatchMode=yes`; for OpenSSH-only features (ProxyJump, FIDO keys, `@cert-authority`); a missing `ssh` gives a clear error |
 
 - git2 `RemoteCallbacks` (credentials, `certificate_check`) are not called for a custom transport, so SSH auth and host-key policy live in semoxide's own SSH options.
+
+**Channel notes:** which channels a released version is on (needed for promotion via `add_channel`) is stored as a git note on the tagged commit, JSON `{"channels":[null,"next"]}` (`null` = default channel), one ref per tag: semoxide writes only `refs/notes/semoxide-<tag>`. It also reads upstream's `refs/notes/semantic-release-<tag>` and legacy `refs/notes/semantic-release`, so migrated repos keep their channel history; each ref is read separately (no concatenation, upstream #4073), and semoxide's note wins for the same tag. Notes refs are fetched explicitly and pushed right after the tag.
 
 **Guards** (git2 behaviour proven in the [git2 PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-ops)):
 
@@ -202,7 +204,6 @@ Config keys: [CONFIG](CONFIG.md).
 | tag names can carry build metadata (`tag_metadata`), so a version can have differently named tags | every tag lookup (clobber guard, rerun, promotion) goes through the parsed version index, never a name built from the version; a test enforces it |
 | on 401 libgit2 re-calls the credential callback (up to 15 times) | cap credential retries in our callback |
 | HTTP error text differs by OS (WinHTTP vs OpenSSL), no numeric status API | match HTTP errors by class (`class=Http`) and status (`403` in message), never by full text |
-| shallow fetch over `file://` is unsupported | tests use a `git daemon` or HTTP server |
 | push negotiation abort = `git push --dry-run` depth | branch protection and hooks are reported only by the real push |
 | `Repository::commit` runs no hooks and no signing | commit-back commits are unsigned, hookless (bot signature) |
 
@@ -216,7 +217,7 @@ Config keys: [CONFIG](CONFIG.md).
 
 ```mermaid
 flowchart TD
-    tag["tag pushed (before publish)"] --> step["publish / add_channel / success"]
+    tag["tag pushed (before publish)"] --> step["publish / add_channel"]
     step -->|fails| rb["rollback: each plugin undoes its own work"]
     rb --> irr["irreversible plugins (e.g. npm) log a warning"]
     rb --> del{"core can delete its own tag?"}
@@ -225,6 +226,7 @@ flowchart TD
 ```
 
 - The tag is pushed before publish (semantic-release order).
+- A failing `success` step never rolls back and never runs `fail`: the release stands, the outcome stays `Released`, and the errors are warnings in the log and in `RunReport.success_errors` (exit 0, default). With `success_errors = "fail"` ([CONFIG](CONFIG.md)) the run exits with the partial-failure code instead, still without rollback.
 - Only the core deletes a tag, and only the one it pushed in this run. Plugins and the `Git` service never delete tags.
 - Without delete rights, rollback still runs for the other plugins; the run ends as a partial failure. Partial failure has its own exit code ([CLI](CLI.md)).
 - User docs must state that tag deletion needs delete rights on the remote.
