@@ -153,7 +153,7 @@ Development phase only. A scheduled job runs a pinned semantic-release version i
 - **Toolchains:** stable on PRs; MSRV check with `cargo hack --rust-version` (policy: [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md)); beta scheduled.
 - **Speed:** `rust-cache`; dependency opt-level per [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md) profiles.
 - **Coverage:** `cargo llvm-cov` on layers 1 to 4, reported, not gating.
-- One aggregate `required-checks` job gates merges.
+- One aggregate `required-checks` job gates merges. The workflow always runs; a PR that changes only Markdown skips the Rust jobs (test, MSRV, cargo-deny), while `quality` and `test-lock` still run.
 
 | Job | OS | Trigger |
 | --- | --- | --- |
