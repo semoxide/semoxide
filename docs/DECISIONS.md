@@ -95,6 +95,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **Fixtures via the real git CLI** — independent of the code under test; only the tool itself must be git-CLI-free. (→ [TESTING](TESTING.md))
 - **Upstream tests read, not ported** — semoxide is not a 1:1 rewrite, so upstream suites serve as a source of edge cases; our own cases cover deliberately matching behaviour. (→ [TESTING](TESTING.md))
 - **Containers per repo** — core runs only the git-http container on PRs; registry containers live in the plugin repos that publish to them. (→ [TESTING](TESTING.md))
+- **cargo-deny: unmaintained only for direct dependencies** — cargo-deny 0.20 has no warn level; failing on abandoned transitive crates would turn upstream events into red CI and ignore-entry approvals we can't act on. Vulnerabilities fail at any depth. (→ `deny.toml`)
 - **Fakes, not mocks** — fakes (a fake plugin binary, wiremock) exercise real protocol and HTTP paths. (→ [TESTING](TESTING.md))
 - **Test lock via hooks + a maintainer label** — agents act with the maintainer's own GitHub account, so no GitHub permission can tell an agent's approval from the maintainer's; the lock makes every locked-test change deliberate and visible (Claude hook at edit time, lefthook at commit, `tests-unlocked` label in CI). (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#10-approaches))
 - **miri on the pure crates** — AI-assisted coding raises the risk of subtle undefined behaviour. (→ [TESTING](TESTING.md))
