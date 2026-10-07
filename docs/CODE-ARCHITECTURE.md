@@ -54,7 +54,8 @@ Enforced in CI by:
 - **Sync:** orchestrator, config, CI context, engine, git (git2). Async is confined to two places: the plugin host and the SSH transport bridge in `semoxide-git`.
 - **Plugin host:** owns a private tokio runtime on its own thread and exposes **blocking** calls to the orchestrator. Because it runs on its own thread, it also works inside an embedder's tokio runtime (the SSH PoC proved this bridge design).
 - **Façade:** both a blocking `run()` and an **async** `run()` from the start. The async one runs the sync core on a dedicated thread and awaits the result, so it doesn't depend on any particular runtime. Cancellation: §5.
-- Basis: async only where concurrency is real (2025–26 consensus); the release steps run sequentially.
+- **`Plugin` trait is sync.** The SDK's `serve()` runs the async gRPC server and calls the plugin's methods on a blocking thread; network plugins use blocking HTTP clients. An optional `AsyncPlugin` adapter can be added to the SDK later if a plugin needs it (additive).
+- Basis: async only where concurrency is real (2025–26 consensus); the release steps run sequentially. Cost for library embedders: about one OS thread per concurrent release (the async `run()` puts the sync core on its own thread), negligible next to plugin processes and remote I/O.
 
 ## 4. Error and result types
 
