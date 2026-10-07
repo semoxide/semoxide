@@ -629,7 +629,9 @@ dependencies = [
 name = "semoxide-test-support"
 version = "0.0.0"
 dependencies = [
+ "proc-macro2",
  "semoxide-error",
+ "tempfile",
 ]
 
 [[package]]

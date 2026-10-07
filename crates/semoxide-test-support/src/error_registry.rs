@@ -9,6 +9,10 @@ use std::path::Path;
 use semoxide_error::ErrorCode;
 
 #[cfg(test)]
+mod reader_tests;
+#[cfg(test)]
+mod scan_tests;
+#[cfg(test)]
 mod tests;
 
 const STATIC_CODE: &str = "from_static(\"";
