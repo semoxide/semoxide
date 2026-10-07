@@ -175,7 +175,7 @@ Documented examples to use as test fixtures: [push to release](https://semantic-
 
 ### 4.7 Supported workflows
 - Supported: trunk-based development, GitHub Flow.
-- Unsupported: git-flow, branch-for-release (except late-created maintenance branches), release-for-testing-then-promote, monorepos ([details](../research/distribution-config.md#3-monorepo-scope)).
+- Unsupported: git-flow, branch-for-release (except late-created maintenance branches), release-for-testing-then-promote, monorepos (semoxide: [ARCHITECTURE §8](../ARCHITECTURE.md)).
 
 ## 5. tagFormat
 - A lodash template with only `${version}` interpolation (`evaluate:false, escape:false`) **[src]**.
@@ -281,7 +281,7 @@ Links: [Shareable configurations](https://semantic-release.org/foundation/sharea
 
 ## 11. Documented limitations / non-goals
 - No `0.x` versions; no manual "release version X".
-- No monorepo support ([details](../research/distribution-config.md#3-monorepo-scope)).
+- No monorepo support (semoxide: [ARCHITECTURE §8](../ARCHITECTURE.md)).
 - Max 3 release branches.
 - Release versions are unique across channels.
 - Commits during release (`@semantic-release/git`) are discouraged.
@@ -292,22 +292,4 @@ Links: [Shareable configurations](https://semantic-release.org/foundation/sharea
 - Angular revert format differs from `git revert`.
 
 ## 12. JS-specific parts
-See [research §6](../research/semantic-release.md#6-rust-port-notes).
-
-## Ticket candidates
-- **Core lifecycle engine**: run steps in the source-verified order (§2.2), including merged-release promotion, PR skip, and auto dry-run outside CI.
-- **Config loader**: see [ADR 0002](../decisions/0002-config-format.md).
-- **Branch model**: release/maintenance/prerelease detection, glob expansion against remote heads, all validation error codes.
-- **Range/accept calculation**: port the §4.6 algorithms, with recipe walkthroughs as golden tests.
-- **Next-version computation**: first release 1.0.0, prerelease numbering and channel-aware rules (§4.5).
-- **Tag format**: `{version}` template ([ADR 0004](../decisions/0004-template-engine.md)), exactly-once check, ref-format validation, strict parse-back, non-matching tags ignored.
-- **Git notes channel store**: read legacy and per-tag refs, write `refs/notes/semantic-release-<tag>`, fetch/push notes.
-- **Auth URL resolution**: SSH-first, then token env vars with host-specific prefixes; multi-token probing.
-- **Plugin protocol/ABI**: hook set, `pluginConfig` + `context` schema, return-value validators, error model (`SemanticReleaseError` vs unexpected).
-- **Plugin pipeline semantics**: settleAll hooks, notes concatenation, prepare HEAD-change note regeneration, publish/addChannel release merging.
-- **`semoxide migrate`**: convert `.releaserc` to semoxide.toml ([ADR 0001](../decisions/0001-compatibility-stance.md)). No JS plugin bridge.
-- **Dry-run mode**: exact skip set; no push check unless `--verify-push` ([ADR 0005](../decisions/0005-dry-run.md)); prints version and notes.
-- **CLI**: flags `-b -r -t -p -e -d --ci/--no-ci --debug`, comma lists, `false` = empty; decide on per-step overrides.
-- **Library API**: `run(options, {cwd, env, stdout, stderr}) -> Result | NoRelease`, result types mirroring §8.
-- **Docs: decision record on documented-vs-source conflicts**: step order, analyzeCommits override, notes ref, lastRelease.channel(s).
-- Elsewhere: `extends` → [distribution-config](../research/distribution-config.md#config); git backend, error catalog, secret masking → [research](../research/semantic-release.md#ticket-candidates); CI detection → [dependencies](../research/dependencies.md#5-env-ci); built-in analyzer → [commit-analyzer](../research/commit-analyzer.md#ticket-candidates), notes → [release-notes-generator](../research/release-notes-generator.md#ticket-candidates), GitHub → [github](../research/github.md#ticket-candidates).
+How semoxide replaces them: [DIFFERENCES](../DIFFERENCES.md).

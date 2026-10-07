@@ -1,19 +1,19 @@
 # semoxide
 
-A Rust release tool inspired by semantic-release. Current phase: **research and planning only. No product code.**
+A Rust release tool inspired by semantic-release. Current phase: **planning done; M0 repo foundation, then M1 walking skeleton** ([PLANNING](docs/PLANNING.md)).
 
 # IMPORTANT
 
 - While making architecture decisions and any new functionality, including just starting a documentation do not assume or go into generic path - ask user.
 - Keep in mind that we need to "collapse"/"codnence" the docs after the we complete first "planning" huge step (before we write the code) so it doesn't bloat: we clear, compact, combine and remove things that were needed during planning but not needed as a documentation itself. (For example: decisions goes into hard specification in the correct space.)
-- Inline comments (`//`) are short and informative. If the code speaks for itself, write no comment. Doc comments (`///`) are required on public items of published crates (`missing_docs`, [ADR 0017](docs/decisions/0017-code-quality.md)) and are kept short too.
+- Inline comments (`//`) are short and informative. If the code speaks for itself, write no comment. Doc comments (`///`) are required on public items of published crates (`missing_docs`, [quality tooling](docs/CODE-ARCHITECTURE.md#quality-tooling)) and are kept short too.
 - Split code into small, understandable parts, but not too small: follow [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md) (crates §1–§2, patterns §9, where things go §8).
 - Log enough for debugging: every step, plugin call and remote operation emits `tracing` events ([OBSERVABILITY](docs/OBSERVABILITY.md)).
 
 ## Hard requirements
 
 - Library first: the core is an embeddable crate, and the CLI is a thin wrapper around it.
-- Opinionated. Familiar but not compatible: migration tool, no JS bridge ([ADR 0001](docs/decisions/0001-compatibility-stance.md)).
+- Opinionated. Familiar but not compatible: migration tool, no JS bridge ([REQUIREMENTS](docs/REQUIREMENTS.md), [DIFFERENCES](docs/DIFFERENCES.md)).
 - Keep semantic-release's core ideas, including the plugin system.
 - Use no git CLI if feasible: a Rust git library, with every operation checked by a PoC.
 - Research, docs and PoCs come before any product code. Planning is discussed in waves.
@@ -23,7 +23,7 @@ A Rust release tool inspired by semantic-release. Current phase: **research and 
 
 ## Rust rules
 
-Core rules only. Known pitfalls: [RUST-PITFALLS](docs/RUST-PITFALLS.md). Patterns per situation: project skills in `.claude/skills/` (`rust-testing`, `rust-async`). Everything else: [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md), lints and tools [ADR 0017](docs/decisions/0017-code-quality.md), logging [ADR 0013](docs/decisions/0013-observability.md).
+Core rules only. Known pitfalls: [RUST-PITFALLS](docs/RUST-PITFALLS.md). Patterns per situation: project skills in `.claude/skills/` (`rust-testing`, `rust-async`). Everything else: [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md) (lints and tools: [quality tooling](docs/CODE-ARCHITECTURE.md#quality-tooling)), logging [OBSERVABILITY](docs/OBSERVABILITY.md).
 
 1. No `unwrap` / `expect` / `panic!` outside tests.
 2. `#[expect(lint, reason = "…")]`, never `#[allow]`.
@@ -36,7 +36,7 @@ Core rules only. Known pitfalls: [RUST-PITFALLS](docs/RUST-PITFALLS.md). Pattern
 
 ## Tools
 
-Decided in [ADR 0015](docs/decisions/0015-testing.md), [0017](docs/decisions/0017-code-quality.md), [CODE-ARCHITECTURE §7](docs/CODE-ARCHITECTURE.md#7-workspace-config). All pinned.
+Rules: [TESTING](docs/TESTING.md), [CODE-ARCHITECTURE §7](docs/CODE-ARCHITECTURE.md#7-workspace-config). All pinned.
 
 - [rustup](https://rust-lang.github.io/rustup/) toolchain · [cargo](https://doc.rust-lang.org/cargo/) build · [rustfmt](https://rust-lang.github.io/rustfmt/) format · [clippy](https://doc.rust-lang.org/clippy/) lints · [rustdoc](https://doc.rust-lang.org/rustdoc/) docs · [rust-analyzer](https://rust-analyzer.github.io/) editor
 - Tests: [cargo-nextest](https://nexte.st/) runner · [insta](https://insta.rs/) snapshots · [assert_cmd](https://docs.rs/assert_cmd) CLI · [proptest](https://proptest-rs.github.io/proptest/) properties · [cargo-fuzz](https://rust-fuzz.github.io/book/) fuzzing · [criterion](https://docs.rs/criterion) benchmarks · [miri](https://github.com/rust-lang/miri) UB · [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) coverage · [cargo-mutants](https://mutants.rs/) mutation
@@ -48,13 +48,15 @@ Decided in [ADR 0015](docs/decisions/0015-testing.md), [0017](docs/decisions/001
 ### **IMPORTANT**: every agent or subagent MUST read what's required for the task! In the plan mode we MUST READ as much as needed even more so.
 
 - [Requirements](docs/REQUIREMENTS.md): secondary requirements
-- [Specifications](docs/SPECIFICATIONS.md): external specs (semantic-release, SemVer, Conventional Commits)
-- [Research](docs/RESEARCH.md): code, issue, library and ecosystem research
-- [Porting gaps](docs/PORTING-GAPS.md): what can't be reproduced in Rust, and the replacement
-- [Decisions](docs/DECISIONS.md): ADRs
-- [Architecture](docs/ARCHITECTURE.md): project architecture
-- [Code architecture](docs/CODE-ARCHITECTURE.md): crates, modules, what goes where
-- [Testing](docs/TESTING.md): test strategy
-- [Observability](docs/OBSERVABILITY.md): logging and debugging
-- [Planning](docs/PLANNING.md): GitHub milestones, epics, labels, project board
-- `poc/`: throwaway proof-of-concept crates (not product code)
+- [Architecture](docs/ARCHITECTURE.md): system, repos, plugins, git, failure and rollback, monorepo
+- [Code architecture](docs/CODE-ARCHITECTURE.md): crates, modules, patterns, quality tooling, what goes where
+- [Config](docs/CONFIG.md): `semoxide.toml`
+- [CLI](docs/CLI.md): commands, flags, env vars, JSON contract, exit codes
+- [Observability](docs/OBSERVABILITY.md): logging, masking, errors, diagnostics
+- [Testing](docs/TESTING.md): test strategy and CI
+- [Differences](docs/DIFFERENCES.md): intentional differences from semantic-release
+- [Rust pitfalls](docs/RUST-PITFALLS.md): known Rust problems and mitigations
+- [Specifications](docs/SPECIFICATIONS.md): external specs and upstream implementation references
+- [Decisions](docs/DECISIONS.md): why each non-obvious decision was made
+- [Planning](docs/PLANNING.md): GitHub milestones, issues, labels, project board
+- PoCs: [semoxide-poc](https://github.com/semoxide/semoxide-poc) (never in this repo)

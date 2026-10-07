@@ -1,12 +1,31 @@
 # Requirements (secondary)
 
-Hard requirements: [CLAUDE.md](../CLAUDE.md).
+Hard requirements: [CLAUDE.md](../CLAUDE.md). Reasons: [DECISIONS](DECISIONS.md).
 
-- The final plan takes the form of GitHub milestones, epics (sub-issues), issues, "blocked by" dependencies, labels and a Projects v2 board. The board spans repos so it can hold future plugin repos.
-- The first milestone set is the research/doc/PoC phase itself. The product plan is formed through discussion, never in one pass.
-- Project architecture and code architecture are separate docs.
-- Logging/debugging is planned up front: a debug flag, tooling, and secret masking ([Observability](OBSERVABILITY.md)).
-- Testing is planned up front: local repos, a CI sandbox repo, and dry runs ([Testing](TESTING.md)).
-- GitHub: all repos live in the `semoxide` org (Free plan; owner `sm-steel`). `semoxide`, the protocol repo and the plugin repos are **public** (since 2026-10-07); `semoxide-sandbox` stays private. Private repos on the Free plan lack protected branches, rulesets, environments, attestations and Pages.
-- A user documentation website is planned once semoxide reaches a beta pre-release; its tooling and hosting are decided then. It must document every intentional difference from semantic-release and the drawbacks of each opt-in behavior (e.g. [ADR 0009](decisions/0009-commit-back.md)).
-- License: `MIT OR Apache-2.0` for every semoxide repo (core, protocol, plugins). Attribution duties for ported tests, fixtures and spec text are listed in [licenses](research/licenses.md).
+## Compatibility
+- **Familiar, not compatible:** semoxide uses semantic-release's concepts and step names, but its own config and plugin protocol. Intentional differences: [DIFFERENCES](DIFFERENCES.md).
+- `semoxide migrate` converts `.releaserc` to `semoxide.toml` where it can and reports anything it can't convert ([CLI](CLI.md)).
+- No JS plugin bridge.
+
+## Project
+- Project architecture ([ARCHITECTURE](ARCHITECTURE.md)) and code architecture ([CODE-ARCHITECTURE](CODE-ARCHITECTURE.md)) are separate docs.
+- Logging/debugging is planned up front: a debug flag, tooling, and secret masking ([OBSERVABILITY](OBSERVABILITY.md)).
+- Testing is planned up front: local repos, a CI sandbox repo, and dry runs ([TESTING](TESTING.md)).
+- The plan lives on GitHub (milestones, epics, issues, dependencies, labels, an org-level board, [PLANNING](PLANNING.md)). It is formed through discussion, never in one pass.
+
+## GitHub
+- All repos live in the `semoxide` org (Free plan; owner `sm-steel`).
+- `semoxide`, the protocol repo, the plugin repos and `semoxide-poc` are **public**; `semoxide-sandbox` stays **private**.
+- Every proof of concept lives in `semoxide/semoxide-poc`, one directory per PoC, never in the product repos.
+
+## User docs site
+- Built once semoxide reaches a beta pre-release; its tooling and hosting are chosen then.
+- It documents every intentional difference from semantic-release ([DIFFERENCES](DIFFERENCES.md)) and the drawbacks of each opt-in behaviour (e.g. commit-back, [ARCHITECTURE](ARCHITECTURE.md)).
+
+## License
+- `MIT OR Apache-2.0` for every semoxide repo (core, protocol, plugins, PoCs): `LICENSE-MIT`, `LICENSE-APACHE`, and `license = "MIT OR Apache-2.0"` in every `Cargo.toml`.
+- Ported upstream material (MIT/ISC tests, fixtures, templates):
+  - a header in each ported file: `Ported from <repo>@<sha>/<path>, <license>, (c) <holder>`
+  - the full upstream license texts and copyright lines in `THIRD_PARTY_LICENSES.md`, also shipped with release artifacts when templates are embedded in the binary.
+- Condensed spec text (SemVer, Conventional Commits; CC BY 3.0): each `docs/specs/*.md` names the source, the author, the license (with link) and states "condensed and modified".
+- The README says semoxide is inspired by, and not affiliated with or endorsed by, semantic-release. No `semantic-release*` names or logo.

@@ -111,33 +111,3 @@ Edge cases:
 | Breaking change shipped in a patch | Judgment call; may release a **major** to signal it. Tool must allow manual override of computed bump. |
 | Dependency updates without API change | Compatible; patch if bug fix, minor if new functionality. |
 | Deprecation | Minor release; at least one minor with the deprecation before removal in a major. |
-
-## 6. Implementation notes for semoxide
-
-- Parse strictly per grammar: ASCII only, no whitespace trimming, no `v`, no partial versions (`1.2`), no `=`/`~`/`^`.
-- Tag ↔ version mapping (e.g. `v{version}`) is a separate layer from the semver type.
-- Core numbers: spec is unbounded; `u64` is acceptable (overflow ⇒ parse error, not panic). Pre-release numeric ids: keep as strings, compare by length then bytes.
-- Provide both: precedence comparison (ignores build) and total `Ord` (needed for `BTreeSet`/dedup; must tie-break on build). Don't let `Ord` silently be used where precedence is meant (e.g. "latest tag").
-- Bump functions must reset lower components and clear pre-release + build by default. `1.2.3-rc.1` bumping patch → `1.2.3` (pre-release of the same core) is a policy decision; semantic-release-style tools treat promoting a pre-release as releasing its core.
-- 0.x mode needs an explicit, documented policy (opinionated default + option), since spec is silent.
-- Rust `regex`: `\d` is **Unicode-aware** by default (matches e.g. `٣`); if the official regex is used, replace `\d` with `[0-9]` or wrap in `(?-u:...)`. Prefer a hand-written parser anyway.
-- **`semver` crate** (dtolnay, v1.0.28, used by Cargo):
-  - Strict SemVer 2.0.0 `Version` parse; `u64` core; rejects `v`, whitespace, leading zeros.
-  - `impl Ord for Version` **compares build metadata** as tie-breaker (total order); spec precedence is `Version::cmp_precedence`.
-  - `VersionReq` is **Cargo** range semantics (`^` default, comma-AND), not npm — fine for internal use, not for user-facing npm-style ranges.
-  - No bump/increment API in 1.x — semoxide must write its own.
-  - Recommendation: depend on it for the type/parse/compare; wrap in semoxide's own newtype or helper module for bump + tag mapping.
-
-## Ticket candidates
-
-- **Adopt `semver` crate as core version type** — add dependency, newtype/re-export, document `Ord` vs `cmp_precedence` usage rule.
-- **Tag ↔ version mapping**: see [SEMANTIC-RELEASE-SPEC](SEMANTIC-RELEASE-SPEC.md#ticket-candidates) (Tag format).
-- **Latest-release resolution by precedence** — select highest released version from tags using `cmp_precedence`, excluding/including pre-releases per channel.
-- **Bump engine** — `bump(Version, Level) -> Version` with resets, clears pre/build, overflow-safe (checked add → error).
-- **0.x bump policy** — define opinionated default for 0.y.z (breaking→minor?) plus config flag; document that SemVer is silent.
-- **Initial version option**: `initial_version`, default `1.0.0` ([ADR 0008](../decisions/0008-initial-version.md)), plus a 1.0.0 graduation flag.
-- **Pre-release channel numbering** — `-<channel>.N` increment rules, promotion of pre-release to stable, behaviour when core bump level changes mid-channel.
-- **Build metadata support** — optional `+meta` injection (e.g. commit SHA); ensure it never affects ordering or "already released" checks.
-- **Manual bump override** — allow forcing level/version (FAQ: breaking change shipped in patch, judgment call).
-- **Immutability guard** — refuse to create a release whose version (by precedence, ignoring build) already exists as a tag.
-- **SemVer conformance test suite** — table tests for valid/invalid strings (§1 examples), the canonical precedence chain, unbounded numeric pre-release ids, case-sensitivity, build-only differences.

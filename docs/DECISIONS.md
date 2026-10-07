@@ -1,19 +1,94 @@
-# Decisions (ADRs)
+# Decisions
 
-- [0001](decisions/0001-compatibility-stance.md): familiar, not compatible; `semoxide migrate` for `.releaserc`
-- [0002](decisions/0002-config-format.md): TOML only, layered config
-- [0003](decisions/0003-monorepo-scope.md): hybrid monorepo model; v1 handles independent units only
-- [0004](decisions/0004-template-engine.md): minijinja; `{version}` for `tag_format`
-- [0005](decisions/0005-dry-run.md): dry-run needs no push rights; `--verify-push` opt-in
-- [0006](decisions/0006-cc-parser.md): wrap `git-conventional` first
-- [0007](decisions/0007-bump-defaults.md): semantic-release default bump table
-- [0008](decisions/0008-initial-version.md): first release 1.0.0, configurable
-- [0009](decisions/0009-commit-back.md): tags only by default; configuring the `git` plugin turns commit-back on
-- [0010](decisions/0010-plugin-architecture.md): plugins in separate repos; socket protocol in its own versioned repo 
-- [0011](decisions/0011-git-backend.md): git2 only (HTTPS); SSH via a russh transport (default) or the system `ssh` (opt-in); no libssh2
-- [0012](decisions/0012-partial-failure.md): tag first; `rollback` step on later failure
-- [0013](decisions/0013-observability.md): observability (library never prints, masking, env snapshot, stderr/stdout, exit codes, error codes, CI formats, dry-run plan, diagnostics)
-- [0014](decisions/0014-porting-behaviour.md): porting behaviour (extends sources, user functions, presets, globs, ranges, regexes, bot identity, CI detection, npm (tentative), library API, sort order)
-- [0015](decisions/0015-testing.md): testing (fixtures via the git CLI, sandbox credentials, npm tests (tentative), upstream comparison in development only)
-- [0016](decisions/0016-agent-experience.md): agent experience (versioned JSON on every command, structured plan, `schema`, `init`/`sync`, non-interactive rule, retry hints, size limits, skills/AGENTS.md/llms.txt, no MCP in v1, injection guard)
-- [0017](decisions/0017-code-quality.md): code quality, decided step by step (qlty git hooks, …)
+Why each non-obvious choice was made. The rules themselves live in the linked docs.
+
+## Scope and compatibility
+- **Familiar, not compatible** — the gap among release tools is a single-binary, plugin-based, library-first tool that semantic-release's user base can migrate to; runtime compatibility would bring back every JS-only problem. (→ [REQUIREMENTS](REQUIREMENTS.md), [DIFFERENCES](DIFFERENCES.md))
+- **`migrate` instead of reading `.releaserc`** — migration, not feature count, is the differentiator; without it semoxide is "another knope". (→ [CLI](CLI.md))
+- **No JS plugin bridge** — it would need a Node runtime and reintroduce npm resolution, user JS functions and stdout-fragile plugins. (→ [REQUIREMENTS](REQUIREMENTS.md))
+- **Monorepo in the core, hybrid with plugins** — monorepo is semantic-release's most-wanted issue (#193, 335 reactions; ~1.1M monthly downloads of community add-ons and forks); the plugin-only approach fragmented and runs N times, and orchestration can't live inside a step plugin. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **v1 refuses interdependent units** — releasing them correctly needs dependency order plus manifest updates between publishes, which is what upstream declined over; independent units are the easy, safe part. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Same default bump table and `1.0.0` start as upstream** — users coming from semantic-release get the same versions. (→ [CONFIG](CONFIG.md))
+- **`conventionalcommits` as default preset** — it recognises `!`, matches the spec, and is upstream's planned next default. (→ [CONFIG](CONFIG.md))
+
+## Config and templates
+- **TOML only** — `serde_yaml` is deprecated and its forks stalled; TOML is native to the Rust ecosystem and has editor schema support. (→ [CONFIG](CONFIG.md))
+- **Own layer merge, not figment/config** — figment is stalled since 2024, `config` is weakly typed; the merge is ~200 lines. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **No env→config layer** — env config is invisible and typo-prone, flags are as easy in CI, and upstream has none; env holds only secrets and a fixed var list. (→ [CLI](CLI.md#environment-variables))
+- **Shared top-level `preset`, other analysis/notes keys in their plugin tables** — upstream users must repeat `preset` per plugin and forget to; plugin-owned keys stay validated by that plugin, so a replacement analyzer brings its own. (→ [CONFIG](CONFIG.md))
+- **Deep merge by default, `merge = "shallow"` opt-in** — overriding one key of an inherited table shouldn't need copying the table; arrays replace so presets' lists never mix; shallow stays available for upstream-like behaviour. (→ [CONFIG](CONFIG.md))
+- **0.x: breaking → minor, feature/fix → patch** — matches how cargo and npm `^0.y` resolve, so dependents get features but never breaks; same as release-plz. (→ [CONFIG](CONFIG.md))
+- **Graduate to 1.0.0 only via `Release-As:`** — 1.0.0 declares a stable API, a human decision often without a code change; `!` and `BREAKING CHANGE:` are equivalent in the spec and already mean "minor" on 0.x. (→ [CONFIG](CONFIG.md))
+- **Build metadata only in the git tag, identity by version** — npm and crates.io drop `+meta` and Docker rejects it, so only the tag and forge release keep it; matching by version fixes upstream's #2355 class of bugs. (→ [CONFIG](CONFIG.md))
+- **Lenient parser by default, `strict` opt-in, parse errors always shown** — a typo must not block releases by default, yet never be silent; teams that want enforcement opt in. (→ [CONFIG](CONFIG.md))
+- **Parse merges like upstream, exempt unparsable merges/fixups from strict** — some teams make only the merge (PR title) conventional, so skipping merges would lose bumps; default merge messages must not break strict mode; `strict_merges` opts in. (→ [CONFIG](CONFIG.md))
+- **minijinja, not Handlebars or lodash** — Jinja syntax is what users of git-cliff, PSR and cocogitto know; Handlebars is weak for logic; lodash means JS. (→ [CONFIG](CONFIG.md))
+- **Own `{version}` syntax for `tag_format`** — versions must be parsed back out of tags, so the format has to be reversible. (→ [CONFIG](CONFIG.md))
+- **Declarative TOML + templates instead of user JS functions** — no embedded scripting runtime; anything beyond it is a replacement plugin. (→ [CONFIG](CONFIG.md))
+- **`extends` from pinned git refs, no npm** — no npm runtime and no registry to run; a SHA pin gives integrity. (→ [CONFIG](CONFIG.md))
+- **JSON Schema for plugin config, not TOML Schema** — editors (Taplo/SchemaStore) support it today and schemars generates it; TOML Schema is not 1.0 yet. (→ [CONFIG](CONFIG.md))
+- **`fancy-regex`** — upstream patterns with lookaround or backreferences port unchanged; a backtrack limit prevents hangs. (→ [CONFIG](CONFIG.md))
+- **`icu_collator` for notes sorting** — the only option matching JS `localeCompare` exactly (0/36 mismatches) for +1.1 MiB. (→ [CONFIG](CONFIG.md))
+- **`git-conventional` as-is** — maintained, zero-copy, handles `!` and both breaking footers; its two known spec deviations (footer `:` without space, lowercase `breaking-change`) are cheaper to document than to patch. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **`semver` crate + own bump/range** — strict SemVer 2.0.0 parsing used by cargo; it lacks bump and npm ranges, which are small to write. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+
+## Git
+- **git2, not gix** — gix has no push and no ETA for it. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **No git CLI** — a hard requirement; git2 covers every operation, proven by PoC against real GitHub. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Retry a bare per-ref `failed` once** — GitHub answered ~1 in 30 tag pushes that way in the PoC and a retry succeeded; the commit check makes the retry safe. (→ [ARCHITECTURE](ARCHITECTURE.md#6-git-and-credentials))
+- **No libssh2; russh by default** — on Windows libssh2 accepts only PEM RSA key files, hangs on others and its handshake fails intermittently (#804); jj left git2 for the same SSH reasons. russh costs +~4 MB and ~120 crates but needs no external binary. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **System `ssh` only opt-in** — needed just for OpenSSH-only features (ProxyJump, FIDO); CI almost never needs SSH since HTTPS tokens push everywhere. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Configured token beats remote credentials** — avoids semantic-release/gitlab#891. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Tags only by default** — avoids extra commits, CI loops, branch-protection holes, push races and signing issues; upstream's own git plugin advises against committing back. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Tag first, `rollback` on later failure** — keeps upstream's order; upstream has no answer for partial failure (#896, #2381). (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Only the core deletes tags** — a plugin must never be able to remove a release tag. (→ [ARCHITECTURE](ARCHITECTURE.md))
+
+## Plugins
+- **Process plugins over a local socket, not stdio** — a stray `println!` or a child such as `npm publish` corrupts a stdout protocol (measured; Nushell has the same flaw); a socket leaves stdout/stderr free to capture as logs. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **gRPC/Protobuf** — codegen for any language, deadlines, cancellation and field-evolution rules built in, at ~4 ms per plugin (measured); the HashiCorp go-plugin model. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Not WASM** — plugins must run tools (`cargo publish`, `npm publish`), which WASI can't without a host exec escape hatch that defeats the sandbox; +21 MB to the host. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Not dylib** — Rust has no stable ABI; a crash takes the host down and unloading is unsafe. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Protocol in its own repo and version** — Nushell's lockstep protocol forces every plugin to rebuild each release (67 of 77 outdated); wire types are explicit, never derived from internal types. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Plugins in separate repos** — own version and release cycle, replaceable. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **One plugin process per run** — enough for a release tool and keeps state (API client, rate limits) across steps; idle shutdown only matters for an interactive shell. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Download from GitHub releases with a checksum lock** — no registry to run; go-semantic-release's own registry was an infra burden. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Secrets from a manifest read before spawn** — children like `npm` must inherit them from the start. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Narrow host `Git` service** — plugins commit through semoxide so the tag and commit-back rules can be enforced. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Analyzer and notes as separate repos, bundled in-process** — replaceable like any plugin, yet the default run spawns nothing; they are the first users of the in-process path. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Sync `Plugin` trait** — release steps run sequentially, so async buys nothing; the cost for embedders is about one OS thread per concurrent release. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **SDK as a pinned git dependency until protocol 0.1.0** — the protocol changes too fast for crates.io releases before it is usable. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **npm not in the first plugin set** — its design (hybrid package manager + native HTTP) is still tentative. (→ [ARCHITECTURE](ARCHITECTURE.md))
+
+## Code
+- **Async only in the plugin host and SSH bridge** — async only where concurrency is real; a private runtime on its own thread also works inside an embedder's tokio runtime. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **`semoxide-error` as its own crate** — every crate, including the pure ones, implements `ErrorInfo` without pulling in any dependency. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **Crates split by purity and heavy deps** — the engine and schema build and test without git2, tonic or tokio: fast rebuilds, and miri can run them. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **Only the façade is stable** — published inner crates are required by crates.io, but a promise on them would freeze the internals (uv/ruff's model). (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **Individual write steps not public** — embedders can't bypass the safety rules. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+
+## Observability and CLI
+- **`semoxide release`, bare `semoxide` prints help** — typing the tool name must never release; an explicit verb is clearer for agents and matches the other subcommands. (→ [CLI](CLI.md))
+- **Generic `--set key=value` instead of per-option flags** — covers every key incl. plugin options with one rule and no flag list to maintain (cargo `--config` model). (→ [CLI](CLI.md))
+- **Library never prints; env snapshot** — the embedder decides output, and the library never reads or changes process state. (→ [OBSERVABILITY](OBSERVABILITY.md))
+- **Own masking everywhere** — GitLab masks only predefined variables, so semoxide's masking is the only protection there. (→ [OBSERVABILITY](OBSERVABILITY.md))
+- **"No release" is exit 0 with a typed reason** — making it an error is a common complaint (go-semrel #8, cocogitto #457), and silence makes it undebuggable. (→ [OBSERVABILITY](OBSERVABILITY.md))
+- **`fail` always runs** — plugins can report unexpected errors too, not only known ones. (→ [OBSERVABILITY](OBSERVABILITY.md))
+- **Skip marker excludes commits from notes too** — fixes upstream's notes bug (release-notes-generator #531). (→ [OBSERVABILITY](OBSERVABILITY.md))
+- **Dry-run needs no push rights** — upstream's push check in dry-run is a frequent complaint (#2232). (→ [CLI](CLI.md))
+- **Agent-ready CLI (JSON everywhere, `schema`, retry hints, non-interactive)** — agents and scripts drive releases; versioned contracts and safe-retry flags keep them from guessing. (→ [CLI](CLI.md))
+- **No MCP server in v1** — the MCP spec and its Rust SDK haven't settled; a release must never be one tool call away. (→ [CLI](CLI.md))
+
+## Testing and quality
+- **Fixtures via the real git CLI** — independent of the code under test; only the tool itself must be git-CLI-free. (→ [TESTING](TESTING.md))
+- **Fakes, not mocks** — fakes (a fake plugin binary, wiremock) exercise real protocol and HTTP paths. (→ [TESTING](TESTING.md))
+- **miri on the pure crates** — AI-assisted coding raises the risk of subtle undefined behaviour. (→ [TESTING](TESTING.md))
+- **Upstream comparison in development only** — after the first release semoxide's own tests are the spec. (→ [TESTING](TESTING.md))
+- **Sandbox token from inside the sandbox repo** — scoped to one repo and one run; no long-lived PAT. (→ [TESTING](TESTING.md))
+- **Findings fixed, rules never loosened** — loosened rules hide real problems. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+
+## Project
+- **`MIT OR Apache-2.0`** — the Rust norm; Apache adds a patent grant, MIT stays GPLv2-compatible, both accept the incoming MIT/ISC/CC BY material. (→ [REQUIREMENTS](REQUIREMENTS.md))
+- **Repos public, sandbox private** — on the Free plan private repos lack protected branches, rulesets, environments, attestations and Pages, and public Actions minutes are free; the sandbox holds test credentials. (→ [REQUIREMENTS](REQUIREMENTS.md))
+- **PoCs in `semoxide-poc`** — throwaway code stays out of the product repo while the evidence stays linkable. (→ [REQUIREMENTS](REQUIREMENTS.md))
+- **macOS dropped for now** — CI never releases from macOS, and macOS users can run the Docker image. (→ [ARCHITECTURE](ARCHITECTURE.md))
+- **Docs site deferred to beta** — nothing stable to document before then; its tooling is chosen then. (→ [REQUIREMENTS](REQUIREMENTS.md))
