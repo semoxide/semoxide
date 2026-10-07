@@ -110,12 +110,12 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 | Tool | Catches | Runs |
 | --- | --- | --- |
 | rustfmt | formatting | pre-commit + CI |
-| clippy: `pedantic` on, selected `restriction` lints, `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, architecture rules (§2) | pre-push + CI, warnings as errors |
+| clippy: `pedantic` on, selected `restriction` lints (incl. `undocumented_unsafe_blocks` for `// SAFETY:`), `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, architecture rules (§2) | pre-push + CI, warnings as errors |
 | rustc + rustdoc lints (`missing_docs` on published crates, broken doc links) | undocumented API | CI |
 | qlty maintainability (complexity, duplication, smells; `mode = "block"`) | complex or duplicated code | pre-push + CI |
 | gitleaks (`.gitleaks.toml`: default rules; only test tokens containing `SEMOXIDE_FAKE` allowlisted) | secrets | pre-push + CI |
 | osv-scanner | known-vulnerable versions in `Cargo.lock` | pre-push (when the lockfile changes) + CI |
-| semgrep, our own rules only (`.semgrep/rules.yaml`: private fields, no `get_`, no inline test modules, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests, `// SAFETY:`) | patterns clippy can't express | pre-push + CI; every rule has cases in `.semgrep/rules.rs`, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI |
+| semgrep, our own rules only (`.semgrep/rules.yaml`: private fields, no `get_`, no inline test modules, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests) | patterns clippy can't express | pre-push + CI; every rule has cases in `.semgrep/rules.rs`, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI |
 | markdownlint (`.markdownlint.json`: MD013 line length off) | broken Markdown structure in docs | pre-commit (autofix) + pre-push + CI |
 | actionlint | incorrect GitHub Actions workflows | pre-push + CI |
 | cargo-deny | licenses, RustSec, banned/duplicate deps, sources | CI on PRs + daily schedule |

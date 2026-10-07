@@ -3,19 +3,13 @@
 # `pattern-inside: name!(...)` + `pattern-regex`, and list each macro by name (`$M!(...)` does not match).
 # Every rule has cases in rules.rs next to this file, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI.
 rules:
-  - id: unsafe-needs-safety-comment
-    languages: [generic]
-    paths:
-      include: ["*.rs"]
-    severity: ERROR
-    message: "An `unsafe` block needs a `// SAFETY:` comment on the line directly above it (CLAUDE.md, Rust rule 6)."
-    pattern-regex: '(?m)^(?![ \t]*// SAFETY:)[^\n]*\n[ \t]*(?:let\s+\w+\s*=\s*)?unsafe\s*\{'
 
   - id: no-inline-test-module
     languages: [rust]
     severity: ERROR
     message: "Unit tests live in a sibling `tests.rs` (`#[cfg(test)] mod tests;`), never in an inline block (CODE-ARCHITECTURE §8)."
     pattern-regex: '#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([a-z]+\))?\s+)?mod\s+\w+\s*\{'
+
   - id: no-pub-struct-field
     languages: [rust]
     severity: ERROR
@@ -23,11 +17,13 @@ rules:
     patterns:
       - pattern-inside: struct $S { ... }
       - pattern-regex: '\bpub(?:\([a-z]+\))?\s+(?:r#)?[a-z_][a-z0-9_]*\s*:'
+
   - id: no-pub-tuple-field
     languages: [rust]
     severity: ERROR
     message: "Newtype fields are private; convert with `From`/`TryFrom` and `as_`/`into_` (CLAUDE.md Rust rules 4, 5)."
     pattern-regex: '\bstruct\s+\w+\s*(?:<[^>{;]*>)?\s*\(\s*(?:#\[[^\]]*\]\s*)*pub\b'
+
   - id: no-get-prefix
     languages: [rust]
     severity: ERROR
@@ -37,6 +33,7 @@ rules:
       - metavariable-regex:
           metavariable: $F
           regex: ^get_
+
   - id: command-needs-env-clear
     languages: [rust]
     severity: ERROR
@@ -51,6 +48,7 @@ rules:
           let mut $C = $CMD;
           ...
           $C.env_clear();
+
   - id: no-exposed-secret-in-macro
     languages: [rust]
     severity: ERROR
@@ -75,6 +73,7 @@ rules:
           - pattern-inside: writeln!(...)
           - pattern-inside: panic!(...)
       - pattern-regex: '\bexpose_secret(?:_mut)?\s*\('
+
   - id: url-in-log-needs-url-for-log
     languages: [rust]
     severity: ERROR
@@ -94,6 +93,7 @@ rules:
           - pattern-inside: tracing::error!(...)
           - pattern-inside: tracing::event!(...)
       - pattern-regex: '(?<!url_for_log\(&)(?<!url_for_log\()\b(?!url_for_log\b)[a-z_]*url[a-z_]*\b(?!\s*=\s*[%?]?\s*url_for_log\()'
+
   - id: regex-unicode-digit
     languages: [rust]
     severity: ERROR
@@ -109,6 +109,7 @@ rules:
       - metavariable-regex:
           metavariable: $PAT
           regex: '.*(?<!\(\?-u:)\\d'
+
   - id: tokio-test-start-paused
     languages: [rust]
     severity: ERROR

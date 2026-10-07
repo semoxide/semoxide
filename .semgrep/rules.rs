@@ -4,15 +4,6 @@
 
 use std::process::Command;
 
-fn unsafe_blocks() {
-    // ok: unsafe-needs-safety-comment
-    // SAFETY: the pointer comes from a live Box.
-    unsafe { work() };
-    // ruleid: unsafe-needs-safety-comment
-    let y = 1;
-    unsafe { work() };
-}
-
 // ruleid: no-inline-test-module
 #[cfg(test)]
 mod inline_tests {
