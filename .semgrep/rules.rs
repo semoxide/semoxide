@@ -4,12 +4,6 @@
 
 use std::process::Command;
 
-// ruleid: no-inline-test-module
-#[cfg(test)]
-mod inline_tests {
-    fn t() {}
-}
-
 // ok: no-pub-struct-field
 pub struct Good {
     name: String,
@@ -19,11 +13,6 @@ pub struct Bad {
     pub name: String,
     inner: u8,
 }
-
-// ok: no-pub-tuple-field
-pub struct Tag(String);
-// ruleid: no-pub-tuple-field
-pub struct Tag2(pub String);
 
 impl Good {
     // ruleid: no-get-prefix

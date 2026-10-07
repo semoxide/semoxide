@@ -1,3 +1,5 @@
+// LOCKED: approved in 8b6e909. Do not edit; if a test looks wrong, stop and report.
+
 use semoxide_error::ErrorCode;
 
 use super::{Problem, codes_in_source, constant_name, registry_problems};
@@ -105,5 +107,40 @@ let pair = (ErrorCode::from_static("a::b"), ErrorCode::from_static("c::d"));
     assert_eq!(
         codes_in_source(source),
         ["git::push_rejected", "a::b", "c::d"]
+    );
+}
+
+#[test]
+fn several_problems_are_all_reported_in_a_fixed_order() {
+    let problems = registry_problems(
+        &[CORE_NO_GIT_REPO, GIT_PUSH_REJECTED],
+        &strings(&["core/no-git-repo", "core/removed-error"]),
+        &strings(&[
+            "core::no_git_repo",
+            "git::push_rejected",
+            "git::auth_failed",
+        ]),
+    );
+
+    assert_eq!(
+        problems,
+        [
+            Problem::MissingPage(GIT_PUSH_REJECTED),
+            Problem::OrphanPage(String::from("core/removed-error")),
+            Problem::NotRegistered(String::from("git::auth_failed")),
+        ]
+    );
+}
+
+#[test]
+fn page_named_with_underscores_is_an_orphan_and_the_code_misses_its_page() {
+    let problems = registry_problems(&[CORE_NO_GIT_REPO], &strings(&["core/no_git_repo"]), &[]);
+
+    assert_eq!(
+        problems,
+        [
+            Problem::MissingPage(CORE_NO_GIT_REPO),
+            Problem::OrphanPage(String::from("core/no_git_repo")),
+        ]
     );
 }

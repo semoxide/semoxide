@@ -8,10 +8,12 @@ use std::path::Path;
 
 use semoxide_error::ErrorCode;
 
+const STATIC_CODE: &str = "from_static(\"";
+
+#[cfg(test)]
+mod reader_tests;
 #[cfg(test)]
 mod tests;
-
-const STATIC_CODE: &str = "from_static(\"";
 
 /// One way the registry, the docs pages and the source disagree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,7 +109,12 @@ pub fn constant_name(code: &ErrorCode) -> String {
         .to_ascii_uppercase()
 }
 
-/// The code strings in `ErrorCode::from_static("…")` calls of one source file, skipping comments.
+/// The code strings in `ErrorCode::from_static("…")` calls of one source file.
+///
+/// A plain-text scan, like the Rust compiler's `tidy` checks: lines starting with `//` are
+/// skipped. Known limits: a code inside a trailing `// …` comment, a `/* … */` block or a
+/// string is counted too (a false "not in `codes::ALL`" report; delete the commented-out
+/// code), and a code written as a raw string, `from_static(r"…")`, is not found.
 #[must_use]
 pub fn codes_in_source(text: &str) -> Vec<String> {
     text.lines()
