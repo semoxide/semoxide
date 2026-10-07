@@ -9,6 +9,10 @@ pre-commit:
       stage_fixed: true
     typos:
       run: typos --force-exclude {staged_files}
+    # A LOCKED test changes only with the maintainer's approval (rust-testing skill).
+    # Maintainer bypass: LEFTHOOK_EXCLUDE=test-lock git commit ...
+    test-lock:
+      run: sh scripts/test-lock.sh --staged
 
 pre-push:
   piped: true

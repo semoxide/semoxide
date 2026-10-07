@@ -123,7 +123,7 @@ The author of commits made by `[plugins.git]` ([ARCHITECTURE.md](ARCHITECTURE.md
 1. `[plugins.git] author` in config.
 2. `GIT_AUTHOR_*` / `GIT_COMMITTER_*` from the env snapshot.
 3. The CI platform's bot: GitHub Actions uses `github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>`. GitLab and other CIs have none.
-4. semoxide default: `semoxide-bot` with the GitHub noreply address of the `semoxide-bot` GitHub account (account not yet created). At full release the default moves to an address on a semoxide-owned domain.
+4. semoxide default: `semoxide-bot <338146621+semoxide-bot@users.noreply.github.com>` (the `semoxide-bot` GitHub account's noreply address). At full release the default moves to an address on a semoxide-owned domain.
 
 ## 12. JSON Schema
 

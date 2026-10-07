@@ -31,6 +31,7 @@ Created identically in every org repo, including the PoC repo `semoxide/semoxide
 | `area:ci` | our CI, tooling, release pipeline |
 | `area:docs` | docs |
 | `needs-decision` | waiting on the user's decision |
+| `tests-unlocked` | the maintainer approves changing a LOCKED test in this PR (only the maintainer adds it) |
 | `blocked-external` | waiting on something outside the project |
 | `good-first-issue` | newcomer-friendly |
 

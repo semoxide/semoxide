@@ -96,6 +96,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **Upstream tests read, not ported** — semoxide is not a 1:1 rewrite, so upstream suites serve as a source of edge cases; our own cases cover deliberately matching behaviour. (→ [TESTING](TESTING.md))
 - **Containers per repo** — core runs only the git-http container on PRs; registry containers live in the plugin repos that publish to them. (→ [TESTING](TESTING.md))
 - **Fakes, not mocks** — fakes (a fake plugin binary, wiremock) exercise real protocol and HTTP paths. (→ [TESTING](TESTING.md))
+- **Test lock via hooks + a maintainer label** — agents act with the maintainer's own GitHub account, so no GitHub permission can tell an agent's approval from the maintainer's; the lock makes every locked-test change deliberate and visible (Claude hook at edit time, lefthook at commit, `tests-unlocked` label in CI). (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#10-approaches))
 - **miri on the pure crates** — AI-assisted coding raises the risk of subtle undefined behaviour. (→ [TESTING](TESTING.md))
 - **Upstream comparison in development only** — after the first release semoxide's own tests are the spec. (→ [TESTING](TESTING.md))
 - **Sandbox token from inside the sandbox repo** — scoped to one repo and one run; no long-lived PAT. (→ [TESTING](TESTING.md))
