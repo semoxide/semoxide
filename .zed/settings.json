@@ -32,7 +32,7 @@
       },
       "initialization_options": {
         "scan": {
-          "configuration": [".semgrep.yaml"],
+          "configuration": [".semgrep/rules.yaml"],
           "only_git_dirty": false
         }
       }

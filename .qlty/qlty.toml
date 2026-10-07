@@ -51,7 +51,18 @@ version = "0.46.0"
 [plugins.definitions.semgrep]
 supported_platforms = ["linux", "macos", "windows"]
 
+# Our rules live in .semgrep/rules.yaml next to their test fixture (semgrep's documented layout).
+[plugins.definitions.semgrep.drivers.lint]
+script = "semgrep --metrics=off --disable-version-check --config .semgrep/rules.yaml --sarif --output=${tmpfile} ${target}"
+success_codes = [0]
+output = "tmpfile"
+output_format = "sarif"
+cache_results = true
+batch = true
+suggested = "config"
+output_missing = "parse"
+
 # The semgrep rule fixture is deliberately bad code; `semgrep --test` (CI) proves every rule still fires on it.
-[[ignore]]
-file_patterns = ["tests/semgrep/**"]
+[[exclude]]
+file_patterns = [".semgrep/**"]
 plugins = ["semgrep"]

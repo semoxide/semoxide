@@ -1,4 +1,4 @@
-// Fixture for `.semgrep.yaml`: `semgrep --test --config .semgrep.yaml tests/semgrep/`.
+// Fixture for rules.yaml: `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs`.
 // `ruleid:` marks the next line as a required finding, `ok:` as a required non-finding.
 // Not compiled; it only has to parse as Rust.
 

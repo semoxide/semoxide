@@ -1,7 +1,7 @@
 # Project rules checked by semgrep (via qlty). Add a rule when a review finds a pattern clippy can't express.
 # Semgrep parses Rust macro arguments as opaque tokens: rules that look inside a macro call use
 # `pattern-inside: name!(...)` + `pattern-regex`, and list each macro by name (`$M!(...)` does not match).
-# Every rule has cases in tests/semgrep/rules.rs, checked by `semgrep --test` in CI.
+# Every rule has cases in rules.rs next to this file, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI.
 rules:
   - id: unsafe-needs-safety-comment
     languages: [generic]

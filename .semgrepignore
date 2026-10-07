@@ -1,2 +1,2 @@
 # The rule fixture is deliberately bad code; `semgrep --test` targets it explicitly.
-tests/semgrep/
+.semgrep/
