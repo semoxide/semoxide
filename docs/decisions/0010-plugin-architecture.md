@@ -32,7 +32,7 @@ Status: accepted (2026-10-05). Decided step by step.
   - Schema language: JSON Schema for v1, because that's what editors support today (Taplo/SchemaStore) and schemars generates it. [TOML Schema](https://tomlschema.org/) (`.tosd`, spec 1.0.0-rc.2, 2026) is a candidate to re-evaluate once it reaches 1.0, has a crates.io release and has mainstream editor support.
 - **Trusting downloaded plugins:**
   - Now: a checksum lock only. The sha256 recorded on first download is required on every later run.
-  - Once the plugin repos are public: also verify GitHub artifact attestations (Sigstore, e.g. the `sigstore` crate) before first use. GitHub's Free, Pro and Team plans only offer attestations for public repos.
+  - The plugin repos are public, so official plugins are also verified against GitHub artifact attestations (Sigstore, e.g. the `sigstore` crate) before first use. GitHub's Free, Pro and Team plans only offer attestations for public repos.
 - **Bundled defaults:** commit-analyzer and release-notes live in their own repos (`semoxide-plugin-commit-analyzer`, `semoxide-plugin-release-notes`) like every plugin. semoxide depends on their crates and compiles them in, running them in-process and enabled by default. They are also released as binaries, so they can be replaced. They are the first users of the in-process crate path.
 - **First official plugins** (each in its own repo): github, cargo, exec, gitlab, changelog, git. npm is not in the first set.
 - **Naming:**

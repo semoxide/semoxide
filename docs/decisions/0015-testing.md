@@ -28,7 +28,7 @@ Status: accepted (2026-10-05). Decided step by step; details are in [TESTING.md]
   - Not used: mocking frameworks, and `trycmd`.
 - **How tests run:**
   - Runner: `cargo-nextest`, with a `ci` profile (retries for known-flaky network tests, JUnit output).
-  - Every PR: Linux. Windows tests only on `main` and on PRs labelled `windows` while the repos are private (Windows minutes cost 2×); every PR once public. aarch64 is build-checked on PRs and tested on a schedule.
+  - Every PR: Linux. Linux and Windows on every PR (the repos are public, so Actions minutes are free). aarch64 is build-checked on PRs and tested on a schedule.
   - Toolchains: stable on PRs, an MSRV check (`cargo hack --rust-version`), beta scheduled.
   - Checks: `cargo hack --each-feature` on published crates; `cargo insta test --unreferenced reject`; doc tests as a separate step; miri on PRs for the pure-Rust crates; coverage via `cargo llvm-cov` (reported, not gating).
   - Scheduled: fuzzing, benchmarks (plus on demand for log-walk PRs), sandbox E2E, the upstream comparison.
