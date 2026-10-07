@@ -110,11 +110,62 @@ pub fn constant_name(code: &ErrorCode) -> String {
 /// The code strings in `ErrorCode::from_static("…")` calls of one source file, skipping comments.
 #[must_use]
 pub fn codes_in_source(text: &str) -> Vec<String> {
-    text.lines()
-        .filter(|line| !line.trim_start().starts_with("//"))
-        .flat_map(|line| line.split(STATIC_CODE).skip(1))
+    without_comments(text)
+        .split(STATIC_CODE)
+        .skip(1)
         .filter_map(|rest| rest.split_once('"').map(|(code, _)| code.to_owned()))
         .collect()
+}
+
+/// The source with `//` and (nested) `/* */` comments removed; `//` inside a string literal stays.
+/// Raw strings and char literals are not special-cased: a stray quote in them can only make the
+/// scan miss or invent a code, which the registry test then reports.
+fn without_comments(text: &str) -> String {
+    let mut code = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    let mut in_string = false;
+    let mut block_depth = 0_usize;
+    while let Some(c) = chars.next() {
+        if block_depth > 0 {
+            match (c, chars.peek()) {
+                ('*', Some('/')) => {
+                    chars.next();
+                    block_depth -= 1;
+                }
+                ('/', Some('*')) => {
+                    chars.next();
+                    block_depth += 1;
+                }
+                ('\n', _) => code.push('\n'),
+                _ => {}
+            }
+            continue;
+        }
+        if in_string {
+            code.push(c);
+            match c {
+                '\\' => code.extend(chars.next()),
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match (c, chars.peek()) {
+            ('/', Some('/')) => {
+                // Drop the rest of the line, keep the newline.
+                code.extend(chars.by_ref().find(|&n| n == '\n'));
+            }
+            ('/', Some('*')) => {
+                chars.next();
+                block_depth = 1;
+            }
+            _ => {
+                in_string = c == '"';
+                code.push(c);
+            }
+        }
+    }
+    code
 }
 
 /// The slugs of all pages under `docs_dir` (`core/no-git-repo` for `core/no-git-repo.md`),

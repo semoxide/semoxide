@@ -1,3 +1,5 @@
+// LOCKED: approved in 5b33c8e. Do not edit; if a test looks wrong, stop and report.
+
 use semoxide_error::ErrorCode;
 
 use super::{Problem, codes_in_source, constant_name, registry_problems};
