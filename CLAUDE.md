@@ -30,7 +30,7 @@ Core rules only. Known pitfalls: [RUST-PITFALLS](docs/RUST-PITFALLS.md). Pattern
 3. Meaning lives in types: newtypes and enums, not `bool` / `Option` / `String` parameters.
 4. Struct fields are private; construct with `new` or a builder.
 5. Conversions via `From` / `TryFrom` / `FromStr`; names use `as_` / `to_` / `into_`; getters have no `get_`.
-6. `unsafe_code = "forbid"`. The only exception is `semoxide-git`'s transport registration, with a `// SAFETY:` comment and real-repo integration tests (miri can't run its FFI).
+6. No `unsafe`: the workspace denies `unsafe_code` and every crate root has `#![forbid(unsafe_code)]`. The only exception is `semoxide-git`'s transport registration: one `#[expect(unsafe_code, reason = "…")]` item with a `// SAFETY:` comment and real-repo integration tests (miri can't run its FFI).
 7. Prefer modern std over extra crates or nesting: let chains, `if let` guards, `LazyLock`/`OnceLock`, `cfg_select!`, `assert_matches!`.
 8. Flat control flow: early returns and `?` over nested `if` / `match`.
 

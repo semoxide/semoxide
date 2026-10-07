@@ -1,2 +1,6 @@
 .obsidian/
 target/
+*.snap.new
+*.pending-snap
+mutants.out*/
+lcov.info

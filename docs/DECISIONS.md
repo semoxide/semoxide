@@ -65,6 +65,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **Async only in the plugin host and SSH bridge** — async only where concurrency is real; a private runtime on its own thread also works inside an embedder's tokio runtime. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 - **`semoxide-error` as its own crate** — every crate, including the pure ones, implements `ErrorInfo` without pulling in any dependency. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 - **Crates split by purity and heavy deps** — the engine and schema build and test without git2, tonic or tokio: fast rebuilds, and miri can run them. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **`unsafe_code` denied in the workspace, forbidden per crate root** — Cargo can't exempt one crate from an inherited workspace lint, and `forbid` can't be lifted for semoxide-git's single transport registration. (→ [CLAUDE.md](../CLAUDE.md))
 - **Only the façade is stable** — published inner crates are required by crates.io, but a promise on them would freeze the internals (uv/ruff's model). (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 - **Individual write steps not public** — embedders can't bypass the safety rules. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 
