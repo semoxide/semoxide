@@ -107,11 +107,11 @@ Placement, kinds and how tests run: [TESTING](TESTING.md).
 
 **Findings are fixed in the code. Rules and thresholds are never loosened without the user's explicit approval.**
 
-Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pre-commit runs rustfmt (`.rs`) and qlty's markdownlint fix (`.md`) on the staged files in place, then typos; pre-push runs `qlty check` on the pushed changes plus `cargo nextest run`. qlty config: `.qlty/qlty.toml` (only `target/` excluded, plugins pinned). Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
+Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pre-commit runs rustfmt (`.rs`) and qlty's markdownlint fix (`.md`) on the staged files in place, then typos; pre-push runs `qlty check` on the pushed changes, `cargo clippy` and `cargo nextest run`. rustfmt and clippy always come from the toolchain in `rust-toolchain.toml` (hooks, CI, rust-analyzer), never from qlty, which bundles an older Rust. qlty config: `.qlty/qlty.toml` (only `target/` excluded, plugins pinned). Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
 
 | Tool | Catches | Runs |
 | --- | --- | --- |
-| rustfmt | formatting | pre-commit + CI |
+| rustfmt (toolchain) | formatting | pre-commit + CI (`cargo fmt --check`) |
 | clippy: `pedantic` on, selected `restriction` lints (incl. `undocumented_unsafe_blocks` for `// SAFETY:`), `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, architecture rules (§2) | pre-push + CI, warnings as errors |
 | rustc + rustdoc lints (`missing_docs` on published crates, broken doc links) | undocumented API | CI |
 | qlty maintainability (complexity, duplication, smells; `mode = "block"`) | complex or duplicated code | pre-push + CI |

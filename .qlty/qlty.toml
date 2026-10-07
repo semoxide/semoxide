@@ -16,12 +16,8 @@ mode = "block"
 name = "default"
 default = true
 
-# rustfmt and clippy run on the toolchain pinned in rust-toolchain.toml.
-[[plugin]]
-name = "rustfmt"
-
-[[plugin]]
-name = "clippy"
+# rustfmt and clippy are not qlty plugins here: qlty runs its own older Rust, so they run via
+# cargo on the toolchain pinned in rust-toolchain.toml (lefthook, CI, rust-analyzer).
 
 [[plugin]]
 name = "gitleaks"
