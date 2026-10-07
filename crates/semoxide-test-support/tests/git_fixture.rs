@@ -1,3 +1,4 @@
+// LOCKED: approved in 2cdfd11. Do not edit; if a test looks wrong, stop and report.
 //! How a test builds a git history with `GitFixture`, and what each step leaves in the repository.
 
 use semoxide_test_support::git_fixture::{GitFixture, GitFixtureBuilder, Merge};
