@@ -2,6 +2,8 @@
 
 Scope: how the conventional-changelog packages, env-ci, `@semantic-release/{git,changelog,exec,error}` and lodash `template` behave upstream. Source: `conventional-changelog` monorepo @ `f90c80e`, `env-ci` @ `0a8c00b`, `git` @ `08bfb3d`, `changelog` @ `d780a55`, `exec` @ `3988e52`, `error` @ `bfc9b06`, `semantic-release` master (2026-10-05).
 
+> Attribution: describes MIT- and ISC-licensed code, © the respective upstream contributors; short excerpts (regexes, option names, messages) are quoted under those licenses. Not affiliated with semantic-release.
+
 ```mermaid
 flowchart LR
     PRE["preset (§4)"] -- ".parser options" --> PAR["parser (§1)"]

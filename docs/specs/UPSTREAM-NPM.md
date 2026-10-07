@@ -2,6 +2,8 @@
 
 Scope: how the upstream npm plugin behaves (options, registry and auth resolution, per-step npm commands, side effects, tests, known bugs). Source: `semantic-release/npm` @ `ab4382f` (2026-10-05).
 
+> Attribution: describes MIT-licensed code, © the respective upstream contributors; short excerpts (regexes, option names, messages) are quoted under those licenses. Not affiliated with semantic-release.
+
 ~400 LOC JS, ESM, Node `^22.14 || >=24.10`. Bundles `npm@^11.6.2` as a runtime dependency; every registry operation shells out to `npm` (`execa`, `preferLocal: true`). Steps: `verifyConditions`, `prepare`, `publish`, `addChannel` (no `success`/`fail`).
 
 ## 1. Features

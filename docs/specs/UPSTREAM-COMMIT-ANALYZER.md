@@ -2,6 +2,8 @@
 
 Scope: how `@semantic-release/commit-analyzer` (the `analyzeCommits` step) actually behaves in code. Source: `semantic-release/commit-analyzer` master @ `96bba2f` (2026-10-04), diffed against `beta` (v14); ~200 LOC. Step contract and multi-plugin semantics: [SEMANTIC-RELEASE-SPEC.md](SEMANTIC-RELEASE-SPEC.md). Commit message grammar: [CONVENTIONAL-COMMITS-SPEC.md](CONVENTIONAL-COMMITS-SPEC.md).
 
+> Attribution: describes MIT-licensed code, © the respective upstream contributors; short excerpts (regexes, option names, messages) are quoted under those licenses. Not affiliated with semantic-release.
+
 ## Source map
 
 | Feature | File |

@@ -2,6 +2,8 @@
 
 Scope: how `@semantic-release/release-notes-generator` (the `generateNotes` step) actually behaves in code. Source: `semantic-release/release-notes-generator` master @ `9b15394` (2026-09-21), diffed against `beta`; ~190 LOC in `index.js`, `lib/hosts-config.js`, `lib/load-changelog-config.js`, `wrappers/conventional-changelog-writer.js`. Step contract and notes concatenation: [SEMANTIC-RELEASE-SPEC.md](SEMANTIC-RELEASE-SPEC.md).
 
+> Attribution: describes MIT-licensed code, © the respective upstream contributors; short excerpts (regexes, option names, messages) are quoted under those licenses. Not affiliated with semantic-release.
+
 ## Source map
 
 | Feature | File |
