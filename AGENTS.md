@@ -19,4 +19,4 @@ Instructions for AI coding agents (and people) working on semoxide.
 
 - Loosen a lint, threshold, exclusion or allowlist to make a finding go away: fix the code, or ask the maintainer.
 - Approve or accept snapshots (`.snap.new`) yourself.
-- Edit a locked test, bypass the `test-lock` hook (`LEFTHOOK_EXCLUDE`), or add the `tests-unlocked` label: only the maintainer unlocks.
+- Edit a locked test, set `SEMOXIDE_TESTS_UNLOCKED`, skip the `test-lock` hook, or add the `tests-unlocked` label: only the maintainer unlocks (CODE-ARCHITECTURE A2).

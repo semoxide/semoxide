@@ -1,5 +1,8 @@
 #!/bin/sh
 # Claude Code PreToolUse hook: refuses edits to LOCKED test files (rust-testing skill).
+# Unlock (maintainer only): start Claude Code with SEMOXIDE_TESTS_UNLOCKED=1. The hook reads
+# Claude Code's own environment, which the agent can't change from inside the session.
+[ "${SEMOXIDE_TESTS_UNLOCKED:-}" = "1" ] && exit 0
 # JSON escapes Windows backslashes ("C:\\x"); the second sed turns them back into one.
 file=$(sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 | sed 's/\\\\/\\/g')
 [ -n "$file" ] && [ -f "$file" ] || exit 0

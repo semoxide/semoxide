@@ -1,10 +1,15 @@
 #!/bin/sh
 # Fails when a LOCKED test file (rust-testing skill) is modified or deleted.
-# Usage: test-lock.sh --staged        (pre-commit: staged changes vs HEAD)
+# Usage: test-lock.sh --staged        (pre-commit: staged changes vs HEAD; honours SEMOXIDE_TESTS_UNLOCKED=1)
 #        test-lock.sh <base-ref>      (CI: changes since the merge base with <base-ref>)
 set -eu
 
 if [ "${1:-}" = "--staged" ]; then
+  # Maintainer unlock for a session (see CODE-ARCHITECTURE A2); CI ignores it and needs the label.
+  if [ "${SEMOXIDE_TESTS_UNLOCKED:-}" = "1" ]; then
+    echo "test-lock: unlocked by SEMOXIDE_TESTS_UNLOCKED=1" >&2
+    exit 0
+  fi
   base=HEAD
   changed=$(git diff --cached --name-only --diff-filter=MDR)
 else
