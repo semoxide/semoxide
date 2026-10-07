@@ -19,19 +19,34 @@ env:
   CARGO_BUILD_WARNINGS: deny
 
 jobs:
-  # Rust jobs skip until the first crate exists (#30).
+  # Rust jobs run only when crates exist (#30) and something other than Markdown changed.
+  # The workflow itself always runs, so the required `required-checks` always reports.
   detect:
     runs-on: ubuntu-latest
     outputs:
-      crates: ${{ steps.crates.outputs.exist }}
+      rust: ${{ steps.rust.outputs.run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - id: crates
+      - id: rust
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          if ls crates/*/Cargo.toml >/dev/null 2>&1; then exist=true; else exist=false; fi
-          echo "exist=$exist" >> "$GITHUB_OUTPUT"
+          run=false
+          if ls crates/*/Cargo.toml >/dev/null 2>&1; then
+            run=true
+            if [ "$EVENT" = "pull_request" ]; then
+              # A failing diff fails the job (set -e) instead of silently skipping the tests.
+              changed=$(git diff --name-only "origin/$BASE_REF...HEAD")
+              if ! printf '%s\n' "$changed" | grep -qv '\.md$'; then
+                run=false
+              fi
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
 
   quality:
     runs-on: ubuntu-latest
@@ -58,7 +73,7 @@ jobs:
 
   deny:
     needs: detect
-    if: needs.detect.outputs.crates == 'true'
+    if: needs.detect.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,7 +87,7 @@ jobs:
 
   test:
     needs: detect
-    if: needs.detect.outputs.crates == 'true'
+    if: needs.detect.outputs.rust == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -92,7 +107,7 @@ jobs:
 
   msrv:
     needs: detect
-    if: needs.detect.outputs.crates == 'true'
+    if: needs.detect.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
