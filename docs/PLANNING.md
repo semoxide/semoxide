@@ -41,5 +41,5 @@ One org-level project across all `semoxide/*` repos.
 
 - **Status:** `Todo` → `In progress` → `In review` → `Done`, plus `Waiting for user` (human-review stops from approach A2 in [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md), and `needs-decision`).
 - **Fields:** built-ins (milestone, issue type, labels, assignees, parent/sub-issue progress, linked PRs), plus `Priority` (`P0` blocks the milestone, `P1`, `P2`).
-- **Views:** a board by status; a table grouped by milestone, then epic; a "Waiting for user" filter; a roadmap by milestone.
+- **Views:** a board by status; a table sliced by milestone and grouped by parent issue (epic), since a view groups by one field only; a "Waiting for user" filter; a roadmap by milestone.
 - **Automation:** new issue → `Todo`, PR opened → `In review`, closed → `Done`. No iterations: work is slice-based.
