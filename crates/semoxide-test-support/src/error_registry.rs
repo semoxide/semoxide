@@ -6,6 +6,7 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use semoxide_error::ErrorCode;
 
 #[cfg(test)]
@@ -14,8 +15,6 @@ mod reader_tests;
 mod scan_tests;
 #[cfg(test)]
 mod tests;
-
-const STATIC_CODE: &str = "from_static(\"";
 
 /// One way the registry, the docs pages and the source disagree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,65 +110,44 @@ pub fn constant_name(code: &ErrorCode) -> String {
         .to_ascii_uppercase()
 }
 
-/// The code strings in `ErrorCode::from_static("…")` calls of one source file, skipping comments.
+/// The code strings in `ErrorCode::from_static("…")` calls of one source file.
+///
+/// The text is split into Rust tokens by `proc-macro2`, so comments, raw strings and char
+/// literals follow Rust's own rules. Text that isn't valid Rust tokens has no codes.
 #[must_use]
 pub fn codes_in_source(text: &str) -> Vec<String> {
-    without_comments(text)
-        .split(STATIC_CODE)
-        .skip(1)
-        .filter_map(|rest| rest.split_once('"').map(|(code, _)| code.to_owned()))
-        .collect()
+    let mut codes = Vec::new();
+    if let Ok(tokens) = text.parse::<TokenStream>() {
+        collect_static_codes(tokens, &mut codes);
+    }
+    codes
 }
 
-/// The source with `//` and (nested) `/* */` comments removed; `//` inside a string literal stays.
-/// Raw strings and char literals are not special-cased: a stray quote in them can only make the
-/// scan miss or invent a code, which the registry test then reports.
-fn without_comments(text: &str) -> String {
-    let mut code = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    let mut in_string = false;
-    let mut block_depth = 0_usize;
-    while let Some(c) = chars.next() {
-        if block_depth > 0 {
-            match (c, chars.peek()) {
-                ('*', Some('/')) => {
-                    chars.next();
-                    block_depth -= 1;
-                }
-                ('/', Some('*')) => {
-                    chars.next();
-                    block_depth += 1;
-                }
-                ('\n', _) => code.push('\n'),
-                _ => {}
+/// Walks the tokens, nested groups included, for `from_static` followed by `("…")`.
+fn collect_static_codes(tokens: TokenStream, codes: &mut Vec<String>) {
+    let mut after_from_static = false;
+    for token in tokens {
+        if let TokenTree::Group(group) = &token {
+            if after_from_static
+                && group.delimiter() == Delimiter::Parenthesis
+                && let Some(code) = single_string_literal(group.stream())
+            {
+                codes.push(code);
             }
-            continue;
+            collect_static_codes(group.stream(), codes);
         }
-        if in_string {
-            code.push(c);
-            match c {
-                '\\' => code.extend(chars.next()),
-                '"' => in_string = false,
-                _ => {}
-            }
-            continue;
-        }
-        match (c, chars.peek()) {
-            ('/', Some('/')) => {
-                // Drop the rest of the line, keep the newline.
-                code.extend(chars.by_ref().find(|&n| n == '\n'));
-            }
-            ('/', Some('*')) => {
-                chars.next();
-                block_depth = 1;
-            }
-            _ => {
-                in_string = c == '"';
-                code.push(c);
-            }
-        }
+        after_from_static = matches!(&token, TokenTree::Ident(ident) if ident == "from_static");
     }
-    code
+}
+
+/// The value of a group holding exactly one plain string literal, like `("core::x")`.
+fn single_string_literal(tokens: TokenStream) -> Option<String> {
+    let mut tokens = tokens.into_iter();
+    let (Some(TokenTree::Literal(literal)), None) = (tokens.next(), tokens.next()) else {
+        return None;
+    };
+    let text = literal.to_string();
+    text.strip_prefix('"')?.strip_suffix('"').map(str::to_owned)
 }
 
 /// The slugs of all pages under `docs_dir` (`core/no-git-repo` for `core/no-git-repo.md`),
