@@ -1,0 +1,27 @@
+// Project settings for Zed: the editor uses the same tools as the hooks and CI (docs/CODE-ARCHITECTURE.md#quality-tooling).
+// Recommended extensions: markdownlint, typos, toml, github-actions, semgrep.
+{
+  "ensure_final_newline_on_save": true,
+  "remove_trailing_whitespace_on_save": true,
+  "languages": {
+    // rustfmt via rust-analyzer, on the toolchain pinned in rust-toolchain.toml.
+    "Rust": {
+      "formatter": "language_server",
+      "format_on_save": "on"
+    },
+    // No editor formatter for these: Zed's default (prettier) would rewrite tables and lists
+    // differently from markdownlint. Use the "qlty fmt" task or the pre-commit hook instead.
+    "Markdown": { "format_on_save": "off" },
+    "YAML": { "format_on_save": "off" },
+    "JSON": { "format_on_save": "off" },
+    "TOML": { "format_on_save": "off" }
+  },
+  "lsp": {
+    // Same lints as the hooks and CI: clippy with the workspace lint table.
+    "rust-analyzer": {
+      "initialization_options": {
+        "check": { "command": "clippy" }
+      }
+    }
+  }
+}
