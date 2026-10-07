@@ -54,13 +54,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install qlty
-        env:
-          # renovate: datasource=github-releases depName=qltysh/qlty
-          QLTY_VERSION: 0.652.0
-        run: |
-          curl -fsSL https://qlty.sh | sh
-          echo "$HOME/.qlty/bin" >> "$GITHUB_PATH"
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: "github:qltysh/qlty aqua:crate-ci/typos aqua:astral-sh/uv"
       - name: qlty check (gitleaks, osv-scanner, semgrep, markdownlint, actionlint, zizmor, smells)
         run: qlty check --all --no-progress
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -70,8 +68,8 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked
       - name: Every crate root except semoxide-git forbids unsafe code
         run: sh scripts/check-forbid-unsafe.sh
-      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: typos
+        run: typos
       - name: semgrep rule tests
         env:
           # renovate: datasource=pypi depName=semgrep
@@ -86,10 +84,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          # renovate: datasource=crate depName=cargo-deny
-          tool: cargo-deny@0.20.2
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: aqua:EmbarkStudios/cargo-deny
       - run: cargo deny --locked check
 
   test:
@@ -105,10 +104,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          # renovate: datasource=crate depName=cargo-nextest
-          tool: cargo-nextest@0.9.146
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: github:nextest-rs/nextest
       - run: cargo nextest run --workspace --locked --no-tests=warn
       - run: cargo test --doc --workspace --locked
 
@@ -121,10 +121,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          # renovate: datasource=crate depName=cargo-hack
-          tool: cargo-hack@0.6.45
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: github:taiki-e/cargo-hack
       - name: MSRV
         run: cargo hack check --rust-version --workspace --locked
       - name: Each feature

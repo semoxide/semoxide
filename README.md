@@ -11,7 +11,7 @@ semoxide is not affiliated with semantic-release.
 Setup per clone:
 
 1. [rustup](https://rustup.rs/): the toolchain is pinned in `rust-toolchain.toml` and installs itself.
-2. Install [qlty](https://docs.qlty.sh/), [typos](https://github.com/crate-ci/typos), [cargo-nextest](https://nexte.st/) and [lefthook](https://lefthook.dev/), then run `lefthook install` (git hooks: format, lint, test).
+2. [mise](https://mise.jdx.dev/): `mise install` installs the pinned dev tools from `mise.toml` (qlty, typos, lefthook, cargo-nextest, cargo-deny, cargo-mutants, cargo-hack, uv); then `lefthook install` sets up the git hooks (format, lint, test). Put mise's shims directory first on `PATH` so the hooks use these versions.
 3. Optional, for [Zed](https://zed.dev/): the extensions markdownlint, typos, toml and github-actions. Project settings are in `.zed/`.
 
 Contributing (people and AI agents): [AGENTS.md](AGENTS.md).
