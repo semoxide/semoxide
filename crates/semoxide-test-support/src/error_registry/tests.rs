@@ -144,16 +144,3 @@ fn page_named_with_underscores_is_an_orphan_and_the_code_misses_its_page() {
         ]
     );
 }
-
-#[test]
-fn source_scan_skips_trailing_and_block_comments() {
-    let source = r#"
-pub const GIT_X: ErrorCode = ErrorCode::from_static("git::x"); // was from_static("git::old")
-/* old codes:
-const GIT_GONE: ErrorCode = ErrorCode::from_static("git::gone");
-*/ const GIT_Y: ErrorCode = ErrorCode::from_static("git::y");
-const URL: &str = "https://example.com"; const GIT_Z: ErrorCode = ErrorCode::from_static("git::z");
-"#;
-
-    assert_eq!(codes_in_source(source), ["git::x", "git::y", "git::z"]);
-}

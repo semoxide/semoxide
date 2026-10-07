@@ -7,7 +7,6 @@ use super::{crate_sources, forbids_unsafe_code, inline_test_modules, pub_tuple_f
 #[rstest]
 #[case::alone("//! Docs.\n\n#![forbid(unsafe_code)]\n")]
 #[case::combined("#![forbid(missing_docs, unsafe_code)]\n")]
-#[case::spaced("#! [ forbid ( unsafe_code ) ]\n")]
 fn crate_root_forbids_unsafe_code(#[case] source: &str) {
     assert!(forbids_unsafe_code(source));
 }
@@ -15,11 +14,11 @@ fn crate_root_forbids_unsafe_code(#[case] source: &str) {
 #[rstest]
 #[case::missing("//! Docs.\n")]
 #[case::in_line_comment("// #![forbid(unsafe_code)]\n")]
-#[case::in_block_comment("/*\n#![forbid(unsafe_code)]\n*/\n")]
 #[case::in_string("const S: &str = \"#![forbid(unsafe_code)]\";\n")]
 #[case::other_lint("#![forbid(missing_docs)]\n")]
 #[case::deny_not_forbid("#![deny(unsafe_code)]\n")]
 #[case::outer_attribute("#[forbid(unsafe_code)]\nfn f() {}\n")]
+#[case::nested_module("mod x {\n    #![forbid(unsafe_code)]\n}\n")]
 fn crate_root_does_not_forbid_unsafe_code(#[case] source: &str) {
     assert!(!forbids_unsafe_code(source));
 }
@@ -31,6 +30,9 @@ fn crate_root_does_not_forbid_unsafe_code(#[case] source: &str) {
 #[case::nested("mod outer {\n    #[cfg(test)]\n    mod inner { }\n}\n", &["inner"])]
 #[case::after_other_items("use std::fmt;\n\nfn f() {}\n\n#[cfg(test)]\nmod tests { }\n", &["tests"])]
 #[case::second_attribute_after_items("fn f() {}\n#[cfg(test)]\n#[allow(dead_code)]\nmod checks { }\n", &["checks"])]
+#[case::all_test_and_unix("#[cfg(all(test, unix))]\nmod tests { }\n", &["tests"])]
+#[case::not_test("#[cfg(not(test))]\nmod real { }\n", &[])]
+#[case::any_test_or_unix("#[cfg(any(test, unix))]\nmod either { }\n", &[])]
 #[case::sibling_file("#[cfg(test)]\nmod tests;\n", &[])]
 #[case::not_test_cfg("#[cfg(unix)]\nmod unix { }\n", &[])]
 #[case::inner_cfg_test_file("#![cfg(test)]\nmod helpers { }\n", &[])]

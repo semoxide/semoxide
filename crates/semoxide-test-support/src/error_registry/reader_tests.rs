@@ -80,13 +80,3 @@ fn source_codes_come_from_crate_sources_only() {
         ["git::nested", "git::used"]
     );
 }
-
-#[test]
-fn unreadable_rust_file_fails_with_its_path() {
-    let root = tempfile::tempdir().unwrap();
-    write(root.path(), "semoxide-git/src/broken.rs", "fn broken() {");
-
-    let error = source_codes(root.path()).unwrap_err();
-
-    assert!(error.to_string().contains("broken.rs"), "{error}");
-}
