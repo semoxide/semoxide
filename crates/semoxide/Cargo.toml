@@ -12,3 +12,6 @@ workspace = true
 
 [dependencies]
 semoxide-runtime.workspace = true
+
+[dev-dependencies]
+semoxide-test-support.workspace = true

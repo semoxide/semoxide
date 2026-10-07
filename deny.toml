@@ -31,6 +31,9 @@ ignore = true
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# semoxide-test-support is never published, so crates use it as a path-only dev-dependency
+# (cargo strips those on publish). Real `*` versions and path deps of published crates still fail.
+allow-wildcard-paths = true
 deny = [
   # Crate boundaries (CODE-ARCHITECTURE §2): heavy dependencies only through their owning crate.
   { crate = "git2", wrappers = ["semoxide-git"], reason = "git access only through semoxide-git" },

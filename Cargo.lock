@@ -572,6 +572,7 @@ name = "semoxide"
 version = "0.0.0"
 dependencies = [
  "semoxide-runtime",
+ "semoxide-test-support",
 ]
 
 [[package]]
@@ -627,6 +628,9 @@ dependencies = [
 [[package]]
 name = "semoxide-test-support"
 version = "0.0.0"
+dependencies = [
+ "semoxide-error",
+]
 
 [[package]]
 name = "semver"
