@@ -1,0 +1,9 @@
+---
+source: crates/semoxide-cli/src/render/tests.rs
+assertion_line: 72
+expression: "text(&NoGitRepo, TextStyle::Graphical { colors: Colors::Off })"
+---
+]8;;https://github.com/semoxide/semoxide/blob/main/docs/errors/core/no-git-repo.md\core::no_git_repo (link)]8;;\
+
+  × not a git repository
+  help: Run semoxide inside a git repository, or pass `--cwd`.

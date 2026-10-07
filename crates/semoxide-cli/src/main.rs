@@ -6,6 +6,12 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used once commands report errors (#52, #81)")
+)]
+mod render;
+
 /// A fully automated release tool, inspired by semantic-release.
 ///
 /// Bare `semoxide` prints this help; it never starts a release (CLI.md).
