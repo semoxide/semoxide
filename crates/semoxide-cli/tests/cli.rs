@@ -24,6 +24,10 @@ fn bare_invocation_prints_help_and_does_nothing_else() {
         .output()
         .expect("binary runs");
 
-    assert_eq!(output.status.code(), Some(2), "CLI usage exit code (CLI.md)");
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "CLI usage exit code (CLI.md)"
+    );
     assert!(String::from_utf8_lossy(&output.stderr).contains("Usage: semoxide\n"));
 }
