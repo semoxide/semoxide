@@ -6,7 +6,16 @@ description: Use when writing, changing or fixing tests in semoxide, implementin
 # Rust testing in semoxide
 
 ## Overview
-Tests are the human-approved spec. An agent may write tests, but **only a human approves them**: a `test:` commit, or a snapshot. Implementation comes after that approval.
+Tests are the human-approved spec, and **only a human approves them**. How much ceremony that takes depends on the area:
+
+| Area | Approach |
+|---|---|
+| Pure core: versions, bumps, branches, channels, commit parser, config merge | the strict sequence below: tests first, then **stop** for review |
+| Notes, templates, rendering | write the code and tests together; outputs are insta snapshots that stay pending (`.snap.new`) for the human |
+| CLI commands, JSON output | an `assert_cmd` case first, then the code; output snapshots stay pending |
+| git, plugin host, forge, I/O | characterization tests after a PoC; every bug gets a failing reproduction test first |
+
+Outside the pure core, don't stop for test review: finish the work and report the pending snapshots.
 
 ## Pure-core work: the sequence
 For versions, bumps, branches, channels, the commit parser and config merge:
