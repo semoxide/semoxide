@@ -102,7 +102,7 @@ jobs:
         with:
           # renovate: datasource=crate depName=cargo-nextest
           tool: cargo-nextest@0.9.146
-      - run: cargo nextest run --workspace --locked
+      - run: cargo nextest run --workspace --locked --no-tests=warn
       - run: cargo test --doc --workspace --locked
 
   msrv:
