@@ -1,20 +1,18 @@
 # Observability
 
-Logging, debugging, secret masking, CI output and error reporting. All decisions are recorded in [ADR 0013](decisions/0013-observability.md). Upstream behavior is only linked: [logger, `debug`, hook-std, masking](research/semantic-release.md#4-side-effects), [masking rule](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth).
+Logging, secret masking, CI output, errors and diagnostics. Exit codes, commands, `RunReport`/JSON contracts and the dry-run plan: [CLI.md](CLI.md). Plugin protocol, rollback and partial failure: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## 1. Principles (decided: [ADR 0013](decisions/0013-observability.md))
+## 1. Principles
 
-| # | Rule | Replaces upstream |
-|---|---|---|
-| P1 ✅ [ADR 0013](decisions/0013-observability.md) | The library emits `tracing` spans/events only. It never installs a subscriber or writes to stdout/stderr | signale + `debug` |
-| P2 ✅ [ADR 0013](decisions/0013-observability.md) | Secrets are masked **at the source** (core, plugin host) before emission; a writer-level mask is the second pass | `hook-std` stdout patching |
-| P3 ✅ [ADR 0013](decisions/0013-observability.md) | The library takes an explicit `Env` snapshot and never reads or mutates the process env | `Object.assign(process.env, …)` ([port notes](research/semantic-release.md#6-rust-port-notes)) |
-| P4 ✅ [ADR 0013](decisions/0013-observability.md) | Results are data (`RunReport`), not log lines. Logs on stderr, data on stdout/files | logs + dry-run notes mixed on stdout |
-| P5 ✅ [ADR 0013](decisions/0013-observability.md) | No release is never silent: a typed reason is always reported | [top complaint](research/semantic-release.md#8-issue-history) |
+| # | Rule |
+|---|---|
+| P1 | The library emits `tracing` spans/events only. It never installs a subscriber and never writes to stdout/stderr; the CLI or the embedder chooses the sink |
+| P2 | Secrets are masked **at the source** (core, plugin host) before an event exists; `MaskingWriter` masks again on output |
+| P3 | The library reads only the `Env` map passed to its builder (the CLI passes a copy of its own). It never reads or mutates the process env and builds child-process envs from that map |
+| P4 | Logs go to stderr. stdout carries data only (`--output=json`, the printed next version) |
+| P5 | No release is never silent: a typed reason is always reported ([§7](#7-no-release-reasons)) |
 
 ## 2. Log flow
-
-Plugin side per [ADR 0010](decisions/0010-plugin-architecture.md) ("Host services", "Plugin output", "In-process limits"); sinks per ADR 0013.
 
 ```mermaid
 flowchart LR
@@ -23,42 +21,39 @@ flowchart LR
     pout["plugin process stdout/stderr<br/>(+ children, e.g. npm)"] --> cap["host capture, line-buffered,<br/>tagged with plugin"] --> mask
     inproc["in-process plugin: Log API only"] --> mask
     mask["SecretRegistry mask"] --> tr["tracing (plugin span)"]
-    tr -->|CLI| sub["EnvFilter + pretty / json / github"] --> mw["MaskingWriter (2nd pass)"]
+    tr -->|CLI| sub["EnvFilter + pretty / json / github / gitlab"] --> mw["MaskingWriter (2nd pass)"]
     mw --> con["console (stderr)"]
-    mw --> lf["--log-file (all plugin output)"]
+    mw --> lf["--log-file (trace JSON)"]
     tr -->|embedder| own["embedder's subscriber"]
-    rep["RunReport"] --> out["stdout JSON / GITHUB_OUTPUT / STEP_SUMMARY"]
+    rep["RunReport"] --> out["stdout JSON / GITHUB_OUTPUT / STEP_SUMMARY / dotenv"]
 ```
 
-### Plugin output (decided, ADR 0010)
+### Plugin output
 
 | Source | Handling |
 |---|---|
-| `Log` host service | event inside `plugin{name}` span, level as sent; an `error` from a step that then succeeds fails the step (`core::plugin_error_on_success`, ADR 0013) |
-| Plugin stdout/stderr, incl. child tools | captured, masked, tagged with the plugin; never parsed (results only via gRPC) |
+| `Log` host service | event in the `plugin{name}` span at the level the plugin sent. An `error` event from a step that then returns success fails the step (`core::plugin_error_on_success`); normal failure handling applies, including rollback after the tag push. The conformance kit checks for it |
+| Plugin stdout/stderr, incl. child tools | captured, masked, tagged with the plugin, emitted as `debug` events with `stream=stdout\|stderr`; never parsed (results come only via gRPC) |
 | In-process plugin | `Log` API only; the conformance kit checks it doesn't print |
 
-Display of captured output: in full when that plugin's step fails, live with `-v`/`--debug`, always in `--log-file`; `[plugins.<name>] show_output = true` shows it live on every run. Captured lines are `debug` events with `stream="stdout|stderr"` (ADR 0013).
+Captured output is shown in full when that plugin's step fails, live with `-v`/`--debug`, always in `--log-file`, and live on every run with `[plugins.<name>] show_output = true` ([CONFIG.md](CONFIG.md)).
 
-Untrusted text (plugin output, commit subjects, notes) starting with `::` is escaped in `github` format (decided, ADR 0013).
-
-## 3. CLI flags and filters (decided: [ADR 0013](decisions/0013-observability.md))
+## 3. Logging flags and filters
 
 | Flag / env | Effect |
 |---|---|
-| (default) | `semoxide=info`, deps `warn` |
+| (default) | `semoxide=info`, dependencies `warn` |
 | `-q` / `-qq` | `warn` / `error`; the final result line still prints |
 | `-v` / `-vv` | `semoxide=debug` / `trace`; live plugin output |
 | `--debug` | `semoxide=trace,git2=debug,reqwest=debug`, SpanTraces, span timings. Auto-on with `RUNNER_DEBUG=1` or `CI_DEBUG_TRACE=true` |
-| `SEMOXIDE_LOG=<EnvFilter>` (fallback `RUST_LOG`; ADR 0013) | overrides the above |
-| `--log-format=auto\|pretty\|json\|github\|gitlab` | `auto` = `github` under `GITHUB_ACTIONS=true`, `gitlab` under `GITLAB_CI=true` (collapsible sections, no annotations), else `pretty` |
-| `--log-file <path>` | JSON at `trace`, own filter |
+| `SEMOXIDE_LOG=<EnvFilter>` | overrides the above; `RUST_LOG` is used when `SEMOXIDE_LOG` is unset |
+| `--log-format=auto\|pretty\|json\|github\|gitlab` | `auto` = `github` under `GITHUB_ACTIONS=true`, `gitlab` under `GITLAB_CI=true`, else `pretty` |
+| `--log-file <path>` | writes the full `trace`-level log as JSON to the file only, with its own filter; the console keeps its level and format |
 | `--color=auto\|always\|never` | honors `NO_COLOR`, `CLICOLOR_FORCE` |
-| `--output=text\|json` | `RunReport` format on stdout |
 
-Targets: `semoxide::core`, `::config` (redacted values), `::git` (field `op` = G-number from [git ops](research/semantic-release.md#3-git-operations)), `::http` (no query/userinfo; bodies only on error, never for auth endpoints), `::plugin`. Per-plugin filtering uses the span field (`[plugin{name=github}]=trace`), since `tracing` targets must be `'static`. Dependencies (`git2`, `reqwest`, `hyper`, `tonic`) stay at `warn` unless `--debug`.
+Targets: `semoxide::core`, `::config` (values redacted), `::git` (field `op` = the G-number of the git operation, [SEMANTIC-RELEASE-SPEC](specs/SEMANTIC-RELEASE-SPEC.md)), `::http` (URL without query/userinfo; bodies only on error, never for auth endpoints), `::plugin`. Per-plugin filtering uses the span field (`[plugin{name=github}]=trace`), since `tracing` targets are `'static`. Dependencies (`git2`, `reqwest`, `hyper`, `tonic`) stay at `warn` unless `--debug`.
 
-## 4. Span tree (decided: [ADR 0013](decisions/0013-observability.md))
+## 4. Span tree
 
 ```mermaid
 flowchart TD
@@ -81,89 +76,84 @@ flowchart TD
 
 - A `TimingLayer` prints `✔ publish 1.2s` per step and a table at the end; durations are also in `RunReport.timings`.
 - `http` spans exist only for core and in-process plugins; process plugins log their own HTTP via `Log`.
-- libgit2 internals: `git2::trace_set` bridged into the `git2` target ([ADR 0011](decisions/0011-git-backend.md); callback output unverified).
+- libgit2 internals: `git2::trace_set` is bridged into the `git2` target, pending a PoC (does the vendored build emit anything, can lines carry credentials, the hook is process-global).
 
 ## 5. Secret masking
 
-`SecretRegistry`: per run, an `Arc` Aho-Corasick automaton rebuilt on insert. Replacement text `[secure]`.
+`SecretRegistry`: one per run, an `Arc` Aho-Corasick automaton rebuilt on insert. Replacement text: `[secure]`.
 
-| Source | Status |
+| Secret source | Registered |
 |---|---|
-| Secret env vars declared in each plugin's **manifest** | decided ([ADR 0010](decisions/0010-plugin-architecture.md) "Environment and secrets"); registered before spawn |
-| `Env` vars matching the upstream name/length rule ([spec §6](specs/SEMANTIC-RELEASE-SPEC.md#6-ci-git-and-auth)) | decided (ADR 0013) |
-| User list `mask_env = [...]` in config | decided (ADR 0013) |
-| Config values typed `Secret<T>` (`secrecy::SecretBox`, `Debug` = `[secure]`, no `Serialize`) | decided (ADR 0013) |
-| Secrets a plugin derives at runtime (OIDC, GitHub App tokens) | decided (ADR 0013): `RegisterSecret` host call |
+| Secret env vars declared in a plugin's manifest | before the plugin is spawned |
+| `Env` vars whose name matches `token\|password\|credential\|secret\|private` with value ≥ 5 chars (upstream rule, [SEMANTIC-RELEASE-SPEC](specs/SEMANTIC-RELEASE-SPEC.md)) | at run start |
+| Env names listed in `mask_env = [...]` ([CONFIG.md](CONFIG.md)) | at run start |
+| Config values typed `Secret<T>` (`secrecy::SecretBox`; `Debug` prints `[secure]`; no `Serialize`) | at config load |
+| Values a plugin creates at runtime (OIDC-exchanged npm token, GitHub App installation token) | by the plugin via the `RegisterSecret` host call, before first use; SDK helpers register automatically |
 
-Masked forms: raw, `encodeURI`, `encodeURIComponent`, `:`-preserving (as upstream). Plus base64 of `user:token` and of the bare token (decided, ADR 0013).
+Masked forms of each secret: raw, `encodeURI`, `encodeURIComponent`, `:`-preserving encoding, base64 of `user:token`, base64 of the bare token.
 
-Where masking applies: host `Log` service and captured plugin output (at source); notes and `success`/`fail` payloads (value, as upstream); `url_for_log()` strips userinfo; `MaskingWriter` second pass on console, `--log-file`, GHA commands and the panic hook. Secrets never touch disk: plugins get them via env ([npm notes](research/npm.md#5-rust-port-notes)).
+Masking applies to: the host `Log` service and captured plugin output (at source); notes and `success`/`fail` payloads; URLs via `url_for_log()` (strips userinfo); and, as the second pass, `MaskingWriter` on the console, `--log-file`, GitHub workflow commands and the panic hook. Secrets never touch disk: plugins receive them via env.
 
-Embedders get at-source masking regardless of subscriber; dependency events are masked only if they wrap their writer with `observe::MaskingWriter::new(w, run.secrets())`. Optional `observe::subscriber(&opts)` builds the CLI stack.
+Embedders get at-source masking with any subscriber. Dependency events are masked only if the embedder wraps its writer with `observe::MaskingWriter::new(w, run.secrets())`. `observe::subscriber(&opts)` builds the CLI stack.
 
-## 6. CI integration (decided: [ADR 0013](decisions/0013-observability.md))
+## 6. CI integration
 
-| GitHub Actions | Use |
+**GitHub Actions** (`--log-format=github`):
+
+| Command / file | Use |
 |---|---|
 | `::group::` / `::endgroup::` | one per step (groups don't nest) |
 | `::error title=<CODE>::` / `::warning::` | errors/warnings; `file=`/`line=` for config spans |
-| `::notice::` | released version or no-release reason |
+| `::notice::` | final line: released version or no-release reason |
 | `::add-mask::` | every registered secret and encoded form, bypassing `MaskingWriter` |
-| `$GITHUB_OUTPUT` | `released`, `version`, `tag`, `channel`, `type`, `last_version`, `notes` ([Action shape](research/distribution-config.md#github-action-shape)) |
+| `$GITHUB_OUTPUT` | names of the most-used upstream wrapper action, so migrated workflows keep working: `new_release_published`, `new_release_version`, `new_release_major_version`, `new_release_minor_version`, `new_release_patch_version`, `new_release_channel`, `new_release_notes`, `new_release_git_head`, `new_release_git_tag`, `last_release_version`, `last_release_git_head`, `last_release_git_tag`. Public contract: names are never renamed |
 | `$GITHUB_STEP_SUMMARY` | outcome, reason, versions, timings, rollback result, notes |
 
-Elsewhere: `--output=json` prints `RunReport`; `--output-env <file>` writes dotenv (GitLab `artifacts:reports:dotenv`). GitLab: collapsible sections, no annotations, no runtime masking (only predefined masked variables). Library: `run() -> Result<RunReport, Error>`, `RunReport { outcome: Released | Promoted | NoRelease(reason) | Partial{rollback}, … }`, serde-serializable (covers upstream [#753, #3877](research/semantic-release.md#8-issue-history)).
+Untrusted text (plugin output, commit subjects, notes) starting with `::` is escaped (workflow-command injection guard).
 
-## 7. Diagnostics (decided: [ADR 0013](decisions/0013-observability.md))
+**GitLab CI** (`--log-format=gitlab`): collapsible `section_start`/`section_end` per step; no annotations; outputs via `--output-env <file>` (dotenv for `artifacts:reports:dotenv`). GitLab masks only predefined variables at runtime, so semoxide's masking is the only protection.
 
-`NoReleaseReason`, always logged at `info` with a hint: `NotCi`/`PullRequest` ([env-ci](research/dependencies.md#5-env-ci)), `BranchNotConfigured` (closest glob), `NoCommitsSince`, `NoRelevantCommits` (per-commit verdicts at `-v`), `AllCommitsSkipped` (every commit had `[skip release]`, ADR 0013), `TagsNotFound` (shallow / `tag_format` near-misses), `PathFiltered` ([ADR 0003](decisions/0003-monorepo-scope.md) units).
+**Everywhere:** `--output=json` prints the `RunReport` the library returns ([CLI.md](CLI.md)).
 
-| Command | Does |
+## 7. No-release reasons
+
+`NoReleaseReason` is a fixed, public enum. Every run without a release ends with one, logged at `info` with a hint and included in `RunReport`:
+
+| Reason | Hint content |
 |---|---|
-| `semoxide explain [--commit <sha>]` | local read-only decision trace: branch → last release → per-commit bump → next version or reason |
-| `semoxide doctor [--online]` | repo, shallow, tags, CI vendor, token env **names**, plugin download/checksum lock, manifest, handshake, `describe` schema validation; `--online` adds auth probes, plus push/tag-delete rights ([ADR 0012](decisions/0012-partial-failure.md)) |
-| `--dry-run` | semantics per [ADR 0005](decisions/0005-dry-run.md) (no push rights, no network writes, `--verify-push` opt-in). Plan output (ADR 0013): version, tag, channel, per write step × plugin `plan` lines, notes preview |
-| `semoxide doctor --bundle <file>` | redacted support bundle: semoxide/OS facts, git facts (remote host only), CI env **names**, secret env set/unset, config with per-key source, plugins + versions + checksums + protocol version, last `--log-file` re-masked |
+| `NotCi` | outside CI: the run is forced to dry-run, and the report also carries `dry_run: forced (not_ci)` with the would-be outcome (version + plan, or the would-be reason) |
+| `PullRequest` | detected CI context |
+| `BranchNotConfigured` | closest configured branch glob |
+| `NoCommitsSince` | last release tag |
+| `NoRelevantCommits` | per-commit verdicts at `-v` |
+| `AllCommitsSkipped` | every relevant commit carries the [skip marker](CONFIG.md) |
+| `TagsNotFound` | shallow clone, `tag_format` near-misses |
+| `PathFiltered` | the monorepo unit's path filter ([ARCHITECTURE.md](ARCHITECTURE.md)) |
 
-## 8. Errors and exit codes (decided: [ADR 0013](decisions/0013-observability.md))
+## 8. Errors
 
-- Library: `thiserror` enums deriving `miette::Diagnostic` (`code`, `help`, `url`, TOML `labels`, `related` for collected plugin errors, [aggregation](research/semantic-release.md#error-aggregation)). Each code has a generated docs page; a test fails on undocumented codes. Plugin errors arrive as gRPC `Status`; timeout = `CANCELLED` or `DEADLINE_EXCEEDED` (ADR 0010 notes).
-- CLI: miette graphical on TTY, plain in CI, `error` object in `json`; `--debug` appends the SpanTrace (step → plugin → op).
-- Partial failure (decided, [ADR 0012](decisions/0012-partial-failure.md)): tag pushed, later step fails → `rollback` step, the core deletes only its own tag (missing delete rights → reported, run ends as partial failure), irreversible plugins warn. Reported with exit code 5 (ADR 0013); summary lists what was written, undone and left behind.
+- Library errors are `thiserror` enums implementing `ErrorInfo` ([CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md)): code, message, help line, docs URL, and for config errors a label pointing at the line in `semoxide.toml`. `miette` is used only by the CLI for rendering.
+- Codes are namespaced names: `core::no_git_repo`, `git::push_rejected`, `github::release_exists`; a plugin's name is its namespace. The docs map upstream mnemonics (`ENOGITREPO` → `core::no_git_repo`).
+- Every code has a docs-site page; a test fails on any undocumented code.
+- All errors from a step are collected and reported together (`related`).
+- Plugin errors arrive as gRPC `Status`; a timeout is `CANCELLED` or `DEADLINE_EXCEEDED`.
+- Display: graphical on a TTY, plain in CI, an `error` object in `--output=json`; `--debug` appends the SpanTrace (step → plugin → operation).
+- `fail` always runs on a failed release. Each error in its context is marked `known` (has a namespaced code) or `unexpected`, so plugins can phrase it (e.g. "unexpected error, please report" plus the bundle command).
+- The panic hook is masked and prints the issue link and the `doctor --bundle` command.
 
-Exit codes: decided in [ADR 0013](decisions/0013-observability.md).
+## 9. Diagnostics
 
-| Exit | Meaning |
+Command syntax and flags: [CLI.md](CLI.md). What each shows or checks:
+
+| Command | Content |
 |---|---|
-| 0 | released, promoted, or no release |
-| 1 | failed before any remote write |
-| 2 | CLI usage (clap) |
-| 3 | config invalid (incl. plugin schema) |
-| 4 | verify failed |
-| 5 | partial: tag pushed, later step failed (rollback result in summary) |
-| 101 | panic; hook prints issue link + bundle command |
-| 130 | interrupted |
+| `explain [--commit <sha>]` | offline, read-only decision trace: branch rule → last release → each commit's verdict (skip marker, merge/fixup skips, unparsable commits with their parse error, a `Release-As:` footer as the reason; [CONFIG.md](CONFIG.md)) → next version or no-release reason |
+| `doctor` | repo, shallow clone, tags, CI vendor, token env **names**, plugin download/checksum lock, manifests, handshakes, `describe` schema validation |
+| `doctor --online` | adds token auth probes, push rights, tag-delete rights |
+| `doctor --bundle` | support bundle, below |
 
-## 9. Crates (decided: [ADR 0013](decisions/0013-observability.md))
+**Support bundle:** Markdown by default (paste-ready for an issue), `--bundle-format=json` optional. Contents, all masked: semoxide/OS facts; git facts (remote host only); CI env var **names**; secret env vars as set/unset; config with per-key source; plugins with versions, checksums and protocol version; the last `--log-file`, re-masked.
 
-`tracing`; `tracing-subscriber` (`env-filter`, `fmt`, `json`) in CLI / `observe` feature; `tracing-error`; `miette` (`fancy` CLI only, over `color-eyre`); `thiserror`; `secrecy`; `aho-corasick`; `percent-encoding` + `base64`; `anstream`/`anstyle`; `serde_json`; `reqwest-tracing` ([middleware stack](research/github.md#5-rust-port-notes), drops query + headers); `git2::trace_set`.
+## 10. Crates
 
-## Decisions
-
-All decided in [ADR 0013](decisions/0013-observability.md).
-
-1. ~~Log env var~~: decided (ADR 0013): `SEMOXIDE_LOG`, falling back to `RUST_LOG`.
-2. ~~Logs on stderr, data on stdout~~: decided (ADR 0013).
-3. ~~Error-code naming~~: decided (ADR 0013).
-4. ~~Exit codes~~: decided (ADR 0013).
-5. ~~Base64 forms~~: decided (ADR 0013).
-6. ~~Env-pattern secret scan~~: decided (ADR 0013): manifests + name pattern + `mask_env` list.
-7. ~~Runtime secrets~~: decided (ADR 0013): `RegisterSecret`.
-8. ~~Plugin log levels~~: decided (ADR 0013).
-9. ~~Support bundle format~~: decided (ADR 0013): Markdown default.
-10. ~~CI log formats~~: decided (ADR 0013), GitHub and GitLab automatic.
-11. ~~Dry-run plan~~: decided (ADR 0013): read-only steps run, write steps → `plan` RPC, Git service write-locked.
-
-## Ticket candidates
-
-Observability ADR (items above) · tracing baseline (targets, span tree, `url_for_log()`) · CLI subscriber + flags · `SecretRegistry` + `Secret<T>` · `MaskingWriter` + panic hook + `observe::subscriber()` · plugin log bridge (`Log` service, output capture, display policy, `show_output`) · GitHub Actions layer · `RunReport` + `--output`/`--output-env` · `NoReleaseReason` · `explain` · `doctor` + `--bundle` · dry-run plan · error catalog + exit codes · secret-leak suite (port upstream `plugin-log-env`; assert no secret in any sink) · PoC: span-field filter, `MaskingWriter` throughput, `git2::trace_set` output.
+`tracing`; `tracing-subscriber` (`env-filter`, `fmt`, `json`) in the CLI and the `observe` feature; `tracing-error`; `miette` (`fancy`, CLI only); `thiserror`; `secrecy`; `aho-corasick`; `percent-encoding` + `base64`; `anstream`/`anstyle`; `serde_json`; `reqwest-tracing` (drops query and headers); `git2::trace_set`.

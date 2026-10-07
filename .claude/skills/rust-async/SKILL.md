@@ -26,7 +26,7 @@ Release steps write to remotes, and **order and partial-failure state matter mor
 
 ## Timeouts and cancellation
 - **No work may outlive the call.** A timeout or error must not leave pushes, publishes or threads running in the background: join, cancel or kill everything before returning. "Can't be cancelled, it finishes in the background" is a bug for a release tool.
-- Timeouts use the operation's own deadline (git2 / gRPC deadlines, [ADR 0010](../../../docs/decisions/0010-plugin-architecture.md)), or cooperative checks between steps (CODE-ARCHITECTURE §5).
+- Timeouts use the operation's own deadline (git2 / gRPC deadlines, [ARCHITECTURE §5](../../../docs/ARCHITECTURE.md)), or cooperative checks between steps (CODE-ARCHITECTURE §5).
 - `remote_writes_happened` must be true if **any** write may have reached the remote before the failure.
 
 | Excuse | Reality |

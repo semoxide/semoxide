@@ -58,31 +58,31 @@ value       = text, may span lines; ends where the next line matches `token sep`
 
 `git interpret-trailers --parse` will NOT treat `Fixes #12` or `BREAKING CHANGE: x` as trailers → do not delegate footer parsing to git.
 
-## 2. Ambiguities / edge cases (parser must decide)
+## 2. Ambiguities and edge cases
 
-| Case | Spec says | Proposed semoxide decision |
-|---|---|---|
-| Body paragraph that looks like a footer (`Note: see below` mid-body) | silent | Becomes footer start (same as git-conventional). Accept; document. Optional strict lint: footer block must be the last paragraph. |
-| Line inside footer value matching `token sep` (e.g. `See: …` inside `BREAKING CHANGE:` text) | R10: terminates value | Follow R10 literally. |
-| Blank lines inside footer value | R10 allows newlines | Keep in value; trim trailing whitespace. |
-| `": "` vs `":"` without space in footer | R8 requires `": "` | Strict: require space. (git-conventional accepts `:` + zero WS.) |
-| Header separator `feat:x`, `feat :x`, `feat(a) : x` | R1/R5 | Invalid (non-conventional). |
-| Empty scope `feat():`, nested `feat((a)):`, multi-scope `feat(a,b):` | silent | `()` invalid; nested invalid; `a,b` = opaque scope string (optional split on `,`). |
-| Empty description `feat: ` | implied required | Invalid. |
-| No blank line between header and body | R6 MUST | Strict: error; lenient: treat line 2+ as body. Pick strict-with-warning. |
-| Case: `FEAT:`, `Feat(API):` | R15 case-insensitive; FAQ "any casing" | Compare types/scopes/tokens case-insensitively, preserve original text for output. |
-| `breaking change:` / `Breaking Change:` | R12/R15: MUST be uppercase | NOT breaking; parsed as invalid/ordinary token (has space → not a token at all). |
-| `breaking-change:` (lowercase hyphen) | R15 exempts only `BREAKING CHANGE`; R16 synonym | Ambiguous. Proposed: require uppercase for both (consistent). git-conventional treats it case-insensitively → breaking. |
-| `!` and `BREAKING CHANGE` both present | allowed (example) | Breaking; description from footer, else header description. |
-| Multiple `BREAKING CHANGE` footers | silent | Collect all as separate notes. |
-| Unicode / emoji types (`✨ feat:`) | R1 "noun" | Invalid (type contains WSP). No gitmoji support. |
-| Revert: git default `Revert "feat: x"` + `This reverts commit <sha>.` | FAQ: undefined; suggests `revert:` type + `Refs: <sha>, <sha>` | Recognize both `revert:` and git-default form; resolve reverted SHA(s); cancel the reverted commit's bump if both are in the same release range, else treat per config. |
-| Merge commits (`Merge branch …`, `Merge pull request #1 from …`) | silent | Not conventional → ignore by default (skip commits with >1 parent); their content is reached via the merged parents. |
-| Squash-merge suffix `feat: x (#12)` | silent | Valid; optionally extract `#12` as PR ref. |
-| `fixup!` / `squash!` / `amend!` | silent | Ignore (non-conventional). |
-| Non-conventional commits | FAQ: "will be missed by tools" | Ignore for bumps; optionally report. |
-| CRLF, trailing whitespace, `Signed-off-by` from `-s` | silent | Normalize `\r\n`; trim; `Signed-off-by` is an ordinary footer. |
-| Git comment lines (`# …`) | silent | Read stored message (`git log` `%B`/object), never the editor template; no stripping. |
+| Case | Spec says |
+|---|---|
+| Body paragraph that looks like a footer (`Note: see below` mid-body) | silent |
+| Line inside footer value matching `token sep` (e.g. `See: …` inside `BREAKING CHANGE:` text) | R10: terminates value |
+| Blank lines inside footer value | R10 allows newlines |
+| `": "` vs `":"` without space in footer | R8 requires `": "` |
+| Header separator `feat:x`, `feat :x`, `feat(a) : x` | R1/R5 |
+| Empty scope `feat():`, nested `feat((a)):`, multi-scope `feat(a,b):` | silent |
+| Empty description `feat: ` | implied required |
+| No blank line between header and body | R6 MUST |
+| Case: `FEAT:`, `Feat(API):` | R15 case-insensitive; FAQ "any casing" |
+| `breaking change:` / `Breaking Change:` | R12/R15: MUST be uppercase |
+| `breaking-change:` (lowercase hyphen) | R15 exempts only `BREAKING CHANGE`; R16 synonym |
+| `!` and `BREAKING CHANGE` both present | allowed (example) |
+| Multiple `BREAKING CHANGE` footers | silent |
+| Unicode / emoji types (`✨ feat:`) | R1 "noun" |
+| Revert: git default `Revert "feat: x"` + `This reverts commit <sha>.` | FAQ: undefined; suggests `revert:` type + `Refs: <sha>, <sha>` |
+| Merge commits (`Merge branch …`, `Merge pull request #1 from …`) | silent |
+| Squash-merge suffix `feat: x (#12)` | silent |
+| `fixup!` / `squash!` / `amend!` | silent |
+| Non-conventional commits | FAQ: "will be missed by tools" |
+| CRLF, trailing whitespace, `Signed-off-by` from `-s` | silent |
+| Git comment lines (`# …`) | silent |
 
 ## 3. SemVer mapping
 
@@ -95,10 +95,10 @@ flowchart TD
     B -- no --> T{"type?"}
     T -- feat --> MIN(["MINOR: R2, FAQ"])
     T -- fix --> PAT(["PATCH: R3, FAQ"])
-    T -- other --> NONE(["none, spec silent (R14): semoxide config decides, e.g. perf to PATCH"])
+    T -- other --> NONE(["none, spec silent (R14)"])
 ```
 
-`0.y.z`: spec silent; FAQ: "proceed as if you've already released". semoxide decision: e.g. breaking → MINOR while `0.x` (opt-in).
+`0.y.z`: spec silent; FAQ: "proceed as if you've already released".
 
 ## 4. FAQ points affecting implementation
 
@@ -109,45 +109,3 @@ flowchart TD
 - Squash workflows: only the squashed message matters → parse the commit on the release branch, not PR commits.
 - Reverts: tooling-defined (see §2).
 - Initial development: treat as released → no special pre-1.0 semantics required by spec.
-
-## 5. Implementation notes for semoxide
-
-Parser design (hand-written or `winnow`; no regex needed):
-
-```mermaid
-flowchart TD
-    M["stored message, CRLF normalized"] --> S1["stage 1: line splitter into header, body paragraphs, footer block"]
-    S1 --> FB["footer block = first paragraph (after a blank line) whose first line matches token sep, all after it is footers. Spec: R9 rationale only"]
-    S1 --> S2{"stage 2: header parser, type(scope)!: description"}
-    S2 -- invalid --> NC(["Err(NotConventional): a normal outcome, not an error"])
-    S2 -- ok --> OK(["Ok(Commit)"])
-    FB --> OK
-```
-- Zero-copy `&str` AST: `Commit { type, scope, breaking_bang, description, body, footers: Vec<Footer{token, sep, value}> }`; derived `is_breaking()`, `breaking_notes()`.
-- Case-insensitive newtypes (`UniCase`-style) for type/scope/token; keep original spelling.
-- `ParseMode::{Strict, Lenient}` + diagnostics with byte spans (for a future `lint` CLI).
-- Fuzz (`cargo-fuzz`) + property tests: never panic, spans round-trip.
-
-Existing crates (checked crates.io 2026-10-05):
-
-| Crate | Version / updated | Downloads (total / recent) | Deps | Assessment |
-|---|---|---|---|---|
-| `git-conventional` (crate-ci) | 1.1.0 / 2026-03 | 1.09M / 184k | `winnow`, `unicase`, opt. `serde` | Maintained, zero-copy, case-insensitive types, handles `!`, `BREAKING CHANGE`, `BREAKING-CHANGE`, `" #"`. Deviations: footer `:` without space accepted; `breaking-change` lowercase treated as breaking; no strict/lenient modes, no spans, no revert/merge handling. Usable as-is or as reference. |
-| `conventional_commit_parser` (oknozor, cocogitto) | 0.9.4 / 2022-01 | 430k / 74k | `pest` | Unmaintained since 2022; pest grammar. Not recommended. |
-
-Recommendation: start by wrapping `git-conventional` behind a semoxide trait; replace with an own parser only if strictness/diagnostics require it.
-
-## Ticket candidates
-
-- **CC parser: header grammar** — parse `type(scope)!: description` with case-insensitive type/scope, original spelling preserved.
-- **CC parser: body/footer splitting** — paragraph splitter, footer-block detection, R10 value termination, `": "`/`" #"` separators.
-- **CC parser: breaking-change detection** — `!`, uppercase `BREAKING CHANGE`, `BREAKING-CHANGE` synonym, multiple notes, description fallback.
-- **CC parser: strict vs lenient mode + span diagnostics** — config switch and error spans for linting.
-- **Evaluate `git-conventional` as backend** — conformance test against the edge-case table in §2; decide wrap vs own parser.
-- **Conformance test corpus** — fixtures for every spec rule, every spec example, and every §2 edge case.
-- **Fuzz/property tests for parser** — `cargo-fuzz` target, no panics, span round-trip.
-- **Revert commit handling** — detect `revert:` + `Refs:` and git-default `Revert "…"`/`This reverts commit <sha>`; cancel reverted bumps in range.
-- **Merge/fixup commit filtering** — skip multi-parent and `fixup!`/`squash!`/`amend!` commits by default.
-- **Configurable type→bump table** — defaults per [ADR 0007](../decisions/0007-bump-defaults.md).
-- **Pre-1.0 bump policy**: see [SEMVER-SPEC](SEMVER-SPEC.md#ticket-candidates) (0.x bump policy).
-- **Non-conventional commit reporting** — list ignored commits; optional fail-on-non-conventional flag.

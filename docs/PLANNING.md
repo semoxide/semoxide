@@ -1,33 +1,18 @@
 # Planning
 
-GitHub conventions (labels, epics, dependencies, project board) are defined in Wave C.
+GitHub conventions for every `semoxide/*` repo.
 
 ## Milestones
-- Created now: **M0 Planning closure** (condense docs, decisions → issues, repo/CI skeletons, open items) and **M1 Walking skeleton** (dry run end to end on a real temp repo, [A4](CODE-ARCHITECTURE.md#10-approaches)).
-- **After M1 is done**, the next milestones are discussed and created. The intended slices are tag + push, plugin system, publish (self-release), beta pre-release. They are not created earlier.
-
-## Research-phase waves
-Each wave ends with a user discussion and approval before the next one starts.
-
-```mermaid
-flowchart LR
-    S0["Step 0: bootstrap repo + doc skeleton"] --> A["Wave A: specs + research"]
-    A --> DA{{"Discussion → ADRs"}}
-    DA --> B["Wave B: git + plugin PoCs, porting gaps, testing, observability"]
-    B --> DB{{"Discussion → ADRs"}}
-    DB --> C["Wave C: architecture docs, then GitHub milestones/epics/issues/project"]
-    C --> DC{{"Discussion"}}
-    DC --> P["Product milestones"]
-```
+- Milestones are slices (M0, M1, …), never epics. Existing: **M0 Planning closure** (condense docs, decisions → issues, repo/CI skeletons, open items) and **M1 Walking skeleton** (dry run end to end on a real temp repo, see approach A4 in [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md)).
+- The next milestones are discussed and created **only after M1 is done**. Intended slices: tag + push, plugin system, publish (self-release), beta pre-release.
 
 ## Issue structure
 - **Issue types** (org-level, shared by all repos): `Epic`, `Feature`, `Task`, `Bug`, `Spike` (PoC / research).
 - **Epics** are parent issues; their work items are **sub-issues**. "Blocked by" uses GitHub **issue dependencies**.
-- **Labels** carry only *area* and status extras (defined below), not the kind of issue.
-- Milestones are the slices (M0, M1, …), never epics.
+- **Labels** carry only *area* and status extras, not the kind of issue.
 
 ## Labels
-Created identically in every org repo.
+Created identically in every org repo, including the PoC repo `semoxide/semoxide-poc`.
 
 | Label | Use |
 |---|---|
@@ -41,14 +26,14 @@ Created identically in every org repo.
 | `area:api` | façade, public API, semver |
 | `area:plugins` | protocol, SDK, host, conformance, plugin repos |
 | `area:ci` | our CI, tooling, release pipeline |
-| `area:docs` | docs, ADRs, condensing |
+| `area:docs` | docs |
 | `needs-decision` | waiting on the user's decision |
 | `blocked-external` | waiting on something outside the project |
-| `good-first-issue` | once public |
+| `good-first-issue` | newcomer-friendly |
 
 ## Projects board
 One org-level project across all `semoxide/*` repos.
-- **Status:** `Todo` → `In progress` → `In review` → `Done`, plus `Waiting for user` (human-review stops from [A2](CODE-ARCHITECTURE.md#10-approaches) and `needs-decision`).
+- **Status:** `Todo` → `In progress` → `In review` → `Done`, plus `Waiting for user` (human-review stops from approach A2 in [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md), and `needs-decision`).
 - **Fields:** built-ins (milestone, issue type, labels, assignees, parent/sub-issue progress, linked PRs), plus `Priority` (`P0` blocks the milestone, `P1`, `P2`).
 - **Views:** a board by status; a table grouped by milestone, then epic; a "Waiting for user" filter; a roadmap by milestone.
 - **Automation:** new issue → `Todo`, PR opened → `In review`, closed → `Done`. No iterations: work is slice-based.
