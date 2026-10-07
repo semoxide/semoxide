@@ -110,18 +110,47 @@ pub fn constant_name(code: &ErrorCode) -> String {
         .to_ascii_uppercase()
 }
 
+/// The code strings in `ErrorCode::from_static("…")` calls of one source file, or nothing if
+/// the text isn't valid Rust tokens; [`try_codes_in_source`] reports that case instead.
+#[must_use]
+pub fn codes_in_source(text: &str) -> Vec<String> {
+    try_codes_in_source(text).unwrap_or_default()
+}
+
 /// The code strings in `ErrorCode::from_static("…")` calls of one source file.
 ///
 /// The text is split into Rust tokens by `proc-macro2`, so comments, raw strings and char
-/// literals follow Rust's own rules. Text that isn't valid Rust tokens has no codes.
-#[must_use]
-pub fn codes_in_source(text: &str) -> Vec<String> {
+/// literals follow Rust's own rules. Only a plain string argument counts: a code written as a
+/// raw string, `from_static(r"core::x")`, is not found.
+///
+/// # Errors
+///
+/// Returns [`UnreadableSource`] if the text isn't valid Rust tokens (e.g. unbalanced brackets),
+/// so no file is silently skipped.
+pub fn try_codes_in_source(text: &str) -> Result<Vec<String>, UnreadableSource> {
+    let tokens = text
+        .parse::<TokenStream>()
+        .map_err(|error| UnreadableSource {
+            reason: error.to_string(),
+        })?;
     let mut codes = Vec::new();
-    if let Ok(tokens) = text.parse::<TokenStream>() {
-        collect_static_codes(tokens, &mut codes);
-    }
-    codes
+    collect_static_codes(tokens, &mut codes);
+    Ok(codes)
 }
+
+/// Source text that `proc-macro2` can't split into Rust tokens.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnreadableSource {
+    reason: String,
+}
+
+impl fmt::Display for UnreadableSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "not valid Rust tokens: {}", self.reason)
+    }
+}
+
+impl std::error::Error for UnreadableSource {}
 
 /// Walks the tokens, nested groups included, for `from_static` followed by `("…")`.
 fn collect_static_codes(tokens: TokenStream, codes: &mut Vec<String>) {
@@ -190,7 +219,8 @@ fn collect_pages(root: &Path, dir: &Path, slugs: &mut Vec<String>) -> io::Result
 ///
 /// # Errors
 ///
-/// Returns an I/O error if a directory or file can't be read.
+/// Returns an I/O error if a directory or file can't be read, or if a `.rs` file isn't valid
+/// Rust tokens (the error names the file).
 pub fn source_codes(crates_dir: &Path) -> io::Result<Vec<String>> {
     let mut codes = Vec::new();
     collect_source_codes(crates_dir, &mut codes)?;
@@ -212,7 +242,13 @@ fn collect_source_codes(dir: &Path, codes: &mut Vec<String>) -> io::Result<()> {
         }
         let is_rust = path.extension().is_some_and(|extension| extension == "rs");
         if is_rust && name != "tests.rs" {
-            codes.extend(codes_in_source(&std::fs::read_to_string(&path)?));
+            let found = try_codes_in_source(&std::fs::read_to_string(&path)?).map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{}: {error}", path.display()),
+                )
+            })?;
+            codes.extend(found);
         }
     }
     Ok(())
