@@ -45,3 +45,10 @@ Created identically in every org repo.
 | `needs-decision` | waiting on the user's decision |
 | `blocked-external` | waiting on something outside the project |
 | `good-first-issue` | once public |
+
+## Projects board
+One org-level project across all `semoxide/*` repos.
+- **Status:** `Todo` → `In progress` → `In review` → `Done`, plus `Waiting for user` (human-review stops from [A2](CODE-ARCHITECTURE.md#10-approaches) and `needs-decision`).
+- **Fields:** built-ins (milestone, issue type, labels, assignees, parent/sub-issue progress, linked PRs), plus `Priority` (`P0` blocks the milestone, `P1`, `P2`).
+- **Views:** a board by status; a table grouped by milestone, then epic; a "Waiting for user" filter; a roadmap by milestone.
+- **Automation:** new issue → `Todo`, PR opened → `In review`, closed → `Done`. No iterations: work is slice-based.
