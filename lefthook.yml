@@ -5,8 +5,14 @@ min_version: 2.1.17
 
 pre-commit:
   commands:
-    qlty-fmt:
-      # Explicit staged paths: `--trigger pre-commit` skips newly added files.
+    # Formatters run on the real files: qlty's sandbox breaks rustfmt on `mod x;` declarations,
+    # and its `--trigger pre-commit` mode skips newly added files.
+    rustfmt:
+      glob: "*.rs"
+      run: rustfmt {staged_files}
+      stage_fixed: true
+    markdownlint-fix:
+      glob: "*.md"
       run: qlty fmt --no-upgrade-check {staged_files}
       stage_fixed: true
     typos:
@@ -22,6 +28,10 @@ pre-push:
     qlty-check:
       run: qlty check --trigger pre-push --upstream-from-pre-push --no-formatters --skip-errored-plugins
       use_stdin: true
+    clippy:
+      run: cargo clippy --workspace --all-targets --locked
+      env:
+        CARGO_BUILD_WARNINGS: deny
     nextest:
       # until the first crate exists (#30) the workspace is empty and nextest has nothing to load
       skip:
