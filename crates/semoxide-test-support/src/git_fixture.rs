@@ -5,6 +5,7 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use tempfile::TempDir;
 
@@ -107,15 +108,48 @@ impl GitFixtureBuilder {
             command: String::from("create a temporary directory"),
             output: error.to_string(),
         })?;
-        let _ = self.steps;
-        Ok(GitFixture { dir })
+        std::fs::write(dir.path().join(GLOBAL_CONFIG), GLOBAL_CONFIG_TEXT).map_err(|error| {
+            FixtureError {
+                command: format!("write {GLOBAL_CONFIG}"),
+                output: error.to_string(),
+            }
+        })?;
+        let mut fixture = GitFixture { dir, step: 0 };
+        let root = fixture.dir.path().to_path_buf();
+        fixture.run(&root, &["init", "-b", "main", REPO])?;
+        fixture.run(&root, &["init", "--bare", "-b", "main", REMOTE])?;
+        fixture.git(&["remote", "add", "origin", &fixture.remote_url()])?;
+        for step in &self.steps {
+            fixture.run_step(step)?;
+            fixture.step += 1;
+        }
+        Ok(fixture)
     }
 }
+
+const REPO: &str = "repo";
+const REMOTE: &str = "remote.git";
+const GLOBAL_CONFIG: &str = "gitconfig";
+/// Replaces the user's global config; the system config is off (`GIT_CONFIG_NOSYSTEM`).
+const GLOBAL_CONFIG_TEXT: &str =
+    "[commit]\n\tgpgsign = false\n[tag]\n\tgpgsign = false\n[core]\n\tautocrlf = false\n";
+const NAME: &str = "semoxide-test";
+const EMAIL: &str = "test@example.invalid";
+/// 2026-01-01T00:00:00Z; step `n` is `n` minutes later.
+const FIRST_TIME: u64 = 1_767_225_600;
+const STEP_SECONDS: u64 = 60;
+const PUSHED_REFS: [&str; 3] = [
+    "refs/heads/*:refs/heads/*",
+    "refs/tags/*:refs/tags/*",
+    "refs/notes/*:refs/notes/*",
+];
 
 /// A built history: a working repository on `main` plus a bare `origin` remote, deleted on drop.
 #[derive(Debug)]
 pub struct GitFixture {
     dir: TempDir,
+    /// The current step; sets the date of everything git writes.
+    step: u64,
 }
 
 impl GitFixture {
@@ -127,19 +161,25 @@ impl GitFixture {
     /// The working repository.
     #[must_use]
     pub fn path(&self) -> PathBuf {
-        self.dir.path().join("repo")
+        self.dir.path().join(REPO)
     }
 
     /// The bare remote, configured as `origin`.
     #[must_use]
     pub fn remote_path(&self) -> PathBuf {
-        self.dir.path().join("remote.git")
+        self.dir.path().join(REMOTE)
     }
 
     /// The remote's `file://` URL.
     #[must_use]
     pub fn remote_url(&self) -> String {
-        String::new()
+        let path = self.remote_path().to_string_lossy().replace('\\', "/");
+        // A Windows path (`C:/…`) lacks the leading slash a Unix path has.
+        if path.starts_with('/') {
+            format!("file://{path}")
+        } else {
+            format!("file:///{path}")
+        }
     }
 
     /// Runs git in the working repository with the fixture's isolated environment; returns
@@ -149,7 +189,7 @@ impl GitFixture {
     ///
     /// Returns [`FixtureError`] if git fails.
     pub fn git(&self, args: &[&str]) -> Result<String, FixtureError> {
-        run(&self.path(), args)
+        self.run(&self.path(), args)
     }
 
     /// Like [`Self::git`], in the bare remote.
@@ -158,7 +198,7 @@ impl GitFixture {
     ///
     /// Returns [`FixtureError`] if git fails.
     pub fn remote_git(&self, args: &[&str]) -> Result<String, FixtureError> {
-        run(&self.remote_path(), args)
+        self.run(&self.remote_path(), args)
     }
 
     /// The SHA `rev` resolves to in the working repository.
@@ -169,13 +209,75 @@ impl GitFixture {
     pub fn rev_parse(&self, rev: &str) -> Result<String, FixtureError> {
         self.git(&["rev-parse", rev])
     }
+
+    fn run_step(&self, step: &Step) -> Result<String, FixtureError> {
+        match step {
+            Step::Commit(message) => self.git(&["commit", "--allow-empty", "-m", message]),
+            Step::Tag(name) => self.git(&["tag", name]),
+            Step::AnnotatedTag(name, message) => self.git(&["tag", "-a", name, "-m", message]),
+            Step::Branch(name) => self.git(&["checkout", "-b", name]),
+            Step::Checkout(rev) => self.git(&["checkout", rev]),
+            Step::Merge(branch, Merge::FastForward) => self.git(&["merge", "--ff-only", branch]),
+            Step::Merge(branch, Merge::NoFastForward) => self.git(&["merge", "--no-ff", branch]),
+            Step::Rebase(onto) => self.git(&["rebase", onto]),
+            Step::Note(rev, notes_ref, text) => {
+                self.git(&["notes", "--ref", notes_ref, "add", "-m", text, rev])
+            }
+            Step::Push => {
+                let mut args = vec!["push", "origin"];
+                args.extend(PUSHED_REFS);
+                self.git(&args)
+            }
+        }
+    }
+
+    fn run(&self, dir: &Path, args: &[&str]) -> Result<String, FixtureError> {
+        let command = format!("git {}", args.join(" "));
+        let output = isolated_git(self.dir.path(), self.step)
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .map_err(|error| FixtureError {
+                command: command.clone(),
+                output: error.to_string(),
+            })?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(FixtureError {
+                command,
+                output: format!("{}{}", stderr.trim_end(), stdout.trim_end()),
+            });
+        }
+        Ok(stdout.trim_end_matches(['\r', '\n']).to_owned())
+    }
 }
 
-fn run(_dir: &Path, args: &[&str]) -> Result<String, FixtureError> {
-    Err(FixtureError {
-        command: format!("git {}", args.join(" ")),
-        output: String::from("not implemented"),
-    })
+/// `git` with only `PATH` kept from the process env, plus the fixture's config, identity and
+/// the date of `step`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "fixtures write history with the real git CLI, isolated from the process env (TESTING)"
+)]
+fn isolated_git(root: &Path, step: u64) -> Command {
+    let date = format!("{} +0000", FIRST_TIME + step * STEP_SECONDS);
+    let mut git = Command::new("git");
+    git.env_clear()
+        .env("HOME", root)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", root.join(GLOBAL_CONFIG))
+        .env("GIT_AUTHOR_NAME", NAME)
+        .env("GIT_AUTHOR_EMAIL", EMAIL)
+        .env("GIT_COMMITTER_NAME", NAME)
+        .env("GIT_COMMITTER_EMAIL", EMAIL)
+        .env("GIT_AUTHOR_DATE", &date)
+        .env("GIT_COMMITTER_DATE", &date)
+        .env("GIT_MERGE_AUTOEDIT", "no")
+        .env("GIT_TERMINAL_PROMPT", "0");
+    if let Some(path) = std::env::var_os("PATH") {
+        git.env("PATH", path);
+    }
+    git
 }
 
 /// A git command of a fixture failed.
