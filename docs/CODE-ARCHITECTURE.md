@@ -95,7 +95,7 @@ Placement, kinds and how tests run: [TESTING](TESTING.md).
 ## 7. Workspace config
 
 - **Toolchain:** pinned in `rust-toolchain.toml` to the exact stable release, bumped by Renovate/Dependabot. **MSRV = latest minus 2**, checked with `cargo hack --rust-version` ([TESTING](TESTING.md)).
-- **Every other tool is pinned:** CI actions (to commit SHA), cargo tools (exact versions: nextest, insta, deny, shear, semver-checks, mutants, llvm-cov, hack), qlty and its plugins, typos, zizmor, the hook config. Automation bumps pins; nothing floats.
+- **Every other tool is pinned:** dev tools in `mise.toml` (qlty, typos, lefthook, cargo-nextest, cargo-deny, cargo-mutants, cargo-hack, uv), installed by mise locally and by `jdx/mise-action` in CI; qlty plugins in `.qlty/qlty.toml`; CI actions to commit SHA. Renovate bumps them all; nothing floats.
 - **`[workspace.package]`:** `edition = "2024"`, `rust-version`, `license = "MIT OR Apache-2.0"`, `repository`, inherited by every crate.
 - **`[workspace.dependencies]`:** every external dependency declared once; crates use `dep.workspace = true`, with per-crate `default-features` overrides where needed (e.g. git2).
 - **`[workspace.lints]`:** the lint policy (§7 Quality tooling); every crate sets `lints.workspace = true`.

@@ -17,9 +17,10 @@ jobs:
         with:
           persist-credentials: false
       - if: hashFiles('crates/*/Cargo.toml') != ''
-        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          # renovate: datasource=crate depName=cargo-deny
-          tool: cargo-deny@0.20.2
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: aqua:EmbarkStudios/cargo-deny
       - if: hashFiles('crates/*/Cargo.toml') != ''
         run: cargo deny --locked check advisories
