@@ -11,6 +11,7 @@ GitHub conventions for every `semoxide/*` repo.
 
 - **Issue types** (org-level, shared by all repos): `Epic`, `Feature`, `Task`, `Bug`, `Spike` (PoC / research).
 - **Epics** are parent issues; their work items are **sub-issues**. "Blocked by" uses GitHub **issue dependencies**.
+- Every task issue carries an **Approach** line (the A2 category in [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md#10-approaches)). If one is missing, the agent asks before starting instead of choosing.
 - **Labels** carry only *area* and status extras, not the kind of issue.
 
 ## Labels
