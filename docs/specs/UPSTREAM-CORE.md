@@ -2,6 +2,8 @@
 
 Scope: how semantic-release core actually behaves in code (algorithms, git calls, side effects, errors, tests). Source: `semantic-release/semantic-release` @ `04c1923` (2026-10-04). Documented behaviour (hooks, run order, config, branches, ranges, next version, tagFormat, auth, dry-run, JS API, plugin contract) is in [SEMANTIC-RELEASE-SPEC.md](SEMANTIC-RELEASE-SPEC.md) and is not repeated here. `git.js:N` means `lib/git.js` line N.
 
+> Attribution: describes MIT-licensed code, © the respective upstream contributors; short excerpts (regexes, option names, messages) are quoted under those licenses. Not affiliated with semantic-release.
+
 ## Source map
 
 | Area | Source |

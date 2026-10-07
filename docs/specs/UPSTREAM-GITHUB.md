@@ -2,6 +2,8 @@
 
 Scope: how the upstream GitHub plugin behaves (options, API calls, step logic, side effects, tests, known bugs). Source: `semantic-release/github` master @ `a32b856` (2026-10-04).
 
+> Attribution: describes MIT-licensed code, © the respective upstream contributors; short excerpts (regexes, option names, messages) are quoted under those licenses. Not affiliated with semantic-release.
+
 ~1.5k LOC in `lib/`, 13k LOC of tests (ava + `fetch-mock` + sinon). Deps: `@octokit/core` 7 + `plugin-paginate-rest` + `plugin-retry` + `plugin-throttling`, `undici` 7, `issue-parser`, `tinyglobby` + `dir-glob`, `mime`, `lodash-es` (`template`). Steps: `verifyConditions`, `publish`, `addChannel`, `success`, `fail`.
 
 ## 1. Features
