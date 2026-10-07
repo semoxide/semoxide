@@ -1,5 +1,7 @@
 # semantic-release behavioral spec (condensed)
 
+> Attribution: condensed and paraphrased from the [semantic-release](https://github.com/semantic-release/semantic-release) documentation, © semantic-release contributors, MIT-licensed while it was part of the semantic-release repository (until 2026-06), plus semoxide's own findings from the source code. Not affiliated with semantic-release.
+
 Sources: docs repo `semantic-release/docs` @ `b8513ff` (2026-10-04, site https://semantic-release.org; the old `semantic-release/semantic-release/docs` folder **no longer exists**). Where the docs are silent or wrong, the core source `semantic-release/semantic-release` @ `04c1923` was checked; those items are tagged **[src]**. Docs vs source conflicts are tagged **[conflict]**.
 
 ## 1. Model
