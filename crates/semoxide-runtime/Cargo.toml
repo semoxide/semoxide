@@ -13,5 +13,5 @@ workspace = true
 [dependencies]
 semoxide-error.workspace = true
 semoxide-schema.workspace = true
-semoxide-engine.workspace = true
+semoxide-version-engine.workspace = true
 semoxide-git.workspace = true

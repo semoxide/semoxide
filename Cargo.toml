@@ -14,7 +14,7 @@ repository = "https://github.com/semoxide/semoxide"
 # Internal crates (CODE-ARCHITECTURE §1); external dependencies are added by the tasks that need them.
 semoxide-error = { path = "crates/semoxide-error", version = "0.0.0" }
 semoxide-schema = { path = "crates/semoxide-schema", version = "0.0.0" }
-semoxide-engine = { path = "crates/semoxide-engine", version = "0.0.0" }
+semoxide-version-engine = { path = "crates/semoxide-version-engine", version = "0.0.0" }
 semoxide-git = { path = "crates/semoxide-git", version = "0.0.0" }
 semoxide-runtime = { path = "crates/semoxide-runtime", version = "0.0.0" }
 semoxide = { path = "crates/semoxide", version = "0.0.0" }

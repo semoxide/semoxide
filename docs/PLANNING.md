@@ -19,7 +19,7 @@ Created identically in every org repo, including the PoC repo `semoxide/semoxide
 
 | Label | Use |
 | --- | --- |
-| `area:engine` | version engine, branch model, domain types |
+| `area:version-engine` | version engine, branch model, domain types |
 | `area:schema` | config types, JSON Schema |
 | `area:error` | `ErrorInfo`, error codes, docs pages |
 | `area:git` | git2, SSH transports, push guards, credentials |
