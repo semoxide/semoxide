@@ -1,5 +1,6 @@
 # Local git hooks (CI is the gate). Setup per clone: `lefthook install`.
 # The qlty commands mirror what `qlty githooks install` would run.
+# renovate: datasource=github-releases depName=evilmartians/lefthook
 min_version: 2.1.17
 
 pre-commit:

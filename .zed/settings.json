@@ -28,6 +28,7 @@
     "semgrep": {
       "binary": {
         "path": "uvx",
+        // renovate: datasource=pypi depName=semgrep
         "arguments": ["semgrep@1.144.0", "lsp"]
       },
       "initialization_options": {
