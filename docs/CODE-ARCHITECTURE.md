@@ -73,7 +73,7 @@ Enforced in CI by:
 ## 4. Error and result types
 
 - Each crate has its own `thiserror` enum, `#[non_exhaustive]`.
-- Every error implements `ErrorInfo` (in `semoxide-error`): `code()` (namespaced), `help()`, `url()`, `retryable()`, `remote_writes_happened()`, `known()`. Code catalog: [OBSERVABILITY](OBSERVABILITY.md); JSON error contract: [CLI](CLI.md).
+- Every error implements `ErrorInfo` (in `semoxide-error`): `code()` (namespaced), `help()`, `url()`, `retryable()`, `remote_writes_happened()`. Codes are compile-time constants named after the full code (`CORE_NO_GIT_REPO` for `core::no_git_repo`), validated by `ErrorCode::from_static`. Known vs unexpected is not a trait method (every `ErrorInfo` error is known): the orchestrator flags each error it hands to `fail` and puts in the `RunReport`; unexpected means a panic, a plugin crash or an error without a code. Code catalog: [OBSERVABILITY](OBSERVABILITY.md); JSON error contract: [CLI](CLI.md).
 - The façade exposes a single `semoxide::Error` wrapping the crate errors; a step's collected errors stay a list.
 - **No miette in the libraries:** the CLI converts `ErrorInfo` into miette diagnostics for display.
 
@@ -107,7 +107,7 @@ Placement, kinds and how tests run: [TESTING](TESTING.md).
 
 **Findings are fixed in the code. Rules and thresholds are never loosened without the user's explicit approval.**
 
-Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pre-commit runs `qlty fmt` and typos on staged files; pre-push runs `qlty check` on the pushed changes plus `cargo nextest run`. qlty config: `.qlty/qlty.toml` (only `target/` excluded, plugins pinned). Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
+Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pre-commit runs rustfmt (`.rs`) and qlty's markdownlint fix (`.md`) on the staged files in place, then typos; pre-push runs `qlty check` on the pushed changes plus `cargo nextest run`. qlty config: `.qlty/qlty.toml` (only `target/` excluded, plugins pinned). Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
 
 | Tool | Catches | Runs |
 | --- | --- | --- |
