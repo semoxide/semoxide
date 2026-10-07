@@ -1,4 +1,4 @@
-// LOCKED: approved in 5b33c8e. Do not edit; if a test looks wrong, stop and report.
+// LOCKED: approved in 8b6e909. Do not edit; if a test looks wrong, stop and report.
 
 use semoxide_error::ErrorCode;
 
