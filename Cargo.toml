@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-# "crates/*" once the crates exist (#30)
-members = []
+members = ["crates/*"]
+default-members = ["crates/semoxide-cli"]
 
 [workspace.package]
 version = "0.0.0"
@@ -11,6 +11,14 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/semoxide/semoxide"
 
 [workspace.dependencies]
+# Internal crates (CODE-ARCHITECTURE §1); external dependencies are added by the tasks that need them.
+semoxide-error = { path = "crates/semoxide-error", version = "0.0.0" }
+semoxide-schema = { path = "crates/semoxide-schema", version = "0.0.0" }
+semoxide-engine = { path = "crates/semoxide-engine", version = "0.0.0" }
+semoxide-git = { path = "crates/semoxide-git", version = "0.0.0" }
+semoxide-runtime = { path = "crates/semoxide-runtime", version = "0.0.0" }
+semoxide = { path = "crates/semoxide", version = "0.0.0" }
+semoxide-test-support = { path = "crates/semoxide-test-support" }
 
 [workspace.lints.rust]
 # `deny`, not `forbid`: semoxide-git's transport registration needs a scoped `#[expect(unsafe_code)]`.

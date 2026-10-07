@@ -1,0 +1,15 @@
+[package]
+name = "semoxide-git"
+description = "Git access for semoxide via git2: reads, guarded pushes, SSH transports, credentials."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+semoxide-error.workspace = true
+semoxide-engine.workspace = true

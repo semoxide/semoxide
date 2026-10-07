@@ -1,0 +1,15 @@
+[package]
+name = "semoxide-engine"
+description = "Pure version engine: branch model, ranges, last and next version. No I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+semoxide-error.workspace = true
+semoxide-schema.workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "semoxide-runtime"
+description = "Orchestrator, config loading, CI context, plugin host integration and observability for semoxide."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+semoxide-error.workspace = true
+semoxide-schema.workspace = true
+semoxide-engine.workspace = true
+semoxide-git.workspace = true

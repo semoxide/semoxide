@@ -1,0 +1,14 @@
+[package]
+name = "semoxide-schema"
+description = "semoxide.toml configuration types and JSON Schema generation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+semoxide-error.workspace = true

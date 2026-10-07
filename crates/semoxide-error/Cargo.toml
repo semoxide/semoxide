@@ -1,0 +1,11 @@
+[package]
+name = "semoxide-error"
+description = "ErrorInfo trait and the namespaced error-code type shared by every semoxide crate."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
