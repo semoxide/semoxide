@@ -15,11 +15,13 @@ flowchart TD
     runtime --> git["semoxide-git (git2 + russh / system-ssh transports, guards, credentials)"]
     runtime --> host["semoxide-plugin-host (protocol repo)"]
     engine --> schema
+    schema --> err["semoxide-error (ErrorInfo trait + error-code type; no deps)"]
     tests["semoxide-test-support (publish = false)"] -.-> runtime
 ```
 
 | Crate | Holds | Heavy deps | Published |
 |---|---|---|---|
+| `semoxide-error` | the `ErrorInfo` trait and error-code type (§4); bottom of the graph | none | yes, internal (§5) |
 | `semoxide-schema` | `semoxide.toml` types, JSON Schema generation | none (serde, schemars) | yes, internal (§5) |
 | `semoxide-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal (§5) |
 | `semoxide-git` | git2, SSH transports, push guards, credential rules ([0011](decisions/0011-git-backend.md)) | git2, russh | yes, internal (§5) |
@@ -34,7 +36,8 @@ The pure engine and the schema compile and test without git2, tonic, russh or to
 
 | Crate | May depend on | Must never use |
 |---|---|---|
-| `semoxide-schema` | serde, schemars | anything with I/O |
+| `semoxide-error` | nothing | any dependency |
+| `semoxide-schema` | `error`, serde, schemars | anything with I/O |
 | `semoxide-engine` | `schema` | any I/O: `std::fs`, `std::net`, `std::process`, `std::env`, git2, tokio, printing |
 | `semoxide-git` | `engine` types, git2, russh | tokio outside its SSH bridge; printing |
 | `semoxide-runtime` | all above, `semoxide-plugin-host` | `std::env::var` (env snapshot only, [0013](decisions/0013-observability.md)); printing |
@@ -56,7 +59,7 @@ Enforced in CI by:
 ## 4. Error and result types
 
 - Each crate has its own `thiserror` enum, marked `#[non_exhaustive]`.
-- Every error implements one small trait of ours, `ErrorInfo`: `code()` (namespaced), `help()`, `url()`, `retryable()`, `remote_writes_happened()`, `known()` ([0013](decisions/0013-observability.md), [0016](decisions/0016-agent-experience.md)).
+- Every error implements one small trait of ours, `ErrorInfo`, defined in the dependency-free `semoxide-error` crate: `code()` (namespaced), `help()`, `url()`, `retryable()`, `remote_writes_happened()`, `known()` ([0013](decisions/0013-observability.md), [0016](decisions/0016-agent-experience.md)).
 - The façade exposes a single `semoxide::Error` wrapping the crate errors; a step's collected errors stay a list.
 - **No miette in the libraries:** the CLI converts `ErrorInfo` into miette diagnostics for display (typed errors in libraries, report layer at the edge).
 
