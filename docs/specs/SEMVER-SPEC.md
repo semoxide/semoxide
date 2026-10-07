@@ -6,7 +6,7 @@ Text verified against [semver.md](https://github.com/semver/semver/blob/master/s
 
 ## 1. Grammar
 
-```
+```text
 <valid semver> ::= <version core>
                  | <version core> "-" <pre-release>
                  | <version core> "+" <build>
@@ -30,25 +30,29 @@ Text verified against [semver.md](https://github.com/semver/semver/blob/master/s
 <positive digit> ::= "1".."9"
 <letter> ::= "A".."Z" | "a".."z"
 ```
+
 (Repetition `{}`/`+`/ranges condense the spec's recursive productions; semantics identical.)
 
 | Part | Charset | Empty allowed | Leading zeros | Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | major/minor/patch | `[0-9]` | no | **forbidden** (`0` ok, `01` not) | non-negative integer, no upper bound in spec |
 | pre-release identifier | `[0-9A-Za-z-]` | no | forbidden **only if all-digit** (`01` bad, `01a`/`0-1` ok) | ASCII only |
 | build identifier | `[0-9A-Za-z-]` | no | **allowed** (`+001` ok) | ASCII only |
 
-Invalid examples: `1.2`, `1.2.3.4`, `v1.2.3`, `01.2.3`, `1.2.3-`, `1.2.3+`, `1.2.3-a..b`, `1.2.3-01`, `1.2.3-α`, `1.2.3-a_b`, ` 1.2.3`.
+Invalid examples: `1.2`, `1.2.3.4`, `v1.2.3`, `01.2.3`, `1.2.3-`, `1.2.3+`, `1.2.3-a..b`, `1.2.3-01`, `1.2.3-α`, `1.2.3-a_b`, `1.2.3`.
 Valid oddities: `1.0.0-x-y-z.--`, `1.0.0+21AF26D3----117B344092BD`, `1.0.0-0.3.7`, `1.0.0--` (pre-release `-`), `1.0.0-0a`.
 
 ## 2. Official regex
 
 Named groups (PCRE, Python, Go; Rust `regex` accepts `(?P<..>)`):
-```
+
+```text
 ^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
 ```
+
 Numbered groups (cg1 major … cg5 build; ECMAScript-compatible):
-```
+
+```text
 ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
 ```
 
@@ -78,6 +82,7 @@ flowchart TD
 Canonical chain: `1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0`.
 
 Edge cases:
+
 - Precedence is a total **preorder**, not total order: equality under precedence ≠ string equality (build differs).
 - Case-sensitive: `1.0.0-RC.1 < 1.0.0-rc.1`.
 - Numeric pre-release identifiers are unbounded (`1.0.0-99999999999999999999999` is valid) → compare by (length, digits), not by parsing into an integer.
@@ -86,7 +91,7 @@ Edge cases:
 ## 4. Bump semantics (§§2–8)
 
 | Change to public API | x ≥ 1 | Resets |
-|---|---|---|
+| --- | --- | --- |
 | Backward-compatible bug fix only (internal fix of incorrect behaviour) | patch `Z+1` | — |
 | New backward-compatible functionality | minor `Y+1` | patch → 0 |
 | Any functionality **marked deprecated** | minor `Y+1` (MUST) | patch → 0 |
@@ -104,7 +109,7 @@ Edge cases:
 ## 5. FAQ points affecting implementation
 
 | FAQ | Implication |
-|---|---|
+| --- | --- |
 | `v1.2.3` is not a semver | `v` is a tag-name prefix; strip/add at tag boundary, never part of `Version`. |
 | No size limit | Don't impose one in the parser beyond integer representation; 255 chars called "overkill". |
 | Accidentally released breaking change as minor | Fix and release a **patch** restoring compatibility; never modify the released version; optionally document the bad version. |

@@ -5,7 +5,7 @@ Scope: how `@semantic-release/release-notes-generator` (the `generateNotes` step
 ## Source map
 
 | Feature | File |
-|---|---|
+| --- | --- |
 | Single step `generateNotes(pluginConfig, context) -> Promise<string>` | `index.js:29` |
 | Preset by short name (`conventional-changelog-<preset>`), plugin dir first, then `cwd` | `lib/load-changelog-config.js:24-28` |
 | Custom preset package via `config` | `lib/load-changelog-config.js:29-30` |
@@ -24,7 +24,7 @@ Scope: how `@semantic-release/release-notes-generator` (the `generateNotes` step
 ## Options
 
 | Option | Default | Behaviour |
-|---|---|---|
+| --- | --- | --- |
 | `preset` | angular (when neither preset nor config set) | lowercased; wins over `config` |
 | `config` | – | npm package name; factory called with no args |
 | `presetConfig` | `undefined` | needed by conventionalcommits (`types`, `issuePrefixes`, `*UrlFormat`, `ignoreCommits`) |
@@ -61,6 +61,7 @@ flowchart LR
 Ignore filter quirk: `commitOpts.ignore` applies only when `!commitOpts.merges`.
 
 ### URL parsing (`index.js:31-40`)
+
 1. Strip a trailing `.git` (case-insensitive).
 2. No `://` and matches `[auth@]host:path` (scp-like) → rewrite to `ssh://[auth@]host/path`.
 3. Parse with WHATWG `new URL`.
@@ -70,7 +71,7 @@ Ignore filter quirk: `commitOpts.ignore` applies only when `!commitOpts.merges`.
 7. `host = url.format({protocol, hostname, port})`; credentials dropped.
 
 | Input | host / owner / repository |
-|---|---|
+| --- | --- |
 | `git@gitlab.com:grp/sub/r.git` | `https://gitlab.com` / `grp` / `sub/r` |
 | `git+ssh://git@h.com:2222/o/r.git` | `https://h.com` / `o` / `r` (ssh port dropped) |
 | `http://h.com:90/o/r` | `http://h.com:90` / `o` / `r` |
@@ -81,7 +82,7 @@ Ignore filter quirk: `commitOpts.ignore` applies only when `!commitOpts.merges`.
 ### Host table (`lib/hosts-config.js`)
 
 | host | issue | commit | referenceActions | issuePrefixes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | github.com | issues | commit | close(s/d), fix(es/ed), resolve(s/d) | `#`, `gh-` |
 | bitbucket.org | issue | commits | + closing/fixing/resolving | `#` |
 | gitlab.com | issues | commit | close*, fix* (no resolve) | `#` |
@@ -92,7 +93,7 @@ Parser option precedence, lowest first: host table, `preset.parser`, `parserOpts
 ### Writer context (verified by `test/integration.test.js:39-108`)
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | `version` | `nextRelease.version` |
 | `host`, `owner`, `repository` | from URL parsing; `host` overridable by option |
 | `previousTag` | `lastRelease.gitTag \|\| lastRelease.gitHead` |
@@ -105,6 +106,7 @@ Parser option precedence, lowest first: host table, `preset.parser`, `parserOpts
 `repoUrl`, `date`, `title` and `isPatch` are not set here; the writer fills them from its defaults and the preset's `finalizeContext`.
 
 ### Writer interface
+
 Only `writeChangelogString(commits, context, options) -> Promise<string>`, options = preset writer + `writerOpts` (writer 8: Handlebars `mainTemplate` + partials). `transform` must return a new object since writer v8. Templates build URLs from `@root.host/owner/repository/{commit}/{hash}` or the conventionalcommits `*UrlFormat` options. Beta pins writer@9 and parser@7, bundles conventionalcommits@10 and drops other presets.
 
 ## Side effects
@@ -117,7 +119,7 @@ Only `writeChangelogString(commits, context, options) -> Promise<string>`, optio
 ## Tests
 
 | Test file | Portable |
-|---|---|
+| --- | --- |
 | `test/integration.test.js`: ~30 cases feeding `{hash, message}` commits with a `repositoryUrl`, asserting regex substrings (compare link, section headers, commit/issue links) | yes, as golden snapshots: URL matrix (http+port, scp, scp without user, git+http, `.git`, git+https, git+ssh+port, bitbucket, gitlab, codecommit, `host`/`commit`/`issue`/`linkCompare`/`linkReferences` overrides), revert exclusion, empty messages, malformed commits |
 | Context-shape tests (`writerDouble` via testdouble) | yes, as unit tests on the context builder |
 | `test/load-changelog-config.test.js`: preset/config loading × 7 presets, override merging, missing module → `MODULE_NOT_FOUND`, `transform.toString()` comparison | merge-precedence tests only |

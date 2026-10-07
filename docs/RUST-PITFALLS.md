@@ -3,7 +3,7 @@
 Known Rust problems that apply to semoxide, and how we avoid them. Sources: 2025–26 articles and the issues of 10 large Rust CLIs (research phase).
 
 | # | Pitfall | Mitigation | Where |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | Slow incremental rebuilds in workspaces | split hot crates, trim deps/features, LLD, dev deps at `opt-level=3` | [CODE-ARCH §1, §7](CODE-ARCHITECTURE.md) |
 | 2 | Crate splits help and hurt | split only on real boundaries; no tiny crates | [CODE-ARCH §1](CODE-ARCHITECTURE.md#1-workspace-layout) |
 | 3 | Proc-macro / serde build cost | serde types live at the edges (`semoxide-schema`) | [CODE-ARCH §1](CODE-ARCHITECTURE.md#1-workspace-layout) |

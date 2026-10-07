@@ -21,7 +21,7 @@ Runs mostly in CI; behaviour outside CI is in [CLI](CLI.md).
 All repos live in the `semoxide` GitHub org ([REQUIREMENTS](REQUIREMENTS.md)).
 
 | Repo | Contains | Versioned |
-|---|---|---|
+| --- | --- | --- |
 | `semoxide` | core library, CLI, docs | semoxide's own SemVer |
 | `semoxide-plugin-protocol` | `.proto` spec, `semoxide-plugin-sdk`, `semoxide-plugin-host`, `semoxide-plugin-conformance` | protocol SemVer, independent of semoxide |
 | `semoxide-plugin-commit-analyzer`, `semoxide-plugin-release-notes` | bundled default plugins (crate + binary) | their own |
@@ -40,7 +40,7 @@ flowchart TD
 ## 3. Components
 
 | Component | Responsibility |
-|---|---|
+| --- | --- |
 | Config | load and merge layers (defaults → extends → file → flags), validate against core and plugin schemas ([CONFIG](CONFIG.md)) |
 | CI context | detect CI, branch, PR and commit; env snapshot. Table-driven, derived from env-ci's detection table. v1: GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, Bitbucket Pipelines; elsewhere branch/commit come from git2 |
 | Git | all repo access via git2: tags, notes, log ranges, fetch/unshallow, guarded push, SSH transports, credentials ([§6](#6-git-and-credentials)) |
@@ -138,7 +138,7 @@ sequenceDiagram
 ### 5.3 Platform constraints (from the [gRPC PoC](https://github.com/semoxide/semoxide-poc/tree/main/plugin-grpc))
 
 | Area | Constraint |
-|---|---|
+| --- | --- |
 | Named-pipe server | tonic has no `Connected` impl for pipes: a small `Io<T>` wrapper provides it; `serve_with_incoming_shutdown(once(io).chain(pending()))` keeps the server alive; `Io` signals on drop so the plugin exits when the host connection goes |
 | Named-pipe client | `connect_with_connector` returns the already-accepted stream once (dummy URI); reconnect fails by design |
 | Pipe instances | one client per instance; the host creates the next after each `connect()`. The plugin's second dial uses `WaitNamedPipeW` on `ERROR_PIPE_BUSY` (sleep-retry costs ~15 ms). `first_pipe_instance(true)` blocks squatting, `reject_remote_clients(true)` |
@@ -169,7 +169,7 @@ sequenceDiagram
 ### 5.7 Getting and trusting plugins
 
 | Source | Rule |
-|---|---|
+| --- | --- |
 | Default | config pins a version; semoxide downloads the binary from the plugin's GitHub release, caches it, and records its sha256 in a lock file on first download; every later run requires that checksum |
 | Official plugins | additionally verified against GitHub artifact attestations (Sigstore) before first use |
 | Override | explicit `path`, or PATH lookup of `semoxide-plugin-<name>` (development, offline/air-gapped CI) |
@@ -187,7 +187,7 @@ Config keys: [CONFIG](CONFIG.md).
 - **SSH:** git2 is built without its `ssh` feature (no libssh2). A custom transport is registered for `ssh://` and `git@host:` URLs ([git2-russh PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-russh)). Why not libssh2: [DECISIONS](DECISIONS.md).
 
 | SSH backend | Selected | Behaviour |
-|---|---|---|
+| --- | --- | --- |
 | `russh` (default) | always unless opted out | pure Rust, all key types (file, memory, passphrase) on every OS, OpenSSH agent (`SSH_AUTH_SOCK`, else `\\.\pipe\openssh-ssh-agent` on Windows) and Pageant, known_hosts verification (unknown host fails unless explicitly allowed, a mismatch always refuses), `~/.ssh/config`, every phase bounded by connect/IO timeouts, no external binary |
 | system `ssh` (opt-in) | `SEMOXIDE_SSH_BACKEND=exec` or `GIT_SSH_COMMAND` / `GIT_SSH` | runs `ssh -o BatchMode=yes`; for OpenSSH-only features (ProxyJump, FIDO keys, `@cert-authority`); a missing `ssh` gives a clear error |
 
@@ -198,7 +198,7 @@ Config keys: [CONFIG](CONFIG.md).
 **Guards** (git2 behaviour proven in the [git2 PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-ops)):
 
 | git2 behaviour | Product rule |
-|---|---|
+| --- | --- |
 | libgit2 pushes a fast-forward move of an existing remote tag, and GitHub accepts it | never move an existing remote tag: `push_negotiation` rejects `refs/tags/*` updates with a non-zero `src` |
 | `push()` returns `Ok` when the server rejects a ref | check every pushed ref's status (`push_update_reference`); a bare `failed` (no reason) is retried once, logged; if the retry reports the tag exists, success only when the remote tag points at our commit |
 | tag names can carry build metadata (`tag_metadata`), so a version can have differently named tags | every tag lookup (clobber guard, rerun, promotion) goes through the parsed version index, never a name built from the version; a test enforces it |
@@ -208,6 +208,7 @@ Config keys: [CONFIG](CONFIG.md).
 | `Repository::commit` runs no hooks and no signing | commit-back commits are unsigned, hookless (bot signature) |
 
 **Credential rules:**
+
 - A configured token (e.g. `GITHUB_TOKEN`, `GITLAB_TOKEN`) wins over any credential already attached to the remote.
 - With a token, a `git@host:` remote is pushed over HTTPS; without one, SSH is used as configured.
 - The credential used is logged by name only.
@@ -250,6 +251,7 @@ flowchart TD
 - **Later:** dependency-ordered plan, bumping dependents (requires commit-back), locked version groups, plugin workspace discovery.
 
 **Commit-back:**
+
 - Default is tags only: without the `git` plugin semoxide never commits.
 - Configuring the `git` plugin is the opt-in: it commits and pushes its `assets` via the host `Git` service.
 - User docs must list its drawbacks: extra release commits, CI re-trigger loops (`[skip ci]` convention), branch protection must allow the bot, races with concurrent pushes fail the release, commit-signing requirements.
@@ -259,7 +261,7 @@ flowchart TD
 One `dist` build feeds every binary channel. **Targets: Linux and Windows, x86_64 + aarch64; no macOS binaries for now** (macOS users run the Docker image).
 
 | When | Channels |
-|---|---|
+| --- | --- |
 | v1 | GitHub Release binaries + shell/PowerShell installers; GitHub Action; `cargo binstall` / `cargo install`; Docker image (static musl, GHCR, amd64/arm64) |
 | v1.x | npm wrapper (one package works with npx, pnpm dlx, yarn dlx, bunx, Deno: no postinstall, `preferUnplugged`, one static-musl Linux package per arch); Homebrew formula (Linux) |
 | next | own Scoop bucket, then winget |

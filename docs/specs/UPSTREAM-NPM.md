@@ -7,7 +7,7 @@ Scope: how the upstream npm plugin behaves (options, registry and auth resolutio
 ## 1. Features
 
 | Feature | File |
-|---|---|
+| --- | --- |
 | Inherit `npmPublish`/`tarballDir`/`pkgRoot` from the `publish` entry for `@semantic-release/npm` during verify | `index.js:15-24` |
 | Option type validation (`npmPublish` bool, `tarballDir`/`pkgRoot` non-empty string) | `lib/verify-config.js` |
 | Read `package.json` (from `pkgRoot`), require `name` | `lib/get-pkg.js` |
@@ -27,13 +27,13 @@ Scope: how the upstream npm plugin behaves (options, registry and auth resolutio
 ## 2. Options and env vars
 
 | Option | Type | Default | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `npmPublish` | bool | `true` (effectively `false` if `pkg.private === true`) | false → bump only |
 | `pkgRoot` | string | `.` (cwd) | dir with `package.json` to bump/pack/publish |
 | `tarballDir` | string | unset (no tarball kept) | |
 
 | Env var | Use |
-|---|---|
+| --- | --- |
 | `NPM_TOKEN` | Written as literal `${NPM_TOKEN}` into the temp npmrc (npm expands it at run time; the secret never hits disk), only if no auth was found in npmrc |
 | `NPM_CONFIG_REGISTRY` | Registry override (below `publishConfig.registry`) |
 | `NPM_CONFIG_USERCONFIG` | User npmrc path used for `rc()` instead of `<cwd>/.npmrc` |
@@ -122,7 +122,7 @@ sequenceDiagram
 ## 5. Test suite
 
 | Suite | Mechanism |
-|---|---|
+| --- | --- |
 | `get-channel`, `verify-config`, `get-release-info`, `get-pkg` | Pure functions / temp dirs |
 | `get-registry`, `set-npmrc-auth` | Temp dirs + fake `HOME`/`NPM_CONFIG_USERCONFIG` npmrc files; asserts temp npmrc content |
 | `verify-auth` | `testdouble` ESM mocks of `execa`; asserts exact npm argv + env |

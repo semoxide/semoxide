@@ -1,0 +1,119 @@
+# Project rules checked by semgrep (via qlty). Add a rule when a review finds a pattern clippy can't express.
+# Semgrep parses Rust macro arguments as opaque tokens: rules that look inside a macro call use
+# `pattern-inside: name!(...)` + `pattern-regex`, and list each macro by name (`$M!(...)` does not match).
+# Every rule has cases in rules.rs next to this file, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI.
+rules:
+
+  - id: no-inline-test-module
+    languages: [rust]
+    severity: ERROR
+    message: "Unit tests live in a sibling `tests.rs` (`#[cfg(test)] mod tests;`), never in an inline block (CODE-ARCHITECTURE §8)."
+    pattern-regex: '#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([a-z]+\))?\s+)?mod\s+\w+\s*\{'
+
+  - id: no-pub-struct-field
+    languages: [rust]
+    severity: ERROR
+    message: "Struct fields are private; construct with `new` or a builder (CLAUDE.md Rust rule 4)."
+    patterns:
+      - pattern-inside: struct $S { ... }
+      - pattern-regex: '\bpub(?:\([a-z]+\))?\s+(?:r#)?[a-z_][a-z0-9_]*\s*:'
+
+  - id: no-pub-tuple-field
+    languages: [rust]
+    severity: ERROR
+    message: "Newtype fields are private; convert with `From`/`TryFrom` and `as_`/`into_` (CLAUDE.md Rust rules 4, 5)."
+    pattern-regex: '\bstruct\s+\w+\s*(?:<[^>{;]*>)?\s*\(\s*(?:#\[[^\]]*\]\s*)*pub\b'
+
+  - id: no-get-prefix
+    languages: [rust]
+    severity: ERROR
+    message: "Getters have no `get_` prefix (CLAUDE.md Rust rule 5). A foreign trait's required `get_*` method takes `// nosemgrep: no-get-prefix`."
+    patterns:
+      - pattern: fn $F(&self, ...) -> $T { ... }
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^get_
+
+  - id: command-needs-env-clear
+    languages: [rust]
+    severity: ERROR
+    message: "A child process gets its env only from the run's `Env` map: call `.env_clear()` before `.envs(...)` (OBSERVABILITY P3)."
+    patterns:
+      - pattern-either:
+          - pattern: Command::new(...)
+          - pattern: std::process::Command::new(...)
+          - pattern: tokio::process::Command::new(...)
+      - pattern-not-inside: $X. ... .env_clear()
+      - pattern-not-inside: |
+          let mut $C = $CMD;
+          ...
+          $C.env_clear();
+
+  - id: no-exposed-secret-in-macro
+    languages: [rust]
+    severity: ERROR
+    message: "Never format or log an exposed secret; pass the `Secret` (its `Debug` prints `[secure]`) or mask it first (OBSERVABILITY §5)."
+    patterns:
+      - pattern-either:
+          - pattern-inside: trace!(...)
+          - pattern-inside: debug!(...)
+          - pattern-inside: info!(...)
+          - pattern-inside: warn!(...)
+          - pattern-inside: error!(...)
+          - pattern-inside: event!(...)
+          - pattern-inside: tracing::trace!(...)
+          - pattern-inside: tracing::debug!(...)
+          - pattern-inside: tracing::info!(...)
+          - pattern-inside: tracing::warn!(...)
+          - pattern-inside: tracing::error!(...)
+          - pattern-inside: tracing::event!(...)
+          - pattern-inside: format!(...)
+          - pattern-inside: format_args!(...)
+          - pattern-inside: write!(...)
+          - pattern-inside: writeln!(...)
+          - pattern-inside: panic!(...)
+      - pattern-regex: '\bexpose_secret(?:_mut)?\s*\('
+
+  - id: url-in-log-needs-url-for-log
+    languages: [rust]
+    severity: ERROR
+    message: "Log URLs only through `url_for_log()`, which strips userinfo (OBSERVABILITY §5)."
+    patterns:
+      - pattern-either:
+          - pattern-inside: trace!(...)
+          - pattern-inside: debug!(...)
+          - pattern-inside: info!(...)
+          - pattern-inside: warn!(...)
+          - pattern-inside: error!(...)
+          - pattern-inside: event!(...)
+          - pattern-inside: tracing::trace!(...)
+          - pattern-inside: tracing::debug!(...)
+          - pattern-inside: tracing::info!(...)
+          - pattern-inside: tracing::warn!(...)
+          - pattern-inside: tracing::error!(...)
+          - pattern-inside: tracing::event!(...)
+      - pattern-regex: '(?<!url_for_log\(&)(?<!url_for_log\()\b(?!url_for_log\b)[a-z_]*url[a-z_]*\b(?!\s*=\s*[%?]?\s*url_for_log\()'
+
+  - id: regex-unicode-digit
+    languages: [rust]
+    severity: ERROR
+    message: "Rust `regex` `\\d` matches non-ASCII digits; write `[0-9]` or `(?-u:\\d)` (RUST-PITFALLS 19)."
+    patterns:
+      - pattern-either:
+          - pattern: Regex::new($PAT)
+          - pattern: $M::Regex::new($PAT)
+          - pattern: RegexBuilder::new($PAT)
+          - pattern: $M::RegexBuilder::new($PAT)
+          - pattern: RegexSet::new($PAT)
+          - pattern: $M::RegexSet::new($PAT)
+      - metavariable-regex:
+          metavariable: $PAT
+          regex: '.*(?<!\(\?-u:)\\d'
+
+  - id: tokio-test-start-paused
+    languages: [rust]
+    severity: ERROR
+    message: "Async tests use `#[tokio::test(start_paused = true)]` for deterministic time (RUST-PITFALLS 6)."
+    pattern: |
+      #[tokio::test]
+      async fn $F(...) { ... }

@@ -15,7 +15,7 @@ flowchart LR
 ## 0. Version skew
 
 | Package | Latest | Used by commit-analyzer / release-notes-generator |
-|---|---|---|
+| --- | --- | --- |
 | conventional-commits-parser | 7.1.2 | `^6.0.0` |
 | conventional-changelog-writer | 9.2.1 (no Handlebars) | `^8.0.0` (Handlebars) |
 | conventional-changelog-angular | 9.4.0 (render functions) | `^8.0.0` |
@@ -33,7 +33,7 @@ Commit message → `{type, scope, subject, merge, header, body, footer, notes[],
 ### Default options (`src/options.ts`)
 
 | Option | Default |
-|---|---|
+| --- | --- |
 | `headerPattern` | `^(\w*)(?:\(([\w$@.\-*/ ]*)\))?: (.*)$` |
 | `headerCorrespondence` | `[type, scope, subject]` (named groups win if present) |
 | `breakingHeaderPattern` | unset (presets set it) |
@@ -50,7 +50,7 @@ Commit message → `{type, scope, subject, merge, header, body, footer, notes[],
 ### Derived regexes (`src/regex.ts`), `K` = escaped keywords joined by `|`
 
 | Name | Regex | Flags |
-|---|---|---|
+| --- | --- | --- |
 | notes | `^(?:\*\s+)?(K):\s*(.*)` | i |
 | referenceParts | `(?:.*?)??\s*([\w-\.\/]*?)??(PREFIXES)([\w-]+)(?=\s\|$\|[,;.)\]])` | gi (g if case-sensitive) |
 | references | `(ACTIONS)(?:\s+(.*?))(?=(?:ACTIONS)\|$)`; fallback `()(.+)` | gi |
@@ -82,15 +82,16 @@ stateDiagram-v2
     NoteS --> Footer: footer-token line (footer only, not note text), or a meta line
 ```
 
-5. If no notes and `breakingHeaderPattern` matches the header → note `BREAKING CHANGE: <group 3>`.
-6. Mentions and revert are scanned over the **whole raw input**.
-7. Cleanup: trim newlines of body/footer/notes; dedupe references by `lower(action + raw)`.
+1. If no notes and `breakingHeaderPattern` matches the header → note `BREAKING CHANGE: <group 3>`.
+2. Mentions and revert are scanned over the **whole raw input**.
+3. Cleanup: trim newlines of body/footer/notes; dedupe references by `lower(action + raw)`.
 
 Reference parse: per action-sentence, skip if it contains a URL; `repository` is split on the first `/` into `owner/repository`.
 
 Test suite: `CommitParser.spec.ts`, `regex.spec.ts`.
 
 Known bugs:
+
 - `#` in body → false `closes` reference ([#415](https://github.com/conventional-changelog/conventional-changelog/issues/415)).
 - Reference matching confused without a reference part ([#925](https://github.com/conventional-changelog/conventional-changelog/issues/925)).
 - Types are not case-sensitive ([#828](https://github.com/conventional-changelog/conventional-changelog/issues/828)).
@@ -106,7 +107,7 @@ Known bug: a short hash in a revert message never equals the full `hash`, so the
 Commits stream → changelog text blocks.
 
 | Option | Default | Note |
-|---|---|---|
+| --- | --- | --- |
 | `transform(commit, ctx, opts)` | hash → 7 chars, header → 100 chars, `committerDate` → `YYYY-MM-DD` | commit is a read-only Proxy; returns a patch, falsy = drop; result keeps `raw` |
 | `groupBy` | `type` | groups keyed by `commit[groupBy] \|\| ''`, insertion order |
 | `commitGroupsSort` / `commitsSort` | – / `header` | string, string[] (concatenated keys), or comparator; `localeCompare` |
@@ -123,7 +124,7 @@ Known bugs: ignores the most recent tag ([#1337](https://github.com/conventional
 ## 4. Presets
 
 | | angular 9.4.0 | conventionalcommits 10.4.0 |
-|---|---|---|
+| --- | --- | --- |
 | headerPattern | `^(\w*)(?:\((.*)\))?: (.*)$` (**no `!`**) | `^(\w*)(?:\((.*)\))?!?: (.*)$` |
 | breakingHeaderPattern | – | `^(\w*)(?:\((.*)\))?!: (.*)$` |
 | noteKeywords | `BREAKING CHANGE` | `BREAKING CHANGE`, `BREAKING-CHANGE` |
@@ -137,7 +138,7 @@ Known bugs: ignores the most recent tag ([#1337](https://github.com/conventional
 **conventionalcommits** `DEFAULT_COMMIT_TYPES` (`effect`: `bump` | `changelog` | `hidden`, default `bump`; replaced `hidden: true` in 10.0):
 
 | type | section | effect |
-|---|---|---|
+| --- | --- | --- |
 | feat, feature | Features | bump |
 | fix | Bug Fixes | bump |
 | perf | Performance Improvements | bump |
@@ -150,6 +151,7 @@ Known bugs: ignores the most recent tag ([#1337](https://github.com/conventional
 - Templates: `## [version](compare) "title" (date)` (`###`/small for a patch in angular), `### Section` + `* **scope:** subject ([hash](url)), closes #1`, then note groups.
 
 **whatBump** (`conventional-recommended-bump`; semantic-release does not use it, commit-analyzer has its own `releaseRules`):
+
 - angular: breaking note → major (0); `feat` → minor (1); else patch (2) **always** (never null).
 - conventionalcommits: only `bump`-effect types count; none → `null`; `preMajor` shifts the level by +1.
 
@@ -158,7 +160,7 @@ Known bugs: ignores the most recent tag ([#1337](https://github.com/conventional
 Detects CI and normalizes env into `{isCi, name, service, commit, tag, build, buildUrl, job, jobUrl, branch, pr, isPr, prBranch, slug, root}`. The first `detect()` match wins (object key order). Fallback: `{isCi: Boolean(CI), commit: git rev-parse HEAD, branch}`.
 
 | Service | Detect var | Service | Detect var |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | appveyor | `APPVEYOR` | jenkins | `JENKINS_URL` |
 | azurePipelines | `BUILD_BUILDURI` | netlify | `NETLIFY` |
 | bamboo | `bamboo_agentId` | puppet | `DISTELLI_APPNAME` |
@@ -189,7 +191,7 @@ Known bugs: wrong behaviour on GitHub Actions ([#96](https://github.com/semantic
 `prepare` commits release assets and pushes. Its own README recommends against committing during release.
 
 | Option | Default |
-|---|---|
+| --- | --- |
 | `assets` | `["CHANGELOG.md","package.json","package-lock.json","npm-shrinkwrap.json"]`; `false` disables; items: glob, glob[] (one group), or `{path}` |
 | `message` | `chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}` (lodash template, ctx `{branch: branch.name, lastRelease, nextRelease}`) |
 
@@ -207,6 +209,7 @@ flowchart TD
 ```
 
 Known bugs:
+
 - Push does not use `GH_TOKEN` ([#196](https://github.com/semantic-release/git/issues/196)).
 - `assets: false` errors ([#280](https://github.com/semantic-release/git/issues/280)).
 - package.json not pushed ([#321](https://github.com/semantic-release/git/issues/321)).
@@ -218,7 +221,7 @@ Known bugs:
 `prepare` prepends `nextRelease.notes` to a file.
 
 | Option | Default |
-|---|---|
+| --- | --- |
 | `changelogFile` | `CHANGELOG.md` (non-empty string, **not** templated) |
 | `changelogTitle` | unset |
 
@@ -231,14 +234,14 @@ Known bug: no dedup, a retried release prepends twice. File name is not templata
 Shell command per lifecycle step.
 
 | Option | Meaning |
-|---|---|
+| --- | --- |
 | `verifyConditionsCmd`, `analyzeCommitsCmd`, `verifyReleaseCmd`, `generateNotesCmd`, `prepareCmd`, `publishCmd`, `addChannelCmd`, `successCmd`, `failCmd` | step command (lodash template, ctx `{config, ...context}` minus `cwd/env/stdout/stderr/logger`) |
 | `cmd` | fallback for every step |
 | `shell` | `true` (default) or shell path |
 | `execCwd` | relative to `cwd` |
 
 | Step | stdout contract |
-|---|---|
+| --- | --- |
 | verifyConditions / verifyRelease | non-zero exit → `SemanticReleaseError(EVERIFYCONDITIONS/EVERIFYRELEASE)` |
 | analyzeCommits | release type, or empty (= no release) |
 | generateNotes | notes text |
@@ -248,6 +251,7 @@ Shell command per lifecycle step.
 stdout/stderr are piped live to the context streams; the result stdout is `.trim()`ed.
 
 Known bugs:
+
 - `error.stdout.trim.length > 0` checks the function's arity (0), so stdout is never used as the error message (always `name: message`).
 - Commands are interpolated into a shell string: injection risk from notes/branch names.
 - One command per step only ([#345](https://github.com/semantic-release/exec/issues/345)).
@@ -260,7 +264,7 @@ Known bugs:
 ## 10. lodash `template` usage
 
 | Where | Call | Variables |
-|---|---|---|
+| --- | --- | --- |
 | core `tagFormat` → tag | `template(fmt, {evaluate:false, escape:false})({version})` | `version` |
 | core tag regex | render with `version=" "`, escape, replace `" "` → `(.+)` | |
 | core verify | render `0.0.0` → `git check-ref-format refs/tags/<t>`; exactly one `" "` in the render with `version=" "` | |

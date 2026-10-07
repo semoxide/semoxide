@@ -3,10 +3,11 @@
 > Adapted from [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) by the Conventional Commits contributors, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Condensed and modified; not endorsed by the original authors.
 
 Sources:
-- https://www.conventionalcommits.org/en/v1.0.0/#specification (rules 1–16, FAQ, examples)
-- https://git-scm.com/docs/git-interpret-trailers (trailer convention referenced by rule 8)
-- https://crates.io/crates/git-conventional, https://github.com/crate-ci/git-conventional
-- https://crates.io/crates/conventional_commit_parser, https://github.com/oknozor/conventional_commits_parser_rs
+
+- <https://www.conventionalcommits.org/en/v1.0.0/#specification> (rules 1–16, FAQ, examples)
+- <https://git-scm.com/docs/git-interpret-trailers> (trailer convention referenced by rule 8)
+- <https://crates.io/crates/git-conventional>, <https://github.com/crate-ci/git-conventional>
+- <https://crates.io/crates/conventional_commit_parser>, <https://github.com/oknozor/conventional_commits_parser_rs>
 
 Keywords MUST/MAY per RFC 2119. "R#" = spec rule number.
 
@@ -14,7 +15,7 @@ Keywords MUST/MAY per RFC 2119. "R#" = spec rule number.
 
 The spec has no formal grammar. ABNF-ish restatement; `NL` = `\n` (normalize `\r\n` first).
 
-```
+```text
 message     = header [ NL NL body ] [ NL NL footers ]        ; R6, R8: exactly one blank line between sections (min)
 header      = type [ "(" scope ")" ] [ "!" ] ":" SP description ; R1, R4, R5, R13
 type        = 1*( any char except WSP / "(" / ")" / ":" / "!" / NL )   ; R1 "a noun"; R14 any type allowed
@@ -29,7 +30,7 @@ value       = text, may span lines; ends where the next line matches `token sep`
 ```
 
 | R# | Element | Rule (condensed) |
-|---|---|---|
+| --- | --- | --- |
 | 1 | header | `type` + optional `(scope)` + optional `!` + REQUIRED `": "` |
 | 2 | `feat` | new feature |
 | 3 | `fix` | bug fix |
@@ -50,7 +51,7 @@ value       = text, may span lines; ends where the next line matches `token sep`
 ### Git trailer convention vs. CC footers
 
 | Aspect | git trailers | CC footers |
-|---|---|---|
+| --- | --- | --- |
 | Location | last paragraph only | "one blank line after the body" (effectively last block) |
 | Separator | `:` (configurable `trailer.separators`) | `": "` or `" #"` (`Closes #123`) |
 | Multi-line value | continuation lines start with whitespace | any following line not matching `token sep` |
@@ -61,14 +62,14 @@ value       = text, may span lines; ends where the next line matches `token sep`
 ## 2. Ambiguities and edge cases
 
 | Case | Spec says |
-|---|---|
+| --- | --- |
 | Body paragraph that looks like a footer (`Note: see below` mid-body) | silent |
 | Line inside footer value matching `token sep` (e.g. `See: …` inside `BREAKING CHANGE:` text) | R10: terminates value |
 | Blank lines inside footer value | R10 allows newlines |
 | `": "` vs `":"` without space in footer | R8 requires `": "` |
 | Header separator `feat:x`, `feat :x`, `feat(a) : x` | R1/R5 |
 | Empty scope `feat():`, nested `feat((a)):`, multi-scope `feat(a,b):` | silent |
-| Empty description `feat: ` | implied required |
+| Empty description `feat:` | implied required |
 | No blank line between header and body | R6 MUST |
 | Case: `FEAT:`, `Feat(API):` | R15 case-insensitive; FAQ "any casing" |
 | `breaking change:` / `Breaking Change:` | R12/R15: MUST be uppercase |

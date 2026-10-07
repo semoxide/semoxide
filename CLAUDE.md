@@ -2,7 +2,7 @@
 
 A Rust release tool inspired by semantic-release. Current phase: **planning done; M0 repo foundation, then M1 walking skeleton** ([PLANNING](docs/PLANNING.md)).
 
-# IMPORTANT
+## IMPORTANT
 
 - While making architecture decisions and any new functionality, including just starting a documentation do not assume or go into generic path - ask user.
 - Keep in mind that we need to "collapse"/"codnence" the docs after the we complete first "planning" huge step (before we write the code) so it doesn't bloat: we clear, compact, combine and remove things that were needed during planning but not needed as a documentation itself. (For example: decisions goes into hard specification in the correct space.)
@@ -40,12 +40,12 @@ Rules: [TESTING](docs/TESTING.md), [CODE-ARCHITECTURE §7](docs/CODE-ARCHITECTUR
 
 - [rustup](https://rust-lang.github.io/rustup/) toolchain · [cargo](https://doc.rust-lang.org/cargo/) build · [rustfmt](https://rust-lang.github.io/rustfmt/) format · [clippy](https://doc.rust-lang.org/clippy/) lints · [rustdoc](https://doc.rust-lang.org/rustdoc/) docs · [rust-analyzer](https://rust-analyzer.github.io/) editor
 - Tests: [cargo-nextest](https://nexte.st/) runner · [insta](https://insta.rs/) snapshots · [assert_cmd](https://docs.rs/assert_cmd) CLI · [proptest](https://proptest-rs.github.io/proptest/) properties · [cargo-fuzz](https://rust-fuzz.github.io/book/) fuzzing · [criterion](https://docs.rs/criterion) benchmarks · [miri](https://github.com/rust-lang/miri) UB · [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) coverage · [cargo-mutants](https://mutants.rs/) mutation
-- Quality: [cargo-hack](https://github.com/taiki-e/cargo-hack) features/MSRV · [cargo-deny](https://embarkstudios.github.io/cargo-deny/) deps policy · [cargo-shear](https://github.com/Boshen/cargo-shear) unused deps · [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks) API breakage · [typos](https://github.com/crate-ci/typos) spelling · [zizmor](https://docs.zizmor.sh/) Actions security · [qlty](https://docs.qlty.sh/) checks + git hooks
+- Quality: [cargo-hack](https://github.com/taiki-e/cargo-hack) features/MSRV · [cargo-deny](https://embarkstudios.github.io/cargo-deny/) deps policy · [cargo-shear](https://github.com/Boshen/cargo-shear) unused deps · [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks) API breakage · [typos](https://github.com/crate-ci/typos) spelling · [zizmor](https://docs.zizmor.sh/) Actions security · [qlty](https://docs.qlty.sh/) checks · [lefthook](https://lefthook.dev/) git hooks
 - Release: [dist](https://axodotdev.github.io/cargo-dist/) binaries · [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) installs
 
 ## Index
 
-### **IMPORTANT**: every agent or subagent MUST read what's required for the task! In the plan mode we MUST READ as much as needed even more so.
+### **IMPORTANT**: every agent or subagent MUST read what's required for the task! In the plan mode we MUST READ as much as needed even more so
 
 - [Requirements](docs/REQUIREMENTS.md): secondary requirements
 - [Architecture](docs/ARCHITECTURE.md): system, repos, plugins, git, failure and rollback, monorepo

@@ -1,0 +1,28 @@
+// Run the hook tools from Zed (task palette).
+[
+  {
+    "label": "qlty fmt: current file",
+    "command": "qlty",
+    "args": ["fmt", "$ZED_FILE"]
+  },
+  {
+    "label": "qlty check: current file",
+    "command": "qlty",
+    "args": ["check", "$ZED_FILE"]
+  },
+  {
+    "label": "qlty check: all",
+    "command": "qlty",
+    "args": ["check", "--all"]
+  },
+  {
+    "label": "typos: current file",
+    "command": "typos",
+    "args": ["$ZED_FILE"]
+  },
+  {
+    "label": "nextest: workspace",
+    "command": "cargo",
+    "args": ["nextest", "run", "--workspace"]
+  }
+]
