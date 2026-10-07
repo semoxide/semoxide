@@ -10,7 +10,7 @@ pub const ALL: &[ErrorCode] = &[];
 pub fn all() -> Vec<ErrorCode> {
     [
         semoxide_schema::codes::ALL,
-        semoxide_engine::codes::ALL,
+        semoxide_version_engine::codes::ALL,
         semoxide_git::codes::ALL,
         ALL,
     ]

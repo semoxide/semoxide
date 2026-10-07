@@ -10,7 +10,7 @@ A flat `crates/` workspace, split along **purity and heavy dependencies**. Insid
 flowchart TD
     cli["semoxide-cli (bin: clap, miette, tracing-subscriber)"] --> facade["semoxide (façade lib: builder, run, queries, RunReport)"]
     facade --> runtime["semoxide-runtime (orchestrator, config loading, CI context, plugin host integration, observability)"]
-    runtime --> engine["semoxide-engine (pure: version engine, branch model, domain types; no I/O)"]
+    runtime --> engine["semoxide-version-engine (pure: version engine, branch model, domain types; no I/O)"]
     runtime --> schema["semoxide-schema (config types + JSON Schema; serde/schemars only)"]
     runtime --> git["semoxide-git (git2 + russh / system-ssh transports, guards, credentials)"]
     runtime --> host["semoxide-plugin-host (protocol repo)"]
@@ -23,14 +23,14 @@ flowchart TD
 | --- | --- | --- | --- |
 | `semoxide-error` | `ErrorInfo` trait and error-code type (§4); bottom of the graph | none | yes, internal (§5) |
 | `semoxide-schema` | `semoxide.toml` types, JSON Schema generation | none (serde, schemars) | yes, internal |
-| `semoxide-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal |
+| `semoxide-version-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal |
 | `semoxide-git` | git2, SSH transports, push guards, credential rules ([ARCHITECTURE](ARCHITECTURE.md)) | git2, russh | yes, internal |
 | `semoxide-runtime` | orchestrator, config loading, CI context, plugin host integration, observability | tokio, tonic (via `semoxide-plugin-host`) | yes, internal |
 | `semoxide` | façade: the public library API | – | yes |
 | `semoxide-cli` | the binary | clap, miette | yes (binary) |
 | `semoxide-test-support` | fixtures, git-repo DSL, builders ([TESTING](TESTING.md)) | – | no |
 
-The engine and schema compile and test without git2, tonic, russh or tokio; miri can run them.
+The version engine and schema compile and test without git2, tonic, russh or tokio; miri can run them.
 
 Key libraries for domain logic:
 
@@ -49,8 +49,8 @@ Key libraries for domain logic:
 | --- | --- | --- |
 | `semoxide-error` | nothing | any dependency |
 | `semoxide-schema` | `error`, serde, schemars | anything with I/O |
-| `semoxide-engine` | `schema` | any I/O: `std::fs`, `std::net`, `std::process`, `std::env`, git2, tokio, printing |
-| `semoxide-git` | `engine` types, git2, russh | tokio outside its SSH bridge; printing |
+| `semoxide-version-engine` | `schema` | any I/O: `std::fs`, `std::net`, `std::process`, `std::env`, git2, tokio, printing |
+| `semoxide-git` | `version-engine` types, git2, russh | tokio outside its SSH bridge; printing |
 | `semoxide-runtime` | all above, `semoxide-plugin-host` | `std::env::var` (env snapshot only, [OBSERVABILITY](OBSERVABILITY.md)); printing |
 | `semoxide` | `runtime` | anything beyond re-exports and thin glue |
 | `semoxide-cli` | the façade only | inner crates directly |
@@ -61,11 +61,11 @@ Enforced in CI by:
 - one root `clippy.toml` with `disallowed-methods` (env reads, process spawning, stdout/stderr handles, `temp_dir`, TLS "danger" methods) and `max-fn-params-bools = 0`, each ban with a reason; allowed sites carry `#[expect(clippy::disallowed_methods, reason = …)]`
 - `semoxide-test-support::source_rules`, run by `crates/semoxide/tests/source_rules.rs`: every crate root except semoxide-git has `#![forbid(unsafe_code)]`, no inline test modules, no `pub` tuple fields. Like the error-code registry scan, it is a plain-text scan in the style of the Rust compiler's `tidy` (lines starting with `//` skipped); its known limits are documented in the module
 - `clippy::exhaustive_enums` / `exhaustive_structs` in the façade crate (P14)
-- cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `engine`/`schema`)
+- cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `version-engine`/`schema`)
 
 ## 3. Sync vs async
 
-- **Sync:** orchestrator, config, CI context, engine, git (git2). Async lives only in the plugin host and the SSH transport bridge in `semoxide-git`.
+- **Sync:** orchestrator, config, CI context, version engine, git (git2). Async lives only in the plugin host and the SSH transport bridge in `semoxide-git`.
 - **Plugin host:** owns a private tokio runtime on its own thread and exposes **blocking** calls to the orchestrator; this works inside an embedder's tokio runtime too ([PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-russh)).
 - **Façade:** a blocking `run()` and an **async** `run()`. The async one runs the sync core on a dedicated thread and awaits the result, independent of the caller's runtime (about one OS thread per concurrent release). Cancellation: §5.
 - **`Plugin` trait is sync.** The SDK's `serve()` runs the async gRPC server and calls plugin methods on a blocking thread; network plugins use blocking HTTP clients. An `AsyncPlugin` SDK adapter may be added later (additive).
@@ -133,7 +133,7 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 | I need to add… | Goes in | Rules |
 | --- | --- | --- |
 | a config option | type in `semoxide-schema`; loading/merge in `semoxide-runtime` (config module) | P4, P5; schema regenerated; documented in [CONFIG](CONFIG.md) |
-| version / bump / branch / channel logic | `semoxide-engine` | pure (P1), newtypes (P8), strict TDD (A2) |
+| version / bump / branch / channel logic | `semoxide-version-engine` | pure (P1), newtypes (P8), strict TDD (A2) |
 | a git operation | `semoxide-git` | guards and credential rules ([ARCHITECTURE](ARCHITECTURE.md)); characterization test against a real repo |
 | CI vendor detection | `semoxide-runtime` (CI module) | env snapshot only, never `std::env` |
 | lifecycle / step behaviour | `semoxide-runtime` (orchestrator) | A1 failure table first; rollback and idempotency |
@@ -152,7 +152,7 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 
 | # | Pattern | Where |
 | --- | --- | --- |
-| P1 | Pure core, I/O at the edges | `semoxide-engine` takes and returns data |
+| P1 | Pure core, I/O at the edges | `semoxide-version-engine` takes and returns data |
 | P2 | Traits only at real seams; concrete types until a 2nd implementation exists | `Plugin` (in-process / process), SSH transport (russh / system `ssh`) |
 | P3 | Façade crate | `semoxide` re-exports the stable API |
 | P4 | Schema-only crate | `semoxide-schema` |
@@ -160,7 +160,7 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 | P6 | Command file: args → validated options → library call | each command is one small file in `semoxide-cli` |
 | P7 | Builder | `Semoxide::builder()` |
 | P8 | Newtypes | `Tag`, `Version`, `PluginName`, `Channel`, … |
-| P9 | Parse, don't validate | raw input → types that can only be valid; the engine accepts only those |
+| P9 | Parse, don't validate | raw input → types that can only be valid; the version engine accepts only those |
 | P10 | Typestate, only where a wrong order is costly | `Plan → Approved → Executed` |
 | P11 | RAII guards | plugin processes (kill on drop), temp files, the release lock (`File::lock`) |
 | P12 | Typed errors + `ErrorInfo`, rendering at the edge | §4 |
