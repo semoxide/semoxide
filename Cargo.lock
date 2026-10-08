@@ -1134,7 +1134,11 @@ dependencies = [
 name = "semoxide-schema"
 version = "0.0.0"
 dependencies = [
+ "rstest",
  "semoxide-error",
+ "semver",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

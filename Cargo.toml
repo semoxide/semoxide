@@ -26,6 +26,7 @@ criterion = "=0.8.2"
 assert_cmd = "=2.2.2"
 proptest = "=1.11.0"
 rstest = "=0.27.0"
+semver = "=1.0.28"
 tempfile = "=3.27.0"
 miette = { version = "=7.6.0", features = ["fancy"] }
 serde = { version = "=1.0.229", features = ["derive"] }

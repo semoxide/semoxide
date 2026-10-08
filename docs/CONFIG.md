@@ -102,11 +102,18 @@ rules = [
 | --- | --- | --- |
 | Release | `"main"` or `{ name = "main", channel = … }` | `name`: branch name or `globset` glob (no extended globs), expanded per matching remote branch |
 | Prerelease | `{ name = "beta", prerelease = true }` | `prerelease`: `true` (identifier = branch name) or a string (`"rc"`) |
-| Maintenance | `{ maintenance = "N.x" }`, `{ maintenance = "release/N.x" }`, `{ maintenance = "legacy", range = "1.x" }` | built-in matcher: `N` is a number and the pattern ends in `N.x` or `N.N.x`; the range comes from the name (`1.x` = `>=1.0.0 <2.0.0`), or from `range` for a name without it |
+| Maintenance | `{ maintenance = "N.x" }`, `{ maintenance = "release/N.x" }`, `{ maintenance = "legacy", range = "1.x" }` | built-in matcher: the pattern ends in `N.x`, `N.x.x` or `N.N.x` (`N` = a number); each matches branch names of all three shapes (`1.x`, `1.x.x`, `1.2.x`, `x` in any case, as upstream), and the range comes from the matched name (`1.x` = `>=1.0.0 <2.0.0`, `1.2.x` = `>=1.2.0 <1.3.0`). A name without that ending needs `range` (`1.x`, `1.x.x` or `1.2.x`) |
 
-- `channel` (any kind): unset = the default channel for the first release branch, the branch name for the others; `false` = the default channel; a string is used as given.
+- `channel` (any kind): unset = the default channel for the first release branch, the branch name for the others; `false` = the default channel; a non-empty string is used as given.
+- `prerelease = true` uses the branch name as the identifier; with a literal name it must be a valid SemVer identifier (`1.0.0-<id>.1` parses). Globs and `{name}` templates are checked after expansion against the actual branch names.
 - `channel` and `prerelease` strings accept one placeholder, `{name}`, the actual branch name a glob matched (`{ name = "release/*", prerelease = "rc", channel = "{name}" }`). No other expressions.
-- Rejected with a coded error: unknown keys in an entry, `name` with `maintenance`, `prerelease` on a maintenance entry, a maintenance pattern without `N.x`/`N.N.x` and no `range`, a prerelease identifier invalid in SemVer.
+- Rejected when the config loads (`config::invalid_value` unless noted):
+  - unknown keys in an entry (`config::unknown_key`); `name` with `maintenance`, `prerelease` on a maintenance entry, `range` with a pattern that already ends in `N.x` (`config::conflicting_keys`, pointing at the extra key: `maintenance` next to `name`, `prerelease` or `range` on a maintenance entry);
+  - an entry without `name`/`maintenance`, or neither a string nor a table; an empty `rules`;
+  - a maintenance pattern without the `N.x` ending and no `range`; an invalid `range`;
+  - upstream-style maintenance entries, which would otherwise silently become release branches: a name shaped like a range (`"1.x"`, `{ name = "1.2.x" }`) or `range` on a `name` entry; the message points to `{ maintenance = … }`, and `migrate` converts them;
+  - `prerelease = false` (a release branch simply has no `prerelease` key), an invalid literal prerelease identifier, `channel = true`, `channel = ""`, any placeholder other than `{name}`.
+- Checks across rules (1 to 3 release branches, unique prerelease identifiers and ranges, no duplicate names) run after glob expansion, when the remote branches are known, not when the config loads.
 - Version ranges per branch are computed by semoxide; versions compare by SemVer precedence (build metadata ignored, [specs/SEMVER-SPEC.md](specs/SEMVER-SPEC.md)).
 - Monorepo release units (`[packages.<name>]`): [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -165,7 +172,7 @@ rules = [
 - `version = "1.4.2"`: pinned version; `semoxide sync` downloads it and records its checksum in the lock file.
 - `timeouts.<step> = "1h"`: per-step deadline override.
 - `show_output = true`: show captured plugin output live ([OBSERVABILITY.md](OBSERVABILITY.md)).
-- Any other keys are the plugin's own options, validated against the schema the plugin reports.
+- Any other keys are the plugin's own options, validated against the schema the plugin reports. They travel as JSON values, so a TOML date-time, `nan` or `inf` in them is rejected (`config::invalid_value`); quote dates as strings.
 - `steps.plugins = [...]`: the enabled plugins in run order (upstream's `plugins` array). An option table for a plugin not in the list is rejected with a coded error.
 - `steps.<step>.order = [...]` overrides plugin order for one step.
 - `steps.success.errors = "warn"` (default) or `"fail"`: what a failing `success` step does to an already published release ([ARCHITECTURE.md](ARCHITECTURE.md#7-failure-and-rollback)).
