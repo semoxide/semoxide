@@ -1,11 +1,11 @@
 //! Rust rules checked on the tokens of every crate source (CLAUDE.md Rust rules 4 and 6,
-//! CODE-ARCHITECTURE §8).
+//! TESTING: layout).
 
 use std::path::Path;
 
 use semoxide_test_support::source_rules::{
-    crate_sources, extra_test_binaries, forbids_unsafe_code, inline_test_modules, module_files,
-    pub_tuple_fields, unwired_files,
+    crate_sources, extra_test_binaries, forbids_unsafe_code, module_files,
+    out_of_line_test_modules, pub_tuple_fields, unwired_files,
 };
 
 #[test]
@@ -23,9 +23,9 @@ fn crate_sources_follow_the_rules() {
         if is_root && !is_git_crate && !forbids_unsafe_code(text) {
             problems.push(format!("{shown}: missing #![forbid(unsafe_code)]"));
         }
-        for name in inline_test_modules(text) {
+        for name in out_of_line_test_modules(text) {
             problems.push(format!(
-                "{shown}: inline test module `{name}`; use `mod {name};` and a sibling file"
+                "{shown}: test module `{name}` is out of line; put unit tests inline in `mod tests {{ … }}`"
             ));
         }
         for name in pub_tuple_fields(text) {

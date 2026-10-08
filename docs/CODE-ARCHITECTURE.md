@@ -59,7 +59,7 @@ Enforced in CI by:
 
 - the Cargo dependencies themselves
 - one root `clippy.toml` with `disallowed-methods` (env reads, process spawning, stdout/stderr handles, `temp_dir`, TLS "danger" methods) and `max-fn-params-bools = 0`, each ban with a reason; allowed sites carry `#[expect(clippy::disallowed_methods, reason = …)]`
-- `semoxide-test-support::source_rules`, run by `crates/semoxide/tests/source_rules.rs`: every crate root except semoxide-git has `#![forbid(unsafe_code)]`, no inline test modules, no `pub` tuple fields. Like the error-code registry scan, it is a plain-text scan in the style of the Rust compiler's `tidy` (lines starting with `//` skipped); its known limits are documented in the module
+- `semoxide-test-support::source_rules`, run by `crates/semoxide/tests/it/source_rules.rs`: every crate root except semoxide-git has `#![forbid(unsafe_code)]`, no out-of-line test modules (`#[cfg(test)] mod tests;`), no `pub` tuple fields. Like the error-code registry scan, it is a plain-text scan in the style of the Rust compiler's `tidy` (lines starting with `//` skipped); its known limits are documented in the module
 - `clippy::exhaustive_enums` / `exhaustive_structs` in the façade crate (P14)
 - cargo-deny `bans` with `wrappers` (e.g. git2 only via `semoxide-git`, tokio never in `version-engine`/`schema`)
 
@@ -145,7 +145,7 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 | an error | its crate's enum + `ErrorInfo`; its code as a `const` in the crate's `codes.rs`, listed in `codes::ALL` | a page `docs/errors/<slug>.md`; the registry test (façade crate) fails on a missing page, an orphan page or a code missing from `ALL` ([OBSERVABILITY](OBSERVABILITY.md)) |
 | logging | `tracing` events in the library crates | the library never prints ([OBSERVABILITY](OBSERVABILITY.md)) |
 | test fixtures / helpers | `semoxide-test-support` | [TESTING](TESTING.md) |
-| a test | sibling `tests.rs` (unit) or `tests/` (integration) | no inline test blocks; A2 workflow; [TESTING](TESTING.md) |
+| a test | the module's `#[cfg(test)] mod tests { … }` (unit) or `tests/it/` (integration) | the test module is the last item; A2 workflow; [TESTING](TESTING.md) |
 | an external dependency | `[workspace.dependencies]` | cargo-deny allowed; §2 bans; dependency budget (§7) |
 
 ## 9. Patterns

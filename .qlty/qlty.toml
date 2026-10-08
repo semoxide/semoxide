@@ -6,7 +6,7 @@ config_version = "0"
 # Only build output is excluded, so every source file is checked.
 exclude_patterns = ["**/target/**"]
 
-# Our test layout: unit tests in `foo/tests.rs`, integration tests in `tests/`.
+# Test files: integration tests in `tests/`; unit tests are inline (`mod tests { … }`).
 test_patterns = ["**/tests.rs", "**/tests/**"]
 
 [smells]

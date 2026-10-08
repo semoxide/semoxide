@@ -365,3 +365,29 @@ pub(super) fn choice_name<T: Copy + PartialEq>(
         .find(|(_, known)| *known == variant)
         .map_or("", |(name, _)| name)
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::*;
+    use crate::config::test_support::{loaded, plugins};
+
+    #[rstest]
+    #[case::simple("git")]
+    #[case::dashed("commit-analyzer")]
+    #[case::digits("s3-upload2")]
+    fn valid_plugin_name(#[case] name: &str) {
+        let config = loaded(&format!("steps.plugins = [\"{name}\"]"));
+
+        assert_eq!(config.steps().plugins(), plugins(&[name]));
+    }
+
+    #[test]
+    fn plugin_name_as_written() {
+        let name: PluginName = "commit-analyzer".parse().unwrap();
+
+        assert_eq!(name.as_str(), "commit-analyzer");
+        assert_eq!(name.to_string(), "commit-analyzer");
+    }
+}

@@ -468,3 +468,293 @@ fn is_prerelease_id(id: &str) -> bool {
 fn is_glob(name: &str) -> bool {
     name.contains(['*', '?', '[', '{'])
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::ErrorCode;
+
+    use super::*;
+    use crate::codes::{CONFIG_CONFLICTING_KEYS, CONFIG_INVALID_VALUE, CONFIG_UNKNOWN_KEY};
+    use crate::config::Config;
+    use crate::config::test_support::{describe_rules, loaded, rejection};
+
+    #[test]
+    fn default_branch_rules_are_upstreams_set() {
+        let config = loaded("");
+
+        assert_eq!(
+            describe_rules(&config),
+            [
+                "maintenance N.x range=- channel=-",
+                "release master channel=-",
+                "release main channel=-",
+                "release next channel=-",
+                "release next-major channel=-",
+                "prerelease beta id=<branch> channel=-",
+                "prerelease alpha id=<branch> channel=-",
+            ]
+        );
+    }
+
+    #[test]
+    fn branch_rules_of_every_kind() {
+        let config = loaded(
+            r#"
+[branches]
+rules = [
+  { maintenance = "N.x" },
+  { maintenance = "release/N.N.x", channel = "{name}" },
+  { maintenance = "legacy", range = "1.x", channel = false },
+  "main",
+  { name = "next", channel = "beta" },
+  { name = "next-major", channel = false },
+  { name = "beta", prerelease = true },
+  { name = "release/*", prerelease = "rc", channel = "rc-{name}" },
+  { name = "preview/*", prerelease = "pre-{name}" },
+]
+"#,
+        );
+
+        assert_eq!(
+            describe_rules(&config),
+            [
+                "maintenance N.x range=- channel=-",
+                "maintenance release/N.N.x range=- channel='{name}'",
+                "maintenance legacy range=1.x channel=default",
+                "release main channel=-",
+                "release next channel='beta'",
+                "release next-major channel=default",
+                "prerelease beta id=<branch> channel=-",
+                "prerelease release/* id='rc' channel='rc-{name}'",
+                "prerelease preview/* id='pre-{name}' channel=-",
+            ]
+        );
+    }
+
+    #[rstest]
+    #[case::dot("rc.1")]
+    #[case::numeric("1")]
+    #[case::hyphen("pre-release")]
+    fn valid_prerelease_identifier(#[case] id: &str) {
+        let config = loaded(&format!(
+            "branches.rules = [{{ name = \"beta\", prerelease = \"{id}\" }}]"
+        ));
+
+        assert_eq!(
+            describe_rules(&config),
+            [format!("prerelease beta id='{id}' channel=-")]
+        );
+    }
+
+    #[test]
+    fn prerelease_true_on_a_glob_is_checked_after_expansion() {
+        let config = loaded(r#"branches.rules = [{ name = "preview/*", prerelease = true }]"#);
+
+        assert_eq!(
+            describe_rules(&config),
+            ["prerelease preview/* id=<branch> channel=-"]
+        );
+    }
+
+    #[rstest]
+    #[case::major("1.x", true)]
+    #[case::major_x_x("1.x.x", true)]
+    #[case::minor("1.2.x", true)]
+    #[case::upper_x("1.X", true)]
+    #[case::multi_digit("12.34.x", true)]
+    #[case::release_branch("main", false)]
+    #[case::full_version("1.2.3", false)]
+    #[case::no_number("x.x", false)]
+    #[case::prefixed("release/1.x", false)]
+    fn default_maintenance_rule_matches_range_shaped_names(
+        #[case] branch: &str,
+        #[case] matches: bool,
+    ) {
+        let config = loaded("");
+
+        let [BranchRule::Maintenance(rule), ..] = config.branches().rules() else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(rule.matches(branch), matches, "{branch}");
+    }
+
+    #[rstest]
+    #[case::prefixed("release/1.2.x", true)]
+    #[case::without_prefix("1.2.x", false)]
+    #[case::other_prefix("hotfix/1.2.x", false)]
+    fn prefixed_maintenance_pattern(#[case] branch: &str, #[case] matches: bool) {
+        let config = loaded(r#"branches.rules = [{ maintenance = "release/N.x" }]"#);
+
+        let [BranchRule::Maintenance(rule)] = config.branches().rules() else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(rule.matches(branch), matches, "{branch}");
+    }
+
+    #[rstest]
+    #[case::exact("legacy", true)]
+    #[case::other("legacy-2", false)]
+    #[case::range_shaped("1.x", false)]
+    fn named_maintenance_rule_matches_its_name_only(#[case] branch: &str, #[case] matches: bool) {
+        let config = loaded(r#"branches.rules = [{ maintenance = "legacy", range = "1.x" }]"#);
+
+        let [BranchRule::Maintenance(rule)] = config.branches().rules() else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(rule.matches(branch), matches, "{branch}");
+    }
+
+    #[rstest]
+    // branches: shape
+    #[case::branches_not_a_list(
+        r#"branches.rules = "main""#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules"
+    )]
+    #[case::no_branch_rules("branches.rules = []", CONFIG_INVALID_VALUE, "branches.rules")]
+    #[case::branches_unknown_key(
+        r#"branches.remote = "origin""#,
+        CONFIG_UNKNOWN_KEY,
+        "branches.remote"
+    )]
+    #[case::rule_unknown_key(
+        r#"branches.rules = [{ name = "main", colour = "red" }]"#,
+        CONFIG_UNKNOWN_KEY,
+        "branches.rules[0].colour"
+    )]
+    #[case::rule_without_name(
+        r#"branches.rules = [{ channel = "next" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0]"
+    )]
+    #[case::rule_not_a_string_or_table(
+        "branches.rules = [1]",
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0]"
+    )]
+    // branches: conflicting keys (the path names the extra key)
+    #[case::name_and_maintenance(
+        r#"branches.rules = [{ name = "beta", maintenance = "N.x" }]"#,
+        CONFIG_CONFLICTING_KEYS,
+        "branches.rules[0].maintenance"
+    )]
+    #[case::prerelease_on_maintenance(
+        r#"branches.rules = [{ maintenance = "N.x", prerelease = true }]"#,
+        CONFIG_CONFLICTING_KEYS,
+        "branches.rules[0].prerelease"
+    )]
+    #[case::range_with_range_pattern(
+        r#"branches.rules = [{ maintenance = "N.x", range = "1.x" }]"#,
+        CONFIG_CONFLICTING_KEYS,
+        "branches.rules[0].range"
+    )]
+    // branches: maintenance
+    #[case::maintenance_without_range(
+        r#"branches.rules = [{ maintenance = "legacy" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].maintenance"
+    )]
+    #[case::maintenance_pattern_not_at_end(
+        r#"branches.rules = [{ maintenance = "N.x/legacy" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].maintenance"
+    )]
+    #[case::range_full_version(
+        r#"branches.rules = [{ maintenance = "legacy", range = "1.0.0" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].range"
+    )]
+    #[case::range_semver_range(
+        r#"branches.rules = [{ maintenance = "legacy", range = ">=1 <2" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].range"
+    )]
+    // branches: upstream-style maintenance entries
+    #[case::range_shaped_string(
+        r#"branches.rules = ["1.x"]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0]"
+    )]
+    #[case::range_shaped_name(
+        r#"branches.rules = [{ name = "1.2.x" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].name"
+    )]
+    #[case::range_shaped_name_upper(
+        r#"branches.rules = [{ name = "2.X" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].name"
+    )]
+    #[case::range_on_name(
+        r#"branches.rules = [{ name = "legacy", range = "1.x" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].range"
+    )]
+    // branches: prerelease
+    #[case::prerelease_false(
+        r#"branches.rules = [{ name = "beta", prerelease = false }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease"
+    )]
+    #[case::prerelease_invalid_char(
+        r#"branches.rules = [{ name = "beta", prerelease = "rc!" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease"
+    )]
+    #[case::prerelease_empty(
+        r#"branches.rules = [{ name = "beta", prerelease = "" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease"
+    )]
+    #[case::prerelease_leading_zero(
+        r#"branches.rules = [{ name = "beta", prerelease = "01" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease"
+    )]
+    #[case::prerelease_true_on_invalid_name(
+        r#"branches.rules = [{ name = "feature/x", prerelease = true }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease"
+    )]
+    #[case::prerelease_unknown_placeholder(
+        r#"branches.rules = [{ name = "beta", prerelease = "{branch}" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease"
+    )]
+    // branches: channel
+    #[case::channel_true(
+        r#"branches.rules = ["main", { name = "next", channel = true }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[1].channel"
+    )]
+    #[case::channel_empty(
+        r#"branches.rules = [{ name = "next", channel = "" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].channel"
+    )]
+    #[case::channel_unknown_placeholder(
+        r#"branches.rules = [{ name = "next", channel = "{branch}" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].channel"
+    )]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+
+    #[test]
+    fn prerelease_false_says_to_drop_the_key() {
+        let table = r#"branches.rules = [{ name = "beta", prerelease = false }]"#
+            .parse::<toml::Table>()
+            .unwrap();
+
+        let error = Config::from_table(table);
+
+        assert!(error.is_err());
+        let message = error.unwrap_err().to_string();
+        assert!(
+            message.contains("a release branch has no `prerelease` key"),
+            "{message}"
+        );
+    }
+}

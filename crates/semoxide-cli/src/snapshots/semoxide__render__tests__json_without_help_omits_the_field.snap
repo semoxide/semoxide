@@ -1,6 +1,5 @@
 ---
-source: crates/semoxide-cli/src/render/tests.rs
-assertion_line: 97
+source: crates/semoxide-cli/src/render.rs
 expression: "serde_json::to_string_pretty(&json(&PushTimedOut)).unwrap()"
 ---
 {

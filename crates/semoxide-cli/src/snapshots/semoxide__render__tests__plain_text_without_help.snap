@@ -1,6 +1,5 @@
 ---
-source: crates/semoxide-cli/src/render/tests.rs
-assertion_line: 67
+source: crates/semoxide-cli/src/render.rs
 expression: "text(&PushTimedOut, TextStyle::Plain)"
 ---
 error[git::push_timed_out]: push of `v1.2.0` to `origin` timed out
