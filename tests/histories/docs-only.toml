@@ -1,0 +1,11 @@
+description = "only documentation changes after a release: no release"
+
+steps = [
+  { commit = "feat: first feature" },
+  { tag = "v1.0.0" },
+  { commit = "docs: usage" },
+  "push",
+]
+
+[expected]
+no_release = "no_relevant_commits"

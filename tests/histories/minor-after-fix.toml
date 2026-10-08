@@ -1,0 +1,13 @@
+description = "a feature after a fix on main is a minor release"
+
+steps = [
+  { commit = "feat: first feature" },
+  { tag = "v1.0.0" },
+  { commit = "fix: a bug" },
+  { commit = "feat: search" },
+  "push",
+]
+
+[expected]
+version = "1.1.0"
+release_type = "minor"

@@ -1,0 +1,15 @@
+description = "a breaking change on beta after 1.0.0 is the first 2.0.0 prerelease"
+
+steps = [
+  { commit = "feat: first feature" },
+  { tag = "v1.0.0" },
+  "push",
+  { branch = "beta" },
+  { commit = "feat!: drop the old API" },
+  "push",
+]
+
+[expected]
+version = "2.0.0-beta.1"
+release_type = "major"
+channel = "beta"
