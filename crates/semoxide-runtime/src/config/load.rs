@@ -6,12 +6,14 @@ use std::path::{Path, PathBuf};
 
 use semoxide_error::{ErrorCode, ErrorInfo};
 use semoxide_schema::config::{Config, ConfigError, MergeMode};
-use toml::{Table, Value};
+use toml::Table;
 
 use super::flag::{FlagError, parse_flag};
 use super::merge::{Layer, Merged, Source, merge};
 use crate::codes::{CONFIG_INVALID_TOML, CONFIG_UNREADABLE};
 
+#[cfg(test)]
+mod mutation_tests;
 #[cfg(test)]
 mod tests;
 
@@ -77,10 +79,9 @@ pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
         Some(path) => vec![Layer::new(Source::File(path.clone()), read(path)?)],
         None => Vec::new(),
     };
-    let mode = layers
-        .first()
-        .map_or(MergeMode::Deep, |layer| merge_mode(layer.table()));
-    let merged = merge(&Config::defaults_table(), &layers, &flags, mode);
+    // With a single user layer, shallow and deep give the same result; `config.merge` takes effect
+    // once `extends` adds a second one.
+    let merged = merge(&Config::defaults_table(), &layers, &flags, MergeMode::Deep);
     let config = Config::from_table(merged.table().clone()).map_err(LoadError::Config)?;
     Ok(Loaded {
         config,
@@ -88,21 +89,6 @@ pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
         file,
         ignored,
     })
-}
-
-/// The file's `config.merge` as written; anything but `"shallow"` merges deep, and validation
-/// reports an invalid value afterwards.
-fn merge_mode(table: &Table) -> MergeMode {
-    let merge = table
-        .get("config")
-        .and_then(Value::as_table)
-        .and_then(|config| config.get("merge"))
-        .and_then(Value::as_str);
-    if merge == Some("shallow") {
-        MergeMode::Shallow
-    } else {
-        MergeMode::Deep
-    }
 }
 
 fn read(path: &Path) -> Result<Table, LoadError> {
