@@ -18,6 +18,8 @@ use crate::codes::{
 
 mod branches;
 #[cfg(test)]
+mod defaults_tests;
+#[cfg(test)]
 mod message_tests;
 mod suggest;
 #[cfg(test)]
@@ -80,6 +82,17 @@ impl Config {
             plugins,
             secrets,
         })
+    }
+
+    /// The built-in defaults as the lowest config layer: [`Config::default`] as a table, without
+    /// `[config]` (set only by `semoxide.toml`) and `[plugins]` (per-plugin defaults depend on
+    /// `steps.plugins`, known only after merging).
+    #[must_use]
+    pub fn defaults_table() -> Table {
+        let mut table = Self::default().to_table();
+        table.remove("config");
+        table.remove("plugins");
+        table
     }
 
     /// The configuration as a TOML table that [`Config::from_table`] reads back unchanged.
@@ -157,6 +170,47 @@ impl Config {
     pub fn secrets(&self) -> &Secrets {
         &self.secrets
     }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let steps = Steps {
+            plugins: BUNDLED_PLUGINS.map(PluginName::bundled).to_vec(),
+            orders: BTreeMap::new(),
+            success_errors: SuccessErrors::Warn,
+        };
+        let plugins = steps
+            .plugins
+            .iter()
+            .map(|name| (name.clone(), PluginConfig::default()))
+            .collect();
+        Self {
+            layering: ConfigDomain {
+                merge: MergeMode::Deep,
+            },
+            commits: Commits {
+                preset: Preset::ConventionalCommits,
+            },
+            version: VersionDomain {
+                initial: default_initial_version(),
+                zero: ZeroLevels::DEFAULT,
+            },
+            branches: Branches::default_rules(),
+            tags: Tags {
+                format: TagFormat::default_format(),
+                metadata: None,
+            },
+            steps,
+            plugins,
+            secrets: Secrets {
+                mask_env: Vec::new(),
+            },
+        }
+    }
+}
+
+fn default_initial_version() -> Version {
+    Version::new(1, 0, 0)
 }
 
 /// `[config]`: how the configuration itself is assembled.
@@ -275,7 +329,7 @@ impl VersionDomain {
             .take("initial")
             .map(|(path, value)| parse_version(&path, &value))
             .transpose()?
-            .unwrap_or(Version::new(1, 0, 0));
+            .unwrap_or_else(default_initial_version);
         if !initial.build.is_empty() {
             return Err(ConfigError::invalid(
                 "version.initial",

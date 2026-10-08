@@ -3,5 +3,6 @@
 #![forbid(unsafe_code)]
 
 pub mod codes;
+pub mod config;
 
 pub use semoxide_error::{ErrorCode, ErrorInfo};

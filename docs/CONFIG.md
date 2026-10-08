@@ -62,10 +62,30 @@ flowchart LR
     D[built-in defaults] --> E["extends (in list order)"] --> F[semoxide.toml] --> C[CLI flags] --> R[validated config]
 ```
 
+- Built-in defaults are a real layer, generated from the defaults in code ([Defaults](#defaults)); it is always merged first and key by key.
 - CLI flags: `--set <key>=<value>` per key ([CLI.md](CLI.md)).
-- Merge: tables merge key by key; arrays and scalars from a later layer replace the earlier value whole (`branches.rules`, `steps.plugins`, `release_rules` behave like upstream). `explain` shows the layer each value came from.
-- `config.merge = "shallow"` (default `"deep"`): a domain from a later layer replaces the whole earlier domain, as upstream's top-level keys do. Only `semoxide.toml` can set `config.merge` and `config.extends`; both are ignored in `extends` sources. CLI flags always override single keys.
+- Merge: tables merge key by key; arrays and scalars from a later layer replace the earlier value whole (`branches.rules`, `steps.plugins`, `release_rules` behave like upstream). The merge records a source per key path (`default`, `file <path>`, `--set #n`); `explain` shows it, and errors point at it.
+- `config.merge = "shallow"` (default `"deep"`): between user layers (`extends` sources and the file), a domain from a later layer replaces the whole earlier domain, as upstream's top-level keys do. Defaults still fill every key the user layers leave unset, as upstream fills its defaults per key. Only `semoxide.toml` can set `config.merge` and `config.extends`; both are ignored in `extends` sources. CLI flags always override single keys.
 - There is no env layer: config is never read from env vars. The few env vars semoxide reads are listed in [CLI.md](CLI.md#environment-variables).
+
+### Defaults
+
+Keys not listed have no default (unset). A test keeps this table in sync with the code.
+
+| Key | Default |
+| --- | --- |
+| `config.merge` | `"deep"` |
+| `commits.preset` | `"conventionalcommits"` |
+| `version.initial` | `"1.0.0"` |
+| `version.zero.breaking` | `"minor"` |
+| `version.zero.feature` | `"patch"` |
+| `version.zero.fix` | `"patch"` |
+| `branches.rules` | upstream's set ([§3](#3-branches)) |
+| `tags.format` | `"v{version}"` |
+| `steps.plugins` | `["commit-analyzer", "release-notes"]` |
+| `steps.success.errors` | `"warn"` |
+| `secrets.mask_env` | `[]` |
+| `plugins.<name>.show_output` | `false` |
 
 ## 2. `config.extends`
 
