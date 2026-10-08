@@ -13,3 +13,11 @@ workspace = true
 [dependencies]
 semoxide-error.workspace = true
 semoxide-version-engine.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+semoxide-test-support.workspace = true
+
+[[bench]]
+name = "large_history"
+harness = false
