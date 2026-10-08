@@ -19,6 +19,9 @@ use crate::codes::{
 mod branches;
 #[cfg(test)]
 mod message_tests;
+mod suggest;
+#[cfg(test)]
+mod suggestion_tests;
 #[cfg(test)]
 mod tests;
 mod values;
@@ -868,5 +871,9 @@ impl std::error::Error for ConfigError {}
 impl ErrorInfo for ConfigError {
     fn code(&self) -> ErrorCode {
         self.code.clone()
+    }
+
+    fn help(&self) -> Option<String> {
+        Some(String::new())
     }
 }
