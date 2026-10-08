@@ -12,8 +12,7 @@ How semoxide is tested, from pure functions to real releases. Per-area test-firs
 
 Inside a crate:
 
-- No inline `#[cfg(test)] mod tests { … }` blocks with a body in source files.
-- Unit tests: sibling file, `foo.rs` → `foo/tests.rs`, declared with `#[cfg(test)] mod tests;`.
+- Unit tests: inline in one `#[cfg(test)] mod tests { … }`, the last item of the module they test ([Rust Book](https://doc.rust-lang.org/book/ch11-03-test-organization.html#unit-tests)). A workspace check fails on an out-of-line test module (`#[cfg(test)] mod tests;`).
 - Integration tests: one binary per crate, `tests/it/main.rs` declaring each file as a module ([why](https://matklad.github.io/2021/02/27/delete-cargo-integration-tests.html)).
 - A workspace check fails on a module file no `mod` declares (rustc silently skips it) in `src/` or `tests/it/`, and on any other test binary (`tests/*.rs`, `tests/*/main.rs`).
 - Shared fixtures and builders: the `semoxide-test-support` crate (`publish = false`).
