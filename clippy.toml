@@ -11,6 +11,11 @@ allow-print-in-tests = true
 # Rust rule 3: no `bool` parameters.
 max-fn-params-bools = 0
 
+# Code smells: function complexity (`cognitive_complexity`, workspace lint) and nesting depth
+# (Rust rule 8, flat control flow); function length stays at `too_many_lines`' default of 100.
+cognitive-complexity-threshold = 25
+excessive-nesting-threshold = 5
+
 # `allow-invalid`: the crate isn't a dependency yet; the ban applies once it is.
 disallowed-methods = [
   { path = "std::env::var", reason = "only the env snapshot reads the process env (OBSERVABILITY P3)" },

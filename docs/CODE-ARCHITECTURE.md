@@ -120,7 +120,7 @@ Each tool runs directly: pinned in `mise.toml`, run locally by lefthook (`leftho
 | Tool | Catches | Runs |
 | --- | --- | --- |
 | rustfmt (toolchain) | formatting | pre-commit + CI (`cargo fmt --check`) |
-| clippy: `pedantic` on, selected `restriction` lints (incl. `undocumented_unsafe_blocks` for `// SAFETY:`), `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, code smells, architecture rules (§2) | pre-push + CI, warnings as errors |
+| clippy: `pedantic` on, selected `restriction` lints (incl. `undocumented_unsafe_blocks` for `// SAFETY:`), code smells (`cognitive_complexity` ≤ 25, `excessive_nesting` ≤ 5, `too_many_lines` ≤ 100, `too_many_arguments` ≤ 7), `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, code smells, architecture rules (§2) | pre-push + CI, warnings as errors |
 | rustc + rustdoc lints (`missing_docs` on published crates, broken doc links) | undocumented API | CI |
 | gitleaks (`.gitleaks.toml`: default rules; only test tokens containing `SEMOXIDE_FAKE` allowlisted) | secrets | pre-commit (staged changes) + CI (full history) |
 | semgrep, our own rules only (`.semgrep/rules.yaml`: private named fields, no `get_`, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests) | patterns clippy can't express | pre-push + CI (`.semgrepignore` skips the fixture); every rule has cases in `.semgrep/rules.rs`, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI |
