@@ -8,7 +8,7 @@ A Rust release tool inspired by semantic-release. Current phase: **planning done
 - Keep in mind that we need to "collapse"/"codnence" the docs after the we complete first "planning" huge step (before we write the code) so it doesn't bloat: we clear, compact, combine and remove things that were needed during planning but not needed as a documentation itself. (For example: decisions goes into hard specification in the correct space.)
 - Inline comments (`//`) are short and informative. If the code speaks for itself, write no comment. Doc comments (`///`) are required on public items of published crates (`missing_docs`, [quality tooling](docs/CODE-ARCHITECTURE.md#quality-tooling)) and are kept short too.
 - Comments and docs explain the code or the rule, never their history: no "approved in the conversation", "as discussed", "per review". Provenance belongs in commit messages and PRs.
-- Split code into small, understandable parts, but not too small: follow [CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md) (crates §1–§2, patterns §9, where things go §8).
+- Split code into small, understandable parts, but not too small: one domain per file; split by domain (not by stage) when a file mixes concepts, never by size alone ([CODE-ARCHITECTURE](docs/CODE-ARCHITECTURE.md): crates §1–§2, [modules and files](docs/CODE-ARCHITECTURE.md#modules-and-files), patterns §9, where things go §8).
 - Log enough for debugging: every step, plugin call and remote operation emits `tracing` events ([OBSERVABILITY](docs/OBSERVABILITY.md)).
 
 ## Hard requirements

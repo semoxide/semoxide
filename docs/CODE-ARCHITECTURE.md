@@ -43,6 +43,14 @@ Key libraries for domain logic:
 | globs | `globset` | `*` crosses `/` in rule values |
 | notes sorting | `icu_collator` | compiled-in data; locales covered checked when implemented |
 
+### Modules and files
+
+- One domain or concept per file: a type and the code that builds and validates it live together (parse, don't validate).
+- Split by domain, not by stage: no "types here, parsing there".
+- Split when a file mixes domains or concepts, or a part grows logic that stands on its own; never by size alone (a long file that is one concept stays one file, but its length is a cue to check), and never into files of a few lines.
+- Layout: `foo.rs` + `foo/child.rs`, no `mod.rs`. The parent holds the type tying the children together and the public `pub use` re-exports; children share helpers via `pub(super)`.
+- Tests move with their code: each file's unit tests are its last item ([TESTING](TESTING.md)); helpers shared across a module tree live once in a `#[cfg(test)] mod test_support` in the parent.
+
 ## 2. Crate boundaries and enforcement
 
 | Crate | May depend on | Must never use |
