@@ -18,6 +18,8 @@ use crate::codes::{
 
 mod branches;
 #[cfg(test)]
+mod message_tests;
+#[cfg(test)]
 mod tests;
 mod values;
 
