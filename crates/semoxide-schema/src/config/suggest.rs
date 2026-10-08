@@ -2,6 +2,8 @@
 //! cargo suggest names.
 
 #[cfg(test)]
+mod mutation_tests;
+#[cfg(test)]
 mod tests;
 
 /// The edit distance between `a` and `b`, ignoring case, where swapping two neighbouring

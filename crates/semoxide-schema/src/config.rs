@@ -21,6 +21,8 @@ mod branches;
 mod message_tests;
 mod suggest;
 #[cfg(test)]
+mod suggestion_mutation_tests;
+#[cfg(test)]
 mod suggestion_tests;
 #[cfg(test)]
 mod tests;
