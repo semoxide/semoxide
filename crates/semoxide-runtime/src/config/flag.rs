@@ -10,6 +10,8 @@ use super::merge::{Layer, Source};
 use crate::codes::CONFIG_INVALID_FLAG;
 
 #[cfg(test)]
+mod mutation_tests;
+#[cfg(test)]
 mod tests;
 
 /// Reads the `position`th `--set` flag (counting from 1) as a one-key layer.
