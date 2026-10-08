@@ -53,14 +53,28 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # gitleaks scans the full history.
+          fetch-depth: 0
           persist-credentials: false
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.10.3
-          install_args: "github:qltysh/qlty aqua:crate-ci/typos aqua:astral-sh/uv"
-      - name: qlty check (gitleaks, osv-scanner, semgrep, markdownlint, actionlint, zizmor, smells)
-        run: qlty check --all --no-progress
+          install_args: "aqua:crate-ci/typos aqua:astral-sh/uv pipx:semgrep aqua:gitleaks/gitleaks aqua:rhysd/actionlint aqua:zizmorcore/zizmor node npm:markdownlint-cli2"
+      - name: gitleaks
+        run: gitleaks git --redact
+      - name: actionlint
+        run: actionlint
+      - name: zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor .github/workflows
+      - name: semgrep
+        run: semgrep scan --config .semgrep/rules.yaml --error --metrics=off --disable-version-check
+      - name: semgrep rule tests
+        run: semgrep --test --metrics=off --disable-version-check --config .semgrep/rules.yaml .semgrep/rules.rs
+      - name: markdownlint
+        run: markdownlint-cli2 "**/*.md" "#target" "#node_modules"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: rustfmt (pinned toolchain)
         run: cargo fmt --all --check
@@ -68,11 +82,6 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked
       - name: typos
         run: typos
-      - name: semgrep rule tests
-        env:
-          # renovate: datasource=pypi depName=semgrep
-          SEMGREP_VERSION: 1.144.0
-        run: uvx "semgrep@$SEMGREP_VERSION" --test --metrics=off --disable-version-check --config .semgrep/rules.yaml .semgrep/rules.rs
 
   deny:
     needs: detect

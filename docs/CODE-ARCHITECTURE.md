@@ -103,7 +103,7 @@ Placement, kinds and how tests run: [TESTING](TESTING.md).
 ## 7. Workspace config
 
 - **Toolchain:** pinned in `rust-toolchain.toml` to the exact stable release, bumped by Renovate/Dependabot. **MSRV = latest minus 2**, checked with `cargo hack --rust-version` ([TESTING](TESTING.md)).
-- **Every other tool is pinned:** dev tools in `mise.toml` (qlty, typos, lefthook, cargo-nextest, cargo-deny, cargo-mutants, cargo-hack, uv), installed by mise locally and by `jdx/mise-action` in CI; qlty plugins in `.qlty/qlty.toml`; CI actions to commit SHA. Renovate bumps them all; nothing floats.
+- **Every other tool is pinned:** dev tools in `mise.toml` (typos, lefthook, cargo-nextest, cargo-deny, cargo-mutants, cargo-hack, uv, gitleaks, actionlint, zizmor, semgrep, node, markdownlint-cli2), installed by mise locally and by `jdx/mise-action` in CI; CI actions to commit SHA. Renovate bumps them all; nothing floats.
 - **`[workspace.package]`:** `edition = "2024"`, `rust-version`, `license = "MIT OR Apache-2.0"`, `repository`, inherited by every crate.
 - **`[workspace.dependencies]`:** every external dependency declared once; crates use `dep.workspace = true`, with per-crate `default-features` overrides where needed (e.g. git2).
 - **`[workspace.lints]`:** the lint policy (§7 Quality tooling); every crate sets `lints.workspace = true`.
@@ -115,26 +115,24 @@ Placement, kinds and how tests run: [TESTING](TESTING.md).
 
 **Findings are fixed in the code. Rules and thresholds are never loosened without the user's explicit approval.**
 
-Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pre-commit runs rustfmt (`.rs`) and qlty's markdownlint fix (`.md`) on the staged files in place, then typos; pre-push runs `qlty check` on the pushed changes, `cargo clippy` and `cargo nextest run`. rustfmt and clippy always come from the toolchain in `rust-toolchain.toml` (hooks, CI, rust-analyzer), never from qlty, which bundles an older Rust. qlty config: `.qlty/qlty.toml` (only `target/` excluded, plugins pinned). Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
+Each tool runs directly: pinned in `mise.toml`, run locally by lefthook (`lefthook.yml`; setup per clone: `lefthook install`) and in CI as its own step of the `quality` job. pre-commit fixes the staged files in place (rustfmt on `.rs`, `markdownlint-cli2 --fix` on `.md`), then runs typos, gitleaks on the staged changes, and actionlint + zizmor (offline) on staged workflows; pre-push runs semgrep, `cargo clippy` and `cargo nextest run`. rustfmt and clippy come from the toolchain in `rust-toolchain.toml` (hooks, CI, rust-analyzer). Code smells are clippy's job; there is no duplication check. Hooks are local conveniences; CI is the gate ([TESTING](TESTING.md)).
 
 | Tool | Catches | Runs |
 | --- | --- | --- |
 | rustfmt (toolchain) | formatting | pre-commit + CI (`cargo fmt --check`) |
-| clippy: `pedantic` on, selected `restriction` lints (incl. `undocumented_unsafe_blocks` for `// SAFETY:`), `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, architecture rules (§2) | pre-push + CI, warnings as errors |
+| clippy: `pedantic` on, selected `restriction` lints (incl. `undocumented_unsafe_blocks` for `// SAFETY:`), `clippy.toml` bans with reasons (e.g. `std::env::var`, printing in the library, bare `Command::new`) | bugs, style, code smells, architecture rules (§2) | pre-push + CI, warnings as errors |
 | rustc + rustdoc lints (`missing_docs` on published crates, broken doc links) | undocumented API | CI |
-| qlty maintainability (complexity, duplication, smells; `mode = "block"`) | complex or duplicated code | pre-push + CI |
-| gitleaks (`.gitleaks.toml`: default rules; only test tokens containing `SEMOXIDE_FAKE` allowlisted) | secrets | pre-push + CI |
-| osv-scanner | known-vulnerable versions in `Cargo.lock` | pre-push (when the lockfile changes) + CI |
-| semgrep, our own rules only (`.semgrep/rules.yaml`: private named fields, no `get_`, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests) | patterns clippy can't express | pre-push + CI; every rule has cases in `.semgrep/rules.rs`, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI |
-| markdownlint (`.markdownlint.json`: MD013 line length off) | broken Markdown structure in docs | pre-commit (autofix) + pre-push + CI |
-| actionlint | incorrect GitHub Actions workflows | pre-push + CI |
+| gitleaks (`.gitleaks.toml`: default rules; only test tokens containing `SEMOXIDE_FAKE` allowlisted) | secrets | pre-commit (staged changes) + CI (full history) |
+| semgrep, our own rules only (`.semgrep/rules.yaml`: private named fields, no `get_`, `env_clear()` on child processes, no exposed secrets or raw URLs in logs, regex `\d`, paused tokio tests) | patterns clippy can't express | pre-push + CI (`.semgrepignore` skips the fixture); every rule has cases in `.semgrep/rules.rs`, checked by `semgrep --test --config .semgrep/rules.yaml .semgrep/rules.rs` in CI |
+| markdownlint-cli2 (`.markdownlint.json`: MD013 line length off) | broken Markdown structure in docs | pre-commit (autofix) + CI |
+| actionlint | incorrect GitHub Actions workflows | pre-commit + CI |
 | cargo-deny | licenses, RustSec, banned/duplicate deps, sources | CI on PRs + daily schedule |
 | cargo-shear | unused deps | CI |
 | dependency budget (max `Cargo.lock` packages; number set once code exists) | dependency bloat | CI |
 | typos | spelling (code, docs, messages) | pre-commit + CI |
 | cargo-semver-checks | breaking changes in the façade (§5) | CI |
 | cargo-mutants | tests that test nothing | `--in-diff` on PRs for the pure crates (gating once the baseline is clean, A2); full runs scheduled |
-| zizmor | insecure GitHub Actions workflows | pre-push + CI |
+| zizmor | insecure GitHub Actions workflows | pre-commit (offline audits) + CI (online audits too) |
 
 ## 8. Where things go
 

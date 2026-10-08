@@ -1,19 +1,9 @@
 // Run the hook tools from Zed (task palette).
 [
   {
-    "label": "qlty fmt: current file",
-    "command": "qlty",
-    "args": ["fmt", "$ZED_FILE"]
-  },
-  {
-    "label": "qlty check: current file",
-    "command": "qlty",
-    "args": ["check", "$ZED_FILE"]
-  },
-  {
-    "label": "qlty check: all",
-    "command": "qlty",
-    "args": ["check", "--all"]
+    "label": "markdownlint: fix current file",
+    "command": "markdownlint-cli2",
+    "args": ["--fix", "$ZED_FILE"]
   },
   {
     "label": "typos: current file",
