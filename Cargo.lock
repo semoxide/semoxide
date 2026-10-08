@@ -1129,6 +1129,7 @@ dependencies = [
  "semoxide-git",
  "semoxide-schema",
  "semoxide-version-engine",
+ "tempfile",
  "toml",
 ]
 
