@@ -226,7 +226,8 @@ pub(super) fn parse_duration(path: &str, value: &Value) -> Result<Duration, Conf
         'h' => 3600,
         _ => return Err(invalid()),
     };
-    if number.is_empty() || !number.chars().all(|c| c.is_ascii_digit()) {
+    // `parse` alone would accept a leading `+`; it rejects an empty number itself.
+    if !number.chars().all(|c| c.is_ascii_digit()) {
         return Err(invalid());
     }
     let count: u64 = number.parse().map_err(|_| invalid())?;
