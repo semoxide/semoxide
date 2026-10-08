@@ -55,6 +55,8 @@ print_stderr = "warn"
 dbg_macro = "warn"
 todo = "warn"
 unimplemented = "warn"
+# Code smells (nursery lint; limit in clippy.toml, default 25).
+cognitive_complexity = "warn"
 
 [profile.dev.package."*"]
 opt-level = 3
