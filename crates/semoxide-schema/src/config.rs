@@ -89,7 +89,10 @@ impl Config {
     /// `steps.plugins`, known only after merging).
     #[must_use]
     pub fn defaults_table() -> Table {
-        Table::new()
+        let mut table = Self::default().to_table();
+        table.remove("config");
+        table.remove("plugins");
+        table
     }
 
     /// The configuration as a TOML table that [`Config::from_table`] reads back unchanged.
@@ -171,15 +174,25 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
+        let steps = Steps {
+            plugins: BUNDLED_PLUGINS.map(PluginName::bundled).to_vec(),
+            orders: BTreeMap::new(),
+            success_errors: SuccessErrors::Warn,
+        };
+        let plugins = steps
+            .plugins
+            .iter()
+            .map(|name| (name.clone(), PluginConfig::default()))
+            .collect();
         Self {
             layering: ConfigDomain {
-                merge: MergeMode::Shallow,
+                merge: MergeMode::Deep,
             },
             commits: Commits {
-                preset: Preset::Angular,
+                preset: Preset::ConventionalCommits,
             },
             version: VersionDomain {
-                initial: Version::new(0, 0, 0),
+                initial: default_initial_version(),
                 zero: ZeroLevels::DEFAULT,
             },
             branches: Branches::default_rules(),
@@ -187,17 +200,17 @@ impl Default for Config {
                 format: TagFormat::default_format(),
                 metadata: None,
             },
-            steps: Steps {
-                plugins: Vec::new(),
-                orders: BTreeMap::new(),
-                success_errors: SuccessErrors::Fail,
-            },
-            plugins: BTreeMap::new(),
+            steps,
+            plugins,
             secrets: Secrets {
                 mask_env: Vec::new(),
             },
         }
     }
+}
+
+fn default_initial_version() -> Version {
+    Version::new(1, 0, 0)
 }
 
 /// `[config]`: how the configuration itself is assembled.
@@ -316,7 +329,7 @@ impl VersionDomain {
             .take("initial")
             .map(|(path, value)| parse_version(&path, &value))
             .transpose()?
-            .unwrap_or(Version::new(1, 0, 0));
+            .unwrap_or_else(default_initial_version);
         if !initial.build.is_empty() {
             return Err(ConfigError::invalid(
                 "version.initial",
