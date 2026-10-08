@@ -29,7 +29,7 @@ Inside a crate:
 - **Fuzzing:** `cargo-fuzz` for the commit, config and tag parsers.
 - **Doc tests.**
 - **Fakes, not mocks:** a fake plugin binary, `wiremock` as a fake forge. No mocking frameworks, no `trycmd`.
-- **Benchmarks:** `criterion` from the start, for large-history log walks and analysis.
+- **Benchmarks:** `criterion`, per crate in `benches/` (log walks: `semoxide-git`). They run on `LargeHistory::large()` (`semoxide-test-support`), generated in one `git fast-import` stream in seconds: 100k commits, a tag with a note every 20 commits (3,500 tags), the last 30k untagged. Sized after real reports: upstream's per-tag notes lookups slowed down from about 1k tags ([#2827](https://github.com/semantic-release/semantic-release/issues/2827)), and API-backed tools from tens of thousands of commits since the last release. Branches and monorepo units become generator parameters when their features get benchmarks.
 - **miri:** every crate it can run. miri cannot execute FFI (libgit2), real processes or sockets, so it covers the pure-Rust crates.
 - Plus [plugin conformance](#plugin-conformance), [failure injection](#failure-injection), the [sandbox E2E](#sandbox-repo) and the [upstream comparison](#upstream-comparison).
 

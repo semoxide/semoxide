@@ -4,8 +4,9 @@
 //! runs without the machine's config, so the same fixture gives the same SHAs everywhere.
 
 use std::fmt;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use tempfile::TempDir;
 
@@ -250,6 +251,38 @@ impl GitFixture {
             });
         }
         Ok(stdout.trim_end_matches(['\r', '\n']).to_owned())
+    }
+
+    /// Feeds a `git fast-import` stream into the working repository: one process for a whole
+    /// history, where [`GitFixtureBuilder`] spawns git per step.
+    pub(crate) fn fast_import(&self, stream: &[u8]) -> Result<(), FixtureError> {
+        let failed = |output: String| FixtureError {
+            command: String::from("git fast-import"),
+            output,
+        };
+        let mut child = isolated_git(self.dir.path(), self.step)
+            .current_dir(self.path())
+            .args(["fast-import", "--quiet"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| failed(error.to_string()))?;
+        // A write error means git stopped reading; its stderr below says why.
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(stream);
+        }
+        let output = child
+            .wait_with_output()
+            .map_err(|error| failed(error.to_string()))?;
+        if !output.status.success() {
+            return Err(failed(
+                String::from_utf8_lossy(&output.stderr)
+                    .trim_end()
+                    .to_owned(),
+            ));
+        }
+        Ok(())
     }
 }
 
