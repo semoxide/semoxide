@@ -14,7 +14,8 @@ Inside a crate:
 
 - No inline `#[cfg(test)] mod tests { … }` blocks with a body in source files.
 - Unit tests: sibling file, `foo.rs` → `foo/tests.rs`, declared with `#[cfg(test)] mod tests;`.
-- Integration tests: `tests/`, compiled as one binary.
+- Integration tests: one binary per crate, `tests/it/main.rs` declaring each file as a module ([why](https://matklad.github.io/2021/02/27/delete-cargo-integration-tests.html)).
+- A workspace check fails on a module file no `mod` declares (rustc silently skips it) in `src/` or `tests/it/`, and on any other test binary (`tests/*.rs`, `tests/*/main.rs`).
 - Shared fixtures and builders: the `semoxide-test-support` crate (`publish = false`).
 - Doc tests in `///` examples are allowed.
 

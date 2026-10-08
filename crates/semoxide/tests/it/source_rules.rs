@@ -4,7 +4,8 @@
 use std::path::Path;
 
 use semoxide_test_support::source_rules::{
-    crate_sources, forbids_unsafe_code, inline_test_modules, pub_tuple_fields,
+    crate_sources, extra_test_binaries, forbids_unsafe_code, inline_test_modules, module_files,
+    pub_tuple_fields, unwired_files,
 };
 
 #[test]
@@ -38,4 +39,40 @@ fn crate_sources_follow_the_rules() {
         "source rules:\n{}",
         problems.join("\n")
     );
+}
+
+#[test]
+fn every_module_file_is_wired_and_each_crate_has_one_test_binary() {
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let files = module_files(&crates).expect("crates/ is readable");
+    let shown = |path: &Path| {
+        path.strip_prefix(&crates)
+            .unwrap_or(path)
+            .display()
+            .to_string()
+    };
+
+    let mut problems: Vec<String> = unwired_files(&files)
+        .iter()
+        .map(|path| {
+            format!(
+                "{}: no `mod` declares it, so it is never compiled",
+                shown(path)
+            )
+        })
+        .collect();
+    problems.extend(
+        extra_test_binaries(&crates)
+            .expect("crates/*/tests is readable")
+            .iter()
+            .map(|path| {
+                format!(
+                    "{}: integration tests go in tests/it/ (one binary)",
+                    shown(path)
+                )
+            }),
+    );
+
+    assert!(!files.is_empty(), "no module files found");
+    assert!(problems.is_empty(), "test layout:\n{}", problems.join("\n"));
 }
