@@ -38,7 +38,7 @@ Key libraries for domain logic:
 | --- | --- | --- |
 | versions | `semver` | parse/compare only; own `Range { min, max_exclusive }` and bump code (the crate has no bump API, and `VersionReq` is cargo semantics) |
 | commit parsing | `git-conventional` (in the commit-analyzer repo) | used as-is; its deviations from Conventional Commits are documented, not patched ([CONFIG](CONFIG.md)) |
-| templates | `minijinja` | notes, messages, `tag_metadata` |
+| templates | `minijinja` | notes, messages, `tags.metadata` |
 | user regexes | `fancy-regex` | with a backtrack limit |
 | globs | `globset` | `*` crosses `/` in rule values |
 | notes sorting | `icu_collator` | compiled-in data; locales covered checked when implemented |
