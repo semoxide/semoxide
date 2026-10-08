@@ -5,11 +5,12 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use semoxide_error::{ErrorCode, ErrorInfo};
-use semoxide_schema::config::{Config, ConfigError};
+use semoxide_schema::config::{Config, ConfigError, MergeMode};
+use toml::{Table, Value};
 
-use super::flag::FlagError;
-use super::merge::Merged;
-use crate::codes::CONFIG_UNREADABLE;
+use super::flag::{FlagError, parse_flag};
+use super::merge::{Layer, Merged, Source, merge};
+use crate::codes::{CONFIG_INVALID_TOML, CONFIG_UNREADABLE};
 
 #[cfg(test)]
 mod tests;
@@ -50,6 +51,9 @@ impl Loaded {
     }
 }
 
+/// Config files looked for in a directory, in order; the first one found is used.
+const CANDIDATES: [&str; 2] = ["semoxide.toml", ".config/semoxide.toml"];
+
 /// Loads the config of `dir` with the `--set` flags, in order.
 ///
 /// # Errors
@@ -57,12 +61,62 @@ impl Loaded {
 /// Returns [`LoadError`] if a flag is malformed, the config file can't be read or isn't TOML,
 /// or the merged config is invalid.
 pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
-    let _ = flags;
-    Err(LoadError::File(FileError {
-        code: CONFIG_UNREADABLE,
-        path: dir.to_path_buf(),
-        message: String::from("not implemented"),
-    }))
+    let flags = flags
+        .iter()
+        .enumerate()
+        .map(|(index, flag)| parse_flag(index + 1, flag))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(LoadError::Flag)?;
+    let mut found = CANDIDATES
+        .iter()
+        .map(|name| dir.join(name))
+        .filter(|path| path.exists());
+    let file = found.next();
+    let ignored: Vec<PathBuf> = found.collect();
+    let layers = match &file {
+        Some(path) => vec![Layer::new(Source::File(path.clone()), read(path)?)],
+        None => Vec::new(),
+    };
+    let mode = layers
+        .first()
+        .map_or(MergeMode::Deep, |layer| merge_mode(layer.table()));
+    let merged = merge(&Config::defaults_table(), &layers, &flags, mode);
+    let config = Config::from_table(merged.table().clone()).map_err(LoadError::Config)?;
+    Ok(Loaded {
+        config,
+        merged,
+        file,
+        ignored,
+    })
+}
+
+/// The file's `config.merge` as written; anything but `"shallow"` merges deep, and validation
+/// reports an invalid value afterwards.
+fn merge_mode(table: &Table) -> MergeMode {
+    let merge = table
+        .get("config")
+        .and_then(Value::as_table)
+        .and_then(|config| config.get("merge"))
+        .and_then(Value::as_str);
+    if merge == Some("shallow") {
+        MergeMode::Shallow
+    } else {
+        MergeMode::Deep
+    }
+}
+
+fn read(path: &Path) -> Result<Table, LoadError> {
+    let file_error = |code: ErrorCode, message: String| {
+        LoadError::File(FileError {
+            code,
+            path: path.to_path_buf(),
+            message,
+        })
+    };
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| file_error(CONFIG_UNREADABLE, error.to_string()))?;
+    text.parse::<Table>()
+        .map_err(|error| file_error(CONFIG_INVALID_TOML, error.to_string().trim_end().to_owned()))
 }
 
 /// Why a config couldn't be loaded.
