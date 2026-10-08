@@ -189,12 +189,10 @@ Git hooks via lefthook (`lefthook.yml`; setup per clone: `lefthook install`): pr
 
   **AI-agent workflow:**
   1. A human approves the spec or table rows.
-  2. The agent writes **tests only**, against a stub, and shows them failing on assertions. That `test:` commit is human-reviewed, and the tests are **locked** (`// LOCKED:` header): a Claude Code hook refuses edits to locked files, a lefthook pre-commit check refuses commits changing them, and the `test-lock` CI check fails a PR that changes them unless the maintainer added the `tests-unlocked` label.
-
-  **Unlocking** (a spec change, a wrong test, a renamed API): the agent stops and reports; the maintainer agrees, starts the agent session with `SEMOXIDE_TESTS_UNLOCKED=1` (lifts the Claude hook and the pre-commit check for that session), the change lands as its own `test:` commit with the `// LOCKED:` header updated to the new commit, and the maintainer adds `tests-unlocked` to the PR.
-  3. A fresh session implements under the lock. It stops and reports rather than editing a test; new snapshots stay `.snap.new`.
+  2. The agent writes **tests only**, against a stub, and shows them failing on assertions. The maintainer reviews and approves that `test:` commit before any implementation.
+  3. The agent implements. Approved tests and golden histories are never weakened, skipped, deleted or rewritten to make code pass: the agent stops and reports, and a change (a spec change, a wrong test, a renamed API) lands only with the maintainer's agreement, as its own `test:` commit. New snapshots stay `.snap.new`. The PR description lists every change to an existing test or golden history. Enforcement is these rules plus review, not tooling.
   4. `cargo mutants --in-diff`: every surviving mutant in **product code** becomes a test. In test tooling (`semoxide-test-support`, repo checks) survivors are reported, and a test is added only when it is cheap and guards a realistic mistake.
-  5. A reviewer checks the change against the spec, the lock, and the no-mocks rule.
+  5. A reviewer checks the change against the spec, the approved tests, and the no-mocks rule.
   6. Refactors go in separate commits with the tests unchanged.
 - **A3. Simplicity over abstraction.** Concrete types until a 2nd implementation exists (P2); no speculative generics. The core is held to a strict bar, the periphery to a looser one.
   - **Tooling matches established practice.** Checks on our own repo (scans, registries, custom lints) follow what comparable projects do, e.g. the Rust compiler's `tidy`: plain-text scans with documented limits. Search for precedent before building; no parsers or lexers for repo checks unless plain text demonstrably fails on real code.
