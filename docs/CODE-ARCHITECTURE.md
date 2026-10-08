@@ -11,7 +11,7 @@ flowchart TD
     cli["semoxide-cli (bin: clap, miette, tracing-subscriber)"] --> facade["semoxide (façade lib: builder, run, queries, RunReport)"]
     facade --> runtime["semoxide-runtime (orchestrator, config loading, CI context, plugin host integration, observability)"]
     runtime --> engine["semoxide-version-engine (pure: version engine, branch model, domain types; no I/O)"]
-    runtime --> schema["semoxide-schema (config types + JSON Schema; serde/schemars only)"]
+    runtime --> schema["semoxide-schema (config types, parsing + JSON Schema; pure)"]
     runtime --> git["semoxide-git (git2 + russh / system-ssh transports, guards, credentials)"]
     runtime --> host["semoxide-plugin-host (protocol repo)"]
     engine --> schema
@@ -22,7 +22,7 @@ flowchart TD
 | Crate | Holds | Heavy deps | Published |
 | --- | --- | --- | --- |
 | `semoxide-error` | `ErrorInfo` trait and error-code type (§4); bottom of the graph | none | yes, internal (§5) |
-| `semoxide-schema` | `semoxide.toml` types, JSON Schema generation | none (serde, schemars) | yes, internal |
+| `semoxide-schema` | `semoxide.toml` types and parsing (`Config::from_table`, coded errors), JSON Schema generation | none (serde, serde_json, serde_path_to_error, toml, semver, schemars) | yes, internal |
 | `semoxide-version-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal |
 | `semoxide-git` | git2, SSH transports, push guards, credential rules ([ARCHITECTURE](ARCHITECTURE.md)) | git2, russh | yes, internal |
 | `semoxide-runtime` | orchestrator, config loading, CI context, plugin host integration, observability | tokio, tonic (via `semoxide-plugin-host`) | yes, internal |
@@ -48,7 +48,7 @@ Key libraries for domain logic:
 | Crate | May depend on | Must never use |
 | --- | --- | --- |
 | `semoxide-error` | nothing | any dependency |
-| `semoxide-schema` | `error`, serde, schemars | anything with I/O |
+| `semoxide-schema` | `error`, serde, serde_json, serde_path_to_error, toml, semver, schemars | anything with I/O |
 | `semoxide-version-engine` | `schema` | any I/O: `std::fs`, `std::net`, `std::process`, `std::env`, git2, tokio, printing |
 | `semoxide-git` | `version-engine` types, git2, russh | tokio outside its SSH bridge; printing |
 | `semoxide-runtime` | all above, `semoxide-plugin-host` | `std::env::var` (env snapshot only, [OBSERVABILITY](OBSERVABILITY.md)); printing |
