@@ -86,7 +86,7 @@ flowchart TD
 | --- | --- |
 | Secret env vars declared in a plugin's manifest | before the plugin is spawned |
 | `Env` vars whose name matches `token\|password\|credential\|secret\|private` with value ≥ 5 chars (upstream rule, [SEMANTIC-RELEASE-SPEC](specs/SEMANTIC-RELEASE-SPEC.md)) | at run start |
-| Env names listed in `mask_env = [...]` ([CONFIG.md](CONFIG.md)) | at run start |
+| Env names listed in `secrets.mask_env = [...]` ([CONFIG.md](CONFIG.md)) | at run start |
 | Config values typed `Secret<T>` (`secrecy::SecretBox`; `Debug` prints `[secure]`; no `Serialize`) | at config load |
 | Values a plugin creates at runtime (OIDC-exchanged npm token, GitHub App installation token) | by the plugin via the `RegisterSecret` host call, before first use; SDK helpers register automatically |
 
@@ -127,7 +127,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 | `NoCommitsSince` | last release tag |
 | `NoRelevantCommits` | per-commit verdicts at `-v` |
 | `AllCommitsSkipped` | every relevant commit carries the [skip marker](CONFIG.md) |
-| `TagsNotFound` | shallow clone, `tag_format` near-misses |
+| `TagsNotFound` | shallow clone, `tags.format` near-misses |
 | `PathFiltered` | the monorepo unit's path filter ([ARCHITECTURE.md](ARCHITECTURE.md)) |
 
 ## 8. Errors

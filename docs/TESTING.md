@@ -130,7 +130,7 @@ One named regression test per row. Rollback and step-order rules: [ARCHITECTURE]
 | Branch behind remote | remote advances after clone | abort before tagging, remote unchanged | 4 |
 | Several tags on one commit (#4073) | two tags, one commit | each tag's note read separately | 2 |
 | Secret leak (upstream `plugin-log-env`) | plugin logs its env | masked everywhere | 3, 4 |
-| `success` failure (github#738) | 500 on comments | default: outcome `Released`, warnings + `success_errors`, exit 0, no rollback, no `fail`; `success_errors = "fail"`: exit 5, no rollback | 3, 4 |
+| `success` failure (github#738) | 500 on comments | default: outcome `Released`, warnings + `success_errors`, exit 0, no rollback, no `fail`; `steps.success.errors = "fail"`: exit 5, no rollback | 3, 4 |
 
 ## Sandbox repo
 
@@ -138,7 +138,7 @@ Private `semoxide/semoxide-sandbox` hosts layer 6 and the git2 real-remote items
 
 - **Credentials:** the tests run as a workflow inside the sandbox repo with its automatic `GITHUB_TOKEN` (scoped to that repo, one run, permissions set in the workflow). SSH tests use a write deploy key on that repo only. A fine-grained PAT (owned by `semoxide-bot`) is added only when a test must run outside GitHub Actions.
 - Workflow on `schedule` + `workflow_dispatch` from `main` only, never fork PRs; one `concurrency` group.
-- Per-run `tag_format` prefix `e2e-<run_id>-v{version}`; an `if: always()` cleanup deletes releases, tags, notes refs and `e2e/*` branches with that prefix; a weekly sweep removes leftovers older than 7 days.
+- Per-run `tags.format` prefix `e2e-<run_id>-v{version}`; an `if: always()` cleanup deletes releases, tags, notes refs and `e2e/*` branches with that prefix; a weekly sweep removes leftovers older than 7 days.
 - Scenarios: first release, `beta`/`next` channels, promotion (`add_channel`), maintenance `1.x`, assets, success comments, fail issue, rollback; protected-branch rejection; 401 vs 403 tokens.
 - cargo: `kellnr` container only, never crates.io.
 - npm: Verdaccio only (throwaway local registry in Docker), never npmjs; tentative until the npm plugin is built.

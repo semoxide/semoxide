@@ -101,7 +101,7 @@ Retrying is safe only when `retryable && !remote_writes_happened`.
 | 2 | CLI usage |
 | 3 | config invalid (incl. plugin schema) |
 | 4 | a `verify_conditions` / `verify_release` step failed: fix the setup (credentials, config, permissions); a rerun won't help |
-| 5 | partial failure: tag pushed, a later step failed; rollback result in the summary ([ARCHITECTURE.md](ARCHITECTURE.md)). Also a failed `success` step when `success_errors = "fail"` (no rollback) |
+| 5 | partial failure: tag pushed, a later step failed; rollback result in the summary ([ARCHITECTURE.md](ARCHITECTURE.md)). Also a failed `success` step when `steps.success.errors = "fail"` (no rollback) |
 | 6 | no release, only with `--fail-on-no-release` |
 | 101 | panic |
 | 130 | interrupted |

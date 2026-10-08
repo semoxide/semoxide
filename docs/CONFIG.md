@@ -5,10 +5,55 @@ Reference for `semoxide.toml`. Commands that read or write it (`init`, `migrate`
 ## 1. Format, discovery and layers
 
 - TOML only, data only (no computed values, no functions).
+- Every key lives in a domain table; dotted keys keep small configs short (`tags.format = "v{version}"`).
 - Discovery in the working directory: `semoxide.toml`, then `.config/semoxide.toml`. The first one found is used.
 - No file found: semoxide runs with defaults.
 - Unknown keys are rejected with a coded config error ([OBSERVABILITY.md](OBSERVABILITY.md) owns the `ErrorInfo` codes and the line pointer into `semoxide.toml`).
 - All config, including every `[plugins.*]` section, is validated before any step runs.
+
+| Domain | Keys | Section |
+| --- | --- | --- |
+| `config` | `extends`, `merge` | [§1](#1-format-discovery-and-layers), [§2](#2-configextends) |
+| `branches` | `rules` | [§3](#3-branches) |
+| `version` | `initial`, `zero` | [§4](#4-versions) |
+| `tags` | `format`, `metadata` | [§5](#5-tags) |
+| `commits` | `preset` | [§7](#7-commit-analysis) |
+| `plugins.<name>` | `version`, `timeouts`, `show_output`, plugin options | [§9](#9-plugins-and-steps) |
+| `steps` | `plugins`, `<step>.order`, `success.errors` | [§9](#9-plugins-and-steps) |
+| `secrets` | `mask_env` | [§10](#10-secrets) |
+| `packages.<name>` | monorepo units (not yet accepted) | [ARCHITECTURE.md](ARCHITECTURE.md) |
+
+A config using every domain:
+
+```toml
+[config]
+extends = "preset:rust"
+merge = "deep"
+
+[commits]
+preset = "conventionalcommits"
+
+[version]
+initial = "0.1.0"
+zero = { breaking = "minor", feature = "patch", fix = "patch" }
+
+[branches]
+rules = [{ maintenance = "N.x" }, "main", { name = "beta", prerelease = true }]
+
+[tags]
+format = "v{version}"
+
+[steps]
+plugins = ["commit-analyzer", "release-notes", "git", "github"]
+publish.order = ["github", "git"]
+success.errors = "warn"
+
+[plugins.github]
+version = "1.4.2"
+
+[secrets]
+mask_env = ["DEPLOY_TOKEN"]
+```
 
 Layers, lowest to highest precedence:
 
@@ -18,13 +63,13 @@ flowchart LR
 ```
 
 - CLI flags: `--set <key>=<value>` per key ([CLI.md](CLI.md)).
-- Merge: tables merge key by key; arrays and scalars from a later layer replace the earlier value whole (`branches`, `release_rules` behave like upstream). `explain` shows the layer each value came from.
-- `merge = "shallow"` (top level, default `"deep"`): a top-level key from a later layer replaces the whole earlier value, as upstream. Only `semoxide.toml` can set it; it is ignored in `extends` sources. CLI flags always override single keys.
+- Merge: tables merge key by key; arrays and scalars from a later layer replace the earlier value whole (`branches.rules`, `steps.plugins`, `release_rules` behave like upstream). `explain` shows the layer each value came from.
+- `config.merge = "shallow"` (default `"deep"`): a domain from a later layer replaces the whole earlier domain, as upstream's top-level keys do. Only `semoxide.toml` can set `config.merge` and `config.extends`; both are ignored in `extends` sources. CLI flags always override single keys.
 - There is no env layer: config is never read from env vars. The few env vars semoxide reads are listed in [CLI.md](CLI.md#environment-variables).
 
-## 2. `extends`
+## 2. `config.extends`
 
-`extends = "<source>"` or a list; later entries override earlier ones, the file overrides all of them.
+`config.extends = "<source>"` or a list; later entries override earlier ones, the file overrides all of them.
 
 | Source | Form | Since |
 | --- | --- | --- |
@@ -38,32 +83,46 @@ flowchart LR
 
 ## 3. Branches
 
-`[branches]` defaults (upstream's full set):
+`branches.rules` is an ordered array; each entry is a branch name (a release branch) or an inline table. Order matters as upstream: the first release branch is the main line. Default (upstream's full set):
 
-| Branch | Type |
-| --- | --- |
-| `N.x`, `N.N.x` | maintenance (built-in matcher) |
-| `master`, `main`, `next`, `next-major` | release |
-| `beta` | prerelease (`beta`) |
-| `alpha` | prerelease (`alpha`) |
+```toml
+[branches]
+rules = [
+  { maintenance = "N.x" },
+  "master",
+  "main",
+  "next",
+  "next-major",
+  { name = "beta", prerelease = true },
+  { name = "alpha", prerelease = true },
+]
+```
 
-- User branch patterns are `globset` globs. No extended globs.
+| Kind | Forms | Fields |
+| --- | --- | --- |
+| Release | `"main"` or `{ name = "main", channel = … }` | `name`: branch name or `globset` glob (no extended globs), expanded per matching remote branch |
+| Prerelease | `{ name = "beta", prerelease = true }` | `prerelease`: `true` (identifier = branch name) or a string (`"rc"`) |
+| Maintenance | `{ maintenance = "N.x" }`, `{ maintenance = "release/N.x" }`, `{ maintenance = "legacy", range = "1.x" }` | built-in matcher: `N` is a number and the pattern ends in `N.x` or `N.N.x`; the range comes from the name (`1.x` = `>=1.0.0 <2.0.0`), or from `range` for a name without it |
+
+- `channel` (any kind): unset = the default channel for the first release branch, the branch name for the others; `false` = the default channel; a string is used as given.
+- `channel` and `prerelease` strings accept one placeholder, `{name}`, the actual branch name a glob matched (`{ name = "release/*", prerelease = "rc", channel = "{name}" }`). No other expressions.
+- Rejected with a coded error: unknown keys in an entry, `name` with `maintenance`, `prerelease` on a maintenance entry, a maintenance pattern without `N.x`/`N.N.x` and no `range`, a prerelease identifier invalid in SemVer.
 - Version ranges per branch are computed by semoxide; versions compare by SemVer precedence (build metadata ignored, [specs/SEMVER-SPEC.md](specs/SEMVER-SPEC.md)).
 - Monorepo release units (`[packages.<name>]`): [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 4. Versions
 
-- `initial_version`: first release version, default `1.0.0` (e.g. `"0.1.0"`).
-- On 0.x, the analyzer's level maps as breaking → minor, feature → patch, fix → patch, so 0.x never leaves 0.x on its own (matches cargo and npm `^0.y`). Configurable via `[version.zero]` (`breaking`, `feature`, `fix` = `"major"|"minor"|"patch"`).
-- Leaving 0.x is explicit: a commit footer `Release-As: 1.0.0` ([CONVENTIONAL-COMMITS-SPEC](specs/CONVENTIONAL-COMMITS-SPEC.md) footer syntax). `[version.zero] breaking = "major"` instead lets the first breaking change graduate. From 1.0.0 on, breaking → major as usual.
+- `version.initial`: first release version, default `1.0.0` (e.g. `"0.1.0"`).
+- On 0.x, the analyzer's level maps as breaking → minor, feature → patch, fix → patch, so 0.x never leaves 0.x on its own (matches cargo and npm `^0.y`). Configurable via `version.zero` (`breaking`, `feature`, `fix` = `"major"|"minor"|"patch"`).
+- Leaving 0.x is explicit: a commit footer `Release-As: 1.0.0` ([CONVENTIONAL-COMMITS-SPEC](specs/CONVENTIONAL-COMMITS-SPEC.md) footer syntax). `version.zero.breaking = "major"` instead lets the first breaking change graduate. From 1.0.0 on, breaking → major as usual.
 - `Release-As: <version>` footer, any version (manual override): strict SemVer, higher than the branch's last release and inside the branch range, else a coded error. On a prerelease branch the channel is appended (`2.0.0` on `beta` → `2.0.0-beta.1`). It releases even without other releasable commits. Several in range: the highest wins, with a warning listing all. Never shown in notes; `explain` shows it as the reason.
 
-## 5. `tag_format`
+## 5. Tags
 
-- Own syntax with a single placeholder `{version}`, so versions parse back out of tags. Default `v{version}`.
+- `tags.format`: own syntax with a single placeholder `{version}`, so versions parse back out of tags. Default `v{version}`.
 - Not a template: no expressions.
 - Tags are matched by version, not by name: `v1.2.3+anything` is 1.2.3, and build metadata is ignored for precedence and for "already released".
-- `tag_metadata` (optional minijinja template over the run context, e.g. `"{{ commit.short_sha }}"`): appended as `+<metadata>` to the **git tag only**. Versions passed to plugins never carry `+`. `Release-As:` rejects metadata.
+- `tags.metadata` (optional minijinja template over the run context, e.g. `"{{ commit.short_sha }}"`): appended as `+<metadata>` to the **git tag only**. Versions passed to plugins never carry `+`. `Release-As:` rejects metadata.
 
 ## 6. Templates
 
@@ -73,7 +132,7 @@ flowchart LR
 
 ## 7. Commit analysis
 
-- `preset` (top level, set once): `"conventionalcommits"` (default, `!` marks breaking) or `"angular"`. Both bundled plugins (commit-analyzer, release-notes) read it from the run context. Presets are built-in data; user presets are written in TOML. `migrate` sets `angular` for configs that relied on upstream's default.
+- `commits.preset` (set once): `"conventionalcommits"` (default, `!` marks breaking) or `"angular"`. Both bundled plugins (commit-analyzer, release-notes) read it from the run context. Presets are built-in data; user presets are written in TOML. `migrate` sets `angular` for configs that relied on upstream's default.
 - Default bump table:
 
 | Commit | Release |
@@ -99,7 +158,7 @@ flowchart LR
 - type → section map, hidden types, sort keys.
 - `locale`: collation locale for sorting groups, commits and notes, default `"en"` (matches JS `localeCompare`, [sort-order PoC](https://github.com/semoxide/semoxide-poc/tree/main/sort-order)); e.g. `"sv"`.
 
-## 9. Plugins
+## 9. Plugins and steps
 
 `[plugins.<name>]` (short name, e.g. `[plugins.github]`):
 
@@ -107,14 +166,15 @@ flowchart LR
 - `timeouts.<step> = "1h"`: per-step deadline override.
 - `show_output = true`: show captured plugin output live ([OBSERVABILITY.md](OBSERVABILITY.md)).
 - Any other keys are the plugin's own options, validated against the schema the plugin reports.
-- `[steps.<step>] order = [...]` overrides plugin order for one step.
-- `success_errors = "warn"` (default) or `"fail"`: what a failing `success` step does to an already published release ([ARCHITECTURE.md](ARCHITECTURE.md#7-failure-and-rollback)).
+- `steps.plugins = [...]`: the enabled plugins in run order (upstream's `plugins` array). An option table for a plugin not in the list is rejected with a coded error.
+- `steps.<step>.order = [...]` overrides plugin order for one step.
+- `steps.success.errors = "warn"` (default) or `"fail"`: what a failing `success` step does to an already published release ([ARCHITECTURE.md](ARCHITECTURE.md#7-failure-and-rollback)).
 
 Plugin mechanics, the lock file and step semantics: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 10. Secrets
 
-- `mask_env = ["NAME", …]`: extra env var names whose values are masked. Detection rules and masking: [OBSERVABILITY.md](OBSERVABILITY.md).
+- `secrets.mask_env = ["NAME", …]`: extra env var names whose values are masked. Detection rules and masking: [OBSERVABILITY.md](OBSERVABILITY.md).
 
 ## 11. Bot identity (commit-back)
 

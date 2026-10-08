@@ -13,7 +13,7 @@ Every row is intentional. The linked doc owns the full rule.
 | Config file | cosmiconfig: `.releaserc*`, `release.config.{js,ts,mjs,cjs}`, `package.json#release` | TOML only: `semoxide.toml`, fallback `.config/semoxide.toml`; data only, layered with `--set` flags; config is never read from env vars | [CONFIG.md](CONFIG.md) |
 | Computed config | JS config files may compute options or pass functions | No code in config; everything is declarative | [CONFIG.md](CONFIG.md) |
 | Shareable configs | `extends` resolves npm packages; plugins resolved relative to the config package | `extends` takes built-in presets, local paths and SHA-pinned git refs (HTTPS + `sha256` later); no npm resolution; plugins come from their own pinned versions | [CONFIG.md](CONFIG.md) |
-| Layer merge | shallow: a redefined top-level key (`plugins`, `branches`) replaces the inherited value | deep merge of tables, arrays replace; `merge = "shallow"` restores upstream behaviour | [CONFIG.md](CONFIG.md) |
+| Layer merge | shallow: a redefined top-level key (`plugins`, `branches`) replaces the inherited value | deep merge of tables, arrays replace; `config.merge = "shallow"` restores upstream behaviour | [CONFIG.md](CONFIG.md) |
 | User functions | writer `transform`, `finalizeContext`, sort comparators, `releaseRules` as JS module or functions | Declarative TOML (type map, hidden types, sort keys, rule list) plus minijinja logic; anything more is a replacement plugin; no embedded scripting | [CONFIG.md](CONFIG.md) |
 | Config validation | By convention plugins validate options in `verifyConditions` (commit-analyzer and release-notes don't); core checks only plugin/step shape | Every plugin publishes a JSON Schema; all config is validated before any step runs | [ARCHITECTURE.md](ARCHITECTURE.md) |
 
@@ -22,9 +22,9 @@ Every row is intentional. The linked doc owns the full rule.
 | Area | semantic-release | semoxide | Details |
 | --- | --- | --- | --- |
 | Template engine | lodash `${…}` / `<% %>` evaluating JS | minijinja; no JS expressions | [CONFIG.md](CONFIG.md) |
-| `tagFormat` | lodash template, e.g. `v${version}` | `tag_format` with its own `{version}` syntax | [CONFIG.md](CONFIG.md) |
+| `tagFormat` | lodash template, e.g. `v${version}` | `tags.format` with its own `{version}` syntax | [CONFIG.md](CONFIG.md) |
 | Notes templates | Handlebars `.hbs` partials from `conventional-changelog-<preset>` modules | minijinja templates; `.hbs` unsupported; presets built into the bundled analyzer and notes plugins | [CONFIG.md](CONFIG.md) |
-| Default preset | `angular` | `conventionalcommits` (`!` is breaking); `angular` available, set by `migrate` when the old config relied on the default; user presets in TOML; set once at top level (upstream repeats it per plugin) | [CONFIG.md](CONFIG.md) |
+| Default preset | `angular` | `conventionalcommits` (`!` is breaking); `angular` available, set by `migrate` when the old config relied on the default; user presets in TOML; set once as `commits.preset` (upstream repeats it per plugin) | [CONFIG.md](CONFIG.md) |
 | Sort order | JS `localeCompare` | ICU collation, default locale `en` (same order), configurable `locale` of the release-notes plugin | [CONFIG.md](CONFIG.md) |
 | Untrusted text | Commit text published as written | ANSI escapes, control characters and invisible Unicode stripped from commit text, notes and plugin output everywhere | [CLI.md](CLI.md) |
 
@@ -45,9 +45,9 @@ Every row is intentional. The linked doc owns the full rule.
 | Area | semantic-release | semoxide | Details |
 | --- | --- | --- | --- |
 | Version ranges | node-semver ranges (`satisfies`, `x` ranges, `-0` quirk) | Own `Range { min, max_exclusive }` and bump code on the `semver` crate; precedence ignores build metadata; no npm-range parser | [CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md) |
-| Build metadata | tags with `+meta` break last-release lookup ([#2355](https://github.com/semantic-release/semantic-release/issues/2355)) | tags matched by version, metadata ignored; optional `tag_metadata` on the git tag only | [CONFIG.md](CONFIG.md) |
+| Build metadata | tags with `+meta` break last-release lookup ([#2355](https://github.com/semantic-release/semantic-release/issues/2355)) | tags matched by version, metadata ignored; optional `tags.metadata` on the git tag only | [CONFIG.md](CONFIG.md) |
 | 0.x and manual versions | no 0.x support; no manual version | 0.x policy (breaking → minor); `Release-As:` footer for 1.0.0 and any forced version | [CONFIG.md](CONFIG.md) |
-| Maintenance branches | Default pattern is an extglob `+([0-9])?(.{+([0-9]),x}).x` | Built-in matcher for `N.x` / `N.N.x`; normal globs for user patterns | [CONFIG.md](CONFIG.md) |
+| Maintenance branches | Default pattern is an extglob `+([0-9])?(.{+([0-9]),x}).x` | Built-in matcher, written `{ maintenance = "N.x" }`; normal globs for user patterns | [CONFIG.md](CONFIG.md) |
 
 ## Plugins
 
@@ -60,7 +60,7 @@ Every row is intentional. The linked doc owns the full rule.
 | Plugin environment | Plugins share the full process env | Plugin gets system vars, its manifest-declared secrets and a per-run token only | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Plugin git access | Plugins run git themselves | Plugins push only via the host `Git` service, which pushes only the release tag and never moves existing tags | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Lifecycle steps | 9 steps, camelCase | Same 9 steps in snake_case plus `rollback`, plus an optional `plan` call for dry runs | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Step order | Config order; undocumented per-step keys (`verifyConditions`, `publish`, …) replace a step's plugin list | Config order, documented per-step override (`[steps.<step>] order`) | [CONFIG.md](CONFIG.md) |
+| Step order | Config order; undocumented per-step keys (`verifyConditions`, `publish`, …) replace a step's plugin list | `steps.plugins` order, documented per-step override (`steps.<step>.order`) | [CONFIG.md](CONFIG.md) |
 | Timeouts | None | Per-step deadlines; on timeout or crash the plugin and its children are killed | [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 ## Git and credentials
@@ -96,10 +96,10 @@ Every row is intentional. The linked doc owns the full rule.
 | CLI config flags | `-b -r -t -p -e` and long forms for a few options | generic `--set key=value` for any key; only `-v`/`-q` short flags; `migrate` rewrites old flags | [CLI.md](CLI.md) |
 | Release command | bare `semantic-release` runs the release | `semoxide release`; bare `semoxide` prints help | [CLI.md](CLI.md) |
 | CI outputs | none in core; wrapper actions (e.g. cycjimmy) write step outputs | the core writes `$GITHUB_OUTPUT` with the cycjimmy action's names, plus a step summary | [OBSERVABILITY.md](OBSERVABILITY.md) |
-| `success` step fails | `fail` runs (opens a "release failed" issue), exit 1, though published ([github#738](https://github.com/semantic-release/github/issues/738)) | release stands, warnings, exit 0 by default; `success_errors = "fail"` → exit 5; never rollback | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| `success` step fails | `fail` runs (opens a "release failed" issue), exit 1, though published ([github#738](https://github.com/semantic-release/github/issues/738)) | release stands, warnings, exit 0 by default; `steps.success.errors = "fail"` → exit 5; never rollback | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Exit codes | 0 or 1 | Distinct codes per failure class (usage, config, verify, partial failure, …) | [CLI.md](CLI.md) |
 | Error codes | Mnemonics like `ENOGITREPO` | Namespaced names like `core::no_git_repo`, `github::release_exists`; each with a docs page | [OBSERVABILITY.md](OBSERVABILITY.md) |
-| Masking | Patches global stdout/stderr; raw and URL-encoded forms | Masking at source plus an output pass; also base64 forms, runtime-registered secrets and a `mask_env` list | [OBSERVABILITY.md](OBSERVABILITY.md) |
+| Masking | Patches global stdout/stderr; raw and URL-encoded forms | Masking at source plus an output pass; also base64 forms, runtime-registered secrets and a `secrets.mask_env` list | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | Debug logging | `--debug` flag (CLI only) or `DEBUG=semantic-release:*` via the `debug` module | `SEMOXIDE_LOG` (fallback `RUST_LOG`), `-v`/`--debug`, `--log-file` | [OBSERVABILITY.md](OBSERVABILITY.md) |
 
 ## CI and environment

@@ -201,7 +201,7 @@ Config keys: [CONFIG](CONFIG.md).
 | --- | --- |
 | libgit2 pushes a fast-forward move of an existing remote tag, and GitHub accepts it | never move an existing remote tag: `push_negotiation` rejects `refs/tags/*` updates with a non-zero `src` |
 | `push()` returns `Ok` when the server rejects a ref | check every pushed ref's status (`push_update_reference`); a bare `failed` (no reason) is retried once, logged; if the retry reports the tag exists, success only when the remote tag points at our commit |
-| tag names can carry build metadata (`tag_metadata`), so a version can have differently named tags | every tag lookup (clobber guard, rerun, promotion) goes through the parsed version index, never a name built from the version; a test enforces it |
+| tag names can carry build metadata (`tags.metadata`), so a version can have differently named tags | every tag lookup (clobber guard, rerun, promotion) goes through the parsed version index, never a name built from the version; a test enforces it |
 | on 401 libgit2 re-calls the credential callback (up to 15 times) | cap credential retries in our callback |
 | HTTP error text differs by OS (WinHTTP vs OpenSSL), no numeric status API | match HTTP errors by class (`class=Http`) and status (`403` in message), never by full text |
 | push negotiation abort = `git push --dry-run` depth | branch protection and hooks are reported only by the real push |
@@ -227,7 +227,7 @@ flowchart TD
 ```
 
 - The tag is pushed before publish (semantic-release order).
-- A failing `success` step never rolls back and never runs `fail`: the release stands, the outcome stays `Released`, and the errors are warnings in the log and in `RunReport.success_errors` (exit 0, default). With `success_errors = "fail"` ([CONFIG](CONFIG.md)) the run exits with the partial-failure code instead, still without rollback.
+- A failing `success` step never rolls back and never runs `fail`: the release stands, the outcome stays `Released`, and the errors are warnings in the log and in `RunReport.success_errors` (exit 0, default). With `steps.success.errors = "fail"` ([CONFIG](CONFIG.md)) the run exits with the partial-failure code instead, still without rollback.
 - Only the core deletes a tag, and only the one it pushed in this run. Plugins and the `Git` service never delete tags.
 - Without delete rights, rollback still runs for the other plugins; the run ends as a partial failure. Partial failure has its own exit code ([CLI](CLI.md)).
 - User docs must state that tag deletion needs delete rights on the remote.
