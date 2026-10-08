@@ -6,7 +6,8 @@ Reference for `semoxide.toml`. Commands that read or write it (`init`, `migrate`
 
 - TOML only, data only (no computed values, no functions).
 - Every key lives in a domain table; dotted keys keep small configs short (`tags.format = "v{version}"`).
-- Discovery in the working directory: `semoxide.toml`, then `.config/semoxide.toml`. The first one found is used.
+- Discovery in the run's directory (the current directory, or `--cwd`; parent directories aren't searched, as upstream): `semoxide.toml`, then `.config/semoxide.toml`. The first one found is used; if both exist, the other is reported as ignored (a warning).
+- A file that isn't valid TOML is `config::invalid_toml` (with the parser's line and column); one that exists but can't be read (permissions, not UTF-8, a directory) is `config::unreadable`.
 - No file found: semoxide runs with defaults.
 - Unknown keys are rejected with a coded config error ([OBSERVABILITY.md](OBSERVABILITY.md) owns the `ErrorInfo` codes and the line pointer into `semoxide.toml`).
 - All config, including every `[plugins.*]` section, is validated before any step runs.

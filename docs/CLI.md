@@ -31,6 +31,7 @@ Bare `semoxide` prints help; it never starts a release.
 
 | Flag | Effect |
 | --- | --- |
+| `-C, --cwd <path>` | the directory semoxide runs in: config discovery and the git repository. Default: the current directory |
 | `--output=text\|json` | data format on stdout ([JSON contract](#json-contract)); no separate `--json` |
 | `--set <key>=<value>` | overrides one config key (repeatable), validated like the file. The key is a dotted TOML key without array indexes (arrays replace whole). The value is TOML, or a plain string when it isn't valid TOML and doesn't start with `"`, `'`, `[` or `{`: `--set tags.format=v{version}`, `--set plugins.github.draft=true`, `--set 'steps.plugins=["git"]'`; quote to force a string (`--set 'plugins.npm.tag="1"'`). A malformed flag is `config::invalid_flag`. The only way to set config from the CLI ([CONFIG.md](CONFIG.md)) |
 | `--dry-run` | [dry-run](#dry-run) |
