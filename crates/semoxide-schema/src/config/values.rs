@@ -191,6 +191,19 @@ impl Step {
         ("fail", Self::Fail),
     ];
 
+    /// The config names of all steps, in run order.
+    pub(super) const NAMES: [&'static str; 9] = [
+        "verify_conditions",
+        "analyze_commits",
+        "verify_release",
+        "generate_notes",
+        "prepare",
+        "publish",
+        "add_channel",
+        "success",
+        "fail",
+    ];
+
     /// The step's config name, e.g. `verify_conditions`.
     #[must_use]
     pub fn as_str(self) -> &'static str {

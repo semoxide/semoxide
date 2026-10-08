@@ -171,7 +171,7 @@ impl BranchRule {
                 })
             }
         };
-        fields.finish()?;
+        fields.finish(&["name", "prerelease", "channel"])?;
         Ok(rule)
     }
 
@@ -348,7 +348,7 @@ impl MaintenanceRule {
             }
         };
         let channel = take_channel(&mut fields)?;
-        fields.finish()?;
+        fields.finish(&["maintenance", "range", "channel"])?;
         Ok(Self {
             pattern,
             range,

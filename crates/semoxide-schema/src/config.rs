@@ -59,7 +59,7 @@ impl Config {
         let version = VersionDomain::parse(fields.domain("version")?)?;
         let mut branch_fields = fields.domain("branches")?;
         let branches = Branches::parse(&mut branch_fields)?;
-        branch_fields.finish()?;
+        branch_fields.finish(&["rules"])?;
         let tags = Tags::parse(fields.domain("tags")?)?;
         let steps = Steps::parse(fields.domain("steps")?)?;
         let plugins = parse_plugins(fields.domain("plugins")?, &steps)?;
@@ -67,7 +67,7 @@ impl Config {
         if let Some((path, _)) = fields.take("packages") {
             return Err(ConfigError::unsupported(&path));
         }
-        fields.finish()?;
+        fields.finish(&DOMAINS)?;
         Ok(Self {
             layering,
             commits,
@@ -182,7 +182,7 @@ impl ConfigDomain {
             .map(|(path, value)| choice(&path, &value, &MERGE_MODES))
             .transpose()?
             .unwrap_or(MergeMode::Deep);
-        fields.finish()?;
+        fields.finish(&["merge"])?;
         Ok(Self { merge })
     }
 
@@ -227,7 +227,7 @@ impl Commits {
             .map(|(path, value)| choice(&path, &value, &PRESETS))
             .transpose()?
             .unwrap_or(Preset::ConventionalCommits);
-        fields.finish()?;
+        fields.finish(&["preset"])?;
         Ok(Self { preset })
     }
 
@@ -285,7 +285,7 @@ impl VersionDomain {
             Some((path, value)) => ZeroLevels::parse(Fields::from_value(&path, value)?)?,
             None => ZeroLevels::DEFAULT,
         };
-        fields.finish()?;
+        fields.finish(&["initial", "zero"])?;
         Ok(Self { initial, zero })
     }
 
@@ -363,7 +363,7 @@ impl ZeroLevels {
             feature: level("feature", Self::DEFAULT.feature)?,
             fix: level("fix", Self::DEFAULT.fix)?,
         };
-        fields.finish()?;
+        fields.finish(&["breaking", "feature", "fix"])?;
         Ok(levels)
     }
 
@@ -418,7 +418,7 @@ impl Tags {
             .take("metadata")
             .map(|(path, value)| string(&path, &value).map(Template::unchecked))
             .transpose()?;
-        fields.finish()?;
+        fields.finish(&["format", "metadata"])?;
         Ok(Self { format, metadata })
     }
 
@@ -485,7 +485,7 @@ impl Steps {
         };
         for (path, name, value) in fields.drain() {
             let Some(step) = Step::from_name(&name) else {
-                return Err(ConfigError::unknown(&path));
+                return Err(ConfigError::unknown(&path, &step_keys()));
             };
             let mut step_fields = Fields::from_value(&path, value)?;
             if let Some((order_path, order)) = step_fields.take("order") {
@@ -497,7 +497,11 @@ impl Steps {
             {
                 steps.success_errors = choice(&errors_path, &errors, &SUCCESS_ERRORS)?;
             }
-            step_fields.finish()?;
+            step_fields.finish(if step == Step::Success {
+                &["order", "errors"]
+            } else {
+                &["order"]
+            })?;
         }
         Ok(steps)
     }
@@ -614,7 +618,7 @@ impl PluginConfig {
         if let Some((path, value)) = fields.take("timeouts") {
             for (step_path, name, duration) in Fields::from_value(&path, value)?.drain() {
                 let Some(step) = Step::from_name(&name) else {
-                    return Err(ConfigError::unknown(&step_path));
+                    return Err(ConfigError::unknown(&step_path, &Step::NAMES));
                 };
                 timeouts.insert(step, values::parse_duration(&step_path, &duration)?);
             }
@@ -720,7 +724,7 @@ impl Secrets {
                 .collect::<Result<_, _>>()?,
             None => Vec::new(),
         };
-        fields.finish()?;
+        fields.finish(&["mask_env"])?;
         Ok(Self { mask_env })
     }
 
@@ -781,12 +785,23 @@ impl Fields {
             .collect()
     }
 
-    fn finish(self) -> Result<(), ConfigError> {
+    /// Rejects the first key left over; `known` are the keys valid here, for the hint.
+    fn finish(self, known: &[&str]) -> Result<(), ConfigError> {
         match self.table.keys().next() {
-            Some(name) => Err(ConfigError::unknown(&key(&self.path, name))),
+            Some(name) => Err(ConfigError::unknown(&key(&self.path, name), known)),
             None => Ok(()),
         }
     }
+}
+
+/// The domains, in the order CONFIG.md lists them.
+const DOMAINS: [&str; 8] = [
+    "config", "commits", "version", "branches", "tags", "steps", "plugins", "secrets",
+];
+
+/// The keys valid directly under `[steps]`.
+fn step_keys() -> Vec<&'static str> {
+    std::iter::once("plugins").chain(Step::NAMES).collect()
 }
 
 /// `path.name`, or `name` at the top level.
@@ -810,6 +825,7 @@ pub struct ConfigError {
     code: ErrorCode,
     path: String,
     message: String,
+    help: Option<String>,
 }
 
 impl ConfigError {
@@ -824,14 +840,20 @@ impl ConfigError {
             code: CONFIG_INVALID_VALUE,
             path: path.to_owned(),
             message: format!("`{path}` = {value}: {problem}"),
+            help: None,
         }
     }
 
-    fn unknown(path: &str) -> Self {
+    /// An unknown key, with a hint when a valid one in `known` is close.
+    fn unknown(path: &str, known: &[&str]) -> Self {
+        let (parent, name) = path.rsplit_once('.').unwrap_or(("", path));
+        let help = suggest::closest(name, known)
+            .map(|candidate| format!("Use `{}` instead.", key(parent, candidate)));
         Self {
             code: CONFIG_UNKNOWN_KEY,
             path: path.to_owned(),
             message: format!("unknown key `{path}`"),
+            help,
         }
     }
 
@@ -840,6 +862,7 @@ impl ConfigError {
             code: CONFIG_CONFLICTING_KEYS,
             path: path.to_owned(),
             message: format!("`{path}`: {problem}"),
+            help: None,
         }
     }
 
@@ -848,6 +871,7 @@ impl ConfigError {
             code: CONFIG_UNSUPPORTED_SECTION,
             path: path.to_owned(),
             message: format!("`{path}` isn't supported yet"),
+            help: None,
         }
     }
 
@@ -856,6 +880,7 @@ impl ConfigError {
             code: CONFIG_PLUGIN_NOT_ENABLED,
             path: path.to_owned(),
             message: format!("`{path}`: plugin `{name}` isn't in `steps.plugins`"),
+            help: None,
         }
     }
 }
@@ -874,6 +899,6 @@ impl ErrorInfo for ConfigError {
     }
 
     fn help(&self) -> Option<String> {
-        Some(String::new())
+        self.help.clone()
     }
 }
