@@ -1,17 +1,32 @@
 //! `semoxide.toml` as typed configuration, one type per domain (CONFIG.md).
+//!
+//! [`Config::from_table`] reads a merged TOML table by hand, domain by domain, so every error
+//! carries its code and exact key path (`branches.rules[2].prerelease`).
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::str::FromStr;
 use std::time::Duration;
 
 use semoxide_error::{ErrorCode, ErrorInfo};
 use semver::Version;
+use toml::{Table, Value};
 
-use crate::codes::CONFIG_INVALID_VALUE;
+use crate::codes::{
+    CONFIG_CONFLICTING_KEYS, CONFIG_INVALID_VALUE, CONFIG_PLUGIN_NOT_ENABLED, CONFIG_UNKNOWN_KEY,
+    CONFIG_UNSUPPORTED_SECTION,
+};
 
+mod branches;
 #[cfg(test)]
 mod tests;
+mod values;
+
+pub use branches::{
+    BranchRule, Branches, Channel, MaintenanceRule, Prerelease, PrereleaseRule, ReleaseRule,
+};
+pub use values::{EnvName, PluginName, Step, TagFormat, Template};
+
+use values::{array, choice, choice_name, string};
 
 /// A validated configuration: the merged layers with every default applied.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,19 +47,59 @@ impl Config {
     /// # Errors
     ///
     /// Returns [`ConfigError`] with the code and key path of the first problem.
-    pub fn from_table(table: toml::Table) -> Result<Self, ConfigError> {
-        drop(table);
-        Err(ConfigError {
-            code: CONFIG_INVALID_VALUE,
-            path: String::new(),
-            message: String::from("not implemented"),
+    pub fn from_table(table: Table) -> Result<Self, ConfigError> {
+        let mut fields = Fields::from_table("", table);
+        let layering = ConfigDomain::parse(fields.domain("config")?)?;
+        let commits = Commits::parse(fields.domain("commits")?)?;
+        let version = VersionDomain::parse(fields.domain("version")?)?;
+        let mut branch_fields = fields.domain("branches")?;
+        let branches = Branches::parse(&mut branch_fields)?;
+        branch_fields.finish()?;
+        let tags = Tags::parse(fields.domain("tags")?)?;
+        let steps = Steps::parse(fields.domain("steps")?)?;
+        let plugins = parse_plugins(fields.domain("plugins")?, &steps)?;
+        let secrets = Secrets::parse(fields.domain("secrets")?)?;
+        if let Some((path, _)) = fields.take("packages") {
+            return Err(ConfigError::unsupported(&path));
+        }
+        fields.finish()?;
+        Ok(Self {
+            layering,
+            commits,
+            version,
+            branches,
+            tags,
+            steps,
+            plugins,
+            secrets,
         })
     }
 
     /// The configuration as a TOML table that [`Config::from_table`] reads back unchanged.
     #[must_use]
-    pub fn to_table(&self) -> toml::Table {
-        toml::Table::new()
+    pub fn to_table(&self) -> Table {
+        let mut table = Table::new();
+        let mut insert = |name: &str, domain: Table| {
+            table.insert(name.to_owned(), Value::Table(domain));
+        };
+        insert("config", self.layering.to_table());
+        insert("commits", self.commits.to_table());
+        insert("version", self.version.to_table());
+        insert(
+            "branches",
+            Table::from_iter([(String::from("rules"), self.branches.to_value())]),
+        );
+        insert("tags", self.tags.to_table());
+        insert("steps", self.steps.to_table());
+        insert(
+            "plugins",
+            self.plugins
+                .iter()
+                .map(|(name, settings)| (name.to_string(), Value::Table(settings.to_table())))
+                .collect(),
+        );
+        insert("secrets", self.secrets.to_table());
+        table
     }
 
     /// `[config]`
@@ -83,7 +138,8 @@ impl Config {
         &self.steps
     }
 
-    /// `[plugins.<name>]` of one plugin.
+    /// The settings of an enabled plugin (its `[plugins.<name>]` table, or defaults without
+    /// one); `None` for a plugin missing from `steps.plugins`.
     #[must_use]
     pub fn plugin(&self, name: &PluginName) -> Option<&PluginConfig> {
         self.plugins.get(name)
@@ -94,45 +150,6 @@ impl Config {
     pub fn secrets(&self) -> &Secrets {
         &self.secrets
     }
-
-    fn stub() -> Self {
-        Self {
-            layering: ConfigDomain {
-                merge: MergeMode::Shallow,
-            },
-            commits: Commits {
-                preset: Preset::Angular,
-            },
-            version: VersionDomain {
-                initial: Version::new(0, 0, 0),
-                zero: ZeroLevels {
-                    breaking: Level::Major,
-                    feature: Level::Major,
-                    fix: Level::Major,
-                },
-            },
-            branches: Branches { rules: Vec::new() },
-            tags: Tags {
-                format: TagFormat(String::new()),
-                metadata: None,
-            },
-            steps: Steps {
-                plugins: Vec::new(),
-                orders: BTreeMap::new(),
-                success_errors: SuccessErrors::Fail,
-            },
-            plugins: BTreeMap::new(),
-            secrets: Secrets {
-                mask_env: Vec::new(),
-            },
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self::stub()
-    }
 }
 
 /// `[config]`: how the configuration itself is assembled.
@@ -141,11 +158,34 @@ pub struct ConfigDomain {
     merge: MergeMode,
 }
 
+const MERGE_MODES: [(&str, MergeMode); 2] =
+    [("deep", MergeMode::Deep), ("shallow", MergeMode::Shallow)];
+
 impl ConfigDomain {
     /// `config.merge`
     #[must_use]
     pub fn merge(&self) -> MergeMode {
         self.merge
+    }
+
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        if let Some((path, _)) = fields.take("extends") {
+            return Err(ConfigError::unsupported(&path));
+        }
+        let merge = fields
+            .take("merge")
+            .map(|(path, value)| choice(&path, &value, &MERGE_MODES))
+            .transpose()?
+            .unwrap_or(MergeMode::Deep);
+        fields.finish()?;
+        Ok(Self { merge })
+    }
+
+    fn to_table(&self) -> Table {
+        Table::from_iter([(
+            String::from("merge"),
+            Value::String(choice_name(self.merge, &MERGE_MODES).to_owned()),
+        )])
     }
 }
 
@@ -164,11 +204,33 @@ pub struct Commits {
     preset: Preset,
 }
 
+const PRESETS: [(&str, Preset); 2] = [
+    ("conventionalcommits", Preset::ConventionalCommits),
+    ("angular", Preset::Angular),
+];
+
 impl Commits {
     /// `commits.preset`
     #[must_use]
     pub fn preset(&self) -> Preset {
         self.preset
+    }
+
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let preset = fields
+            .take("preset")
+            .map(|(path, value)| choice(&path, &value, &PRESETS))
+            .transpose()?
+            .unwrap_or(Preset::ConventionalCommits);
+        fields.finish()?;
+        Ok(Self { preset })
+    }
+
+    fn to_table(&self) -> Table {
+        Table::from_iter([(
+            String::from("preset"),
+            Value::String(choice_name(self.preset, &PRESETS).to_owned()),
+        )])
     }
 }
 
@@ -200,6 +262,48 @@ impl VersionDomain {
     pub fn zero(&self) -> ZeroLevels {
         self.zero
     }
+
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let initial = fields
+            .take("initial")
+            .map(|(path, value)| parse_version(&path, &value))
+            .transpose()?
+            .unwrap_or(Version::new(1, 0, 0));
+        if !initial.build.is_empty() {
+            return Err(ConfigError::invalid(
+                "version.initial",
+                &Value::String(initial.to_string()),
+                "build metadata isn't allowed",
+            ));
+        }
+        let zero = match fields.take("zero") {
+            Some((path, value)) => ZeroLevels::parse(Fields::from_value(&path, value)?)?,
+            None => ZeroLevels::DEFAULT,
+        };
+        fields.finish()?;
+        Ok(Self { initial, zero })
+    }
+
+    fn to_table(&self) -> Table {
+        Table::from_iter([
+            (
+                String::from("initial"),
+                Value::String(self.initial.to_string()),
+            ),
+            (String::from("zero"), Value::Table(self.zero.to_table())),
+        ])
+    }
+}
+
+fn parse_version(path: &str, value: &Value) -> Result<Version, ConfigError> {
+    let text = string(path, value)?;
+    Version::parse(&text).map_err(|_| {
+        ConfigError::invalid(
+            path,
+            value,
+            "expected a full SemVer version such as `1.0.0`",
+        )
+    })
 }
 
 /// The release level each kind of change gets on 0.x.
@@ -210,7 +314,19 @@ pub struct ZeroLevels {
     fix: Level,
 }
 
+const LEVELS: [(&str, Level); 3] = [
+    ("major", Level::Major),
+    ("minor", Level::Minor),
+    ("patch", Level::Patch),
+];
+
 impl ZeroLevels {
+    const DEFAULT: Self = Self {
+        breaking: Level::Minor,
+        feature: Level::Patch,
+        fix: Level::Patch,
+    };
+
     /// `version.zero.breaking`
     #[must_use]
     pub fn breaking(&self) -> Level {
@@ -228,6 +344,32 @@ impl ZeroLevels {
     pub fn fix(&self) -> Level {
         self.fix
     }
+
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let mut level = |name: &str, default: Level| {
+            fields
+                .take(name)
+                .map(|(path, value)| choice(&path, &value, &LEVELS))
+                .transpose()
+                .map(|level| level.unwrap_or(default))
+        };
+        let levels = Self {
+            breaking: level("breaking", Self::DEFAULT.breaking)?,
+            feature: level("feature", Self::DEFAULT.feature)?,
+            fix: level("fix", Self::DEFAULT.fix)?,
+        };
+        fields.finish()?;
+        Ok(levels)
+    }
+
+    fn to_table(self) -> Table {
+        let name = |level: Level| Value::String(choice_name(level, &LEVELS).to_owned());
+        Table::from_iter([
+            (String::from("breaking"), name(self.breaking)),
+            (String::from("feature"), name(self.feature)),
+            (String::from("fix"), name(self.fix)),
+        ])
+    }
 }
 
 /// A release level.
@@ -239,148 +381,6 @@ pub enum Level {
     Minor,
     /// `patch`
     Patch,
-}
-
-/// `[branches]`
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Branches {
-    rules: Vec<BranchRule>,
-}
-
-impl Branches {
-    /// `branches.rules`, in order.
-    #[must_use]
-    pub fn rules(&self) -> &[BranchRule] {
-        &self.rules
-    }
-}
-
-/// One entry of `branches.rules`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BranchRule {
-    /// `"main"` or `{ name = "main", channel = … }`
-    Release(ReleaseRule),
-    /// `{ name = "beta", prerelease = true }`
-    Prerelease(PrereleaseRule),
-    /// `{ maintenance = "N.x" }`
-    Maintenance(MaintenanceRule),
-}
-
-/// A release branch rule.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReleaseRule {
-    name: String,
-    channel: Option<Channel>,
-}
-
-impl ReleaseRule {
-    /// The branch name or glob.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// The channel, or `None` for the default rule (CONFIG §3).
-    #[must_use]
-    pub fn channel(&self) -> Option<&Channel> {
-        self.channel.as_ref()
-    }
-}
-
-/// A prerelease branch rule.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrereleaseRule {
-    name: String,
-    prerelease: Prerelease,
-    channel: Option<Channel>,
-}
-
-impl PrereleaseRule {
-    /// The branch name or glob.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// The prerelease identifier.
-    #[must_use]
-    pub fn prerelease(&self) -> &Prerelease {
-        &self.prerelease
-    }
-
-    /// The channel, or `None` for the default rule (CONFIG §3).
-    #[must_use]
-    pub fn channel(&self) -> Option<&Channel> {
-        self.channel.as_ref()
-    }
-}
-
-/// A maintenance branch rule.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaintenanceRule {
-    pattern: String,
-    range: Option<String>,
-    channel: Option<Channel>,
-}
-
-impl MaintenanceRule {
-    /// The pattern, e.g. `N.x` or `release/N.x`, or a plain name with a [`range`](Self::range).
-    #[must_use]
-    pub fn pattern(&self) -> &str {
-        &self.pattern
-    }
-
-    /// Whether a branch name falls under this rule: for a pattern, its prefix followed by a
-    /// range-shaped name (`1.x`, `1.x.x`, `1.2.x`, `x` in any case); for a name with
-    /// [`range`](Self::range), that exact name.
-    #[must_use]
-    pub fn matches(&self, branch: &str) -> bool {
-        let _ = branch;
-        false
-    }
-
-    /// The explicit range, e.g. `1.x`, for a name without `N.x`.
-    #[must_use]
-    pub fn range(&self) -> Option<&str> {
-        self.range.as_deref()
-    }
-
-    /// The channel, or `None` for the default rule (CONFIG §3).
-    #[must_use]
-    pub fn channel(&self) -> Option<&Channel> {
-        self.channel.as_ref()
-    }
-}
-
-/// `channel` of a branch rule.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Channel {
-    /// `false`: the default channel.
-    Default,
-    /// A channel name, optionally with `{name}`.
-    Named(Template),
-}
-
-/// `prerelease` of a branch rule.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Prerelease {
-    /// `true`: the branch name is the identifier.
-    BranchName,
-    /// An identifier, optionally with `{name}`.
-    Id(Template),
-}
-
-/// A string with at most the `{name}` placeholder (branch rules) or a template checked later
-/// (`tags.metadata`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Template(String);
-
-impl Template {
-    /// The text as written.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 /// `[tags]`
@@ -402,17 +402,33 @@ impl Tags {
     pub fn metadata(&self) -> Option<&Template> {
         self.metadata.as_ref()
     }
-}
 
-/// A tag format with exactly one `{version}`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TagFormat(String);
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let format = fields
+            .take("format")
+            .map(|(path, value)| TagFormat::parse(&path, &value))
+            .transpose()?
+            .unwrap_or_else(TagFormat::default_format);
+        let metadata = fields
+            .take("metadata")
+            .map(|(path, value)| string(&path, &value).map(Template::unchecked))
+            .transpose()?;
+        fields.finish()?;
+        Ok(Self { format, metadata })
+    }
 
-impl TagFormat {
-    /// The format as written, e.g. `v{version}`.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
+    fn to_table(&self) -> Table {
+        let mut table = Table::from_iter([(
+            String::from("format"),
+            Value::String(self.format.as_str().to_owned()),
+        )]);
+        if let Some(metadata) = &self.metadata {
+            table.insert(
+                String::from("metadata"),
+                Value::String(metadata.as_str().to_owned()),
+            );
+        }
+        table
     }
 }
 
@@ -423,6 +439,11 @@ pub struct Steps {
     orders: BTreeMap<Step, Vec<PluginName>>,
     success_errors: SuccessErrors,
 }
+
+const SUCCESS_ERRORS: [(&str, SuccessErrors); 2] =
+    [("warn", SuccessErrors::Warn), ("fail", SuccessErrors::Fail)];
+
+const BUNDLED_PLUGINS: [&str; 2] = ["commit-analyzer", "release-notes"];
 
 impl Steps {
     /// `steps.plugins`: the enabled plugins in run order.
@@ -442,29 +463,98 @@ impl Steps {
     pub fn success_errors(&self) -> SuccessErrors {
         self.success_errors
     }
+
+    fn is_enabled(&self, name: &PluginName) -> bool {
+        self.plugins.contains(name)
+    }
+
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let plugins = match fields.take("plugins") {
+            Some((path, value)) => parse_plugin_list(&path, value)?,
+            None => BUNDLED_PLUGINS.map(PluginName::bundled).to_vec(),
+        };
+        let mut steps = Self {
+            plugins,
+            orders: BTreeMap::new(),
+            success_errors: SuccessErrors::Warn,
+        };
+        for (path, name, value) in fields.drain() {
+            let Some(step) = Step::from_name(&name) else {
+                return Err(ConfigError::unknown(&path));
+            };
+            let mut step_fields = Fields::from_value(&path, value)?;
+            if let Some((order_path, order)) = step_fields.take("order") {
+                let order = steps.parse_order(&order_path, order)?;
+                steps.orders.insert(step, order);
+            }
+            if step == Step::Success
+                && let Some((errors_path, errors)) = step_fields.take("errors")
+            {
+                steps.success_errors = choice(&errors_path, &errors, &SUCCESS_ERRORS)?;
+            }
+            step_fields.finish()?;
+        }
+        Ok(steps)
+    }
+
+    fn parse_order(&self, path: &str, value: Value) -> Result<Vec<PluginName>, ConfigError> {
+        array(path, value)?
+            .into_iter()
+            .enumerate()
+            .map(|(position, item)| {
+                let item_path = index(path, position);
+                let name = PluginName::parse(&item_path, &item)?;
+                if !self.is_enabled(&name) {
+                    return Err(ConfigError::not_enabled(&item_path, &name));
+                }
+                Ok(name)
+            })
+            .collect()
+    }
+
+    fn to_table(&self) -> Table {
+        let names = |names: &[PluginName]| {
+            Value::Array(
+                names
+                    .iter()
+                    .map(|name| Value::String(name.to_string()))
+                    .collect(),
+            )
+        };
+        let mut step_tables: BTreeMap<Step, Table> = BTreeMap::new();
+        for (step, order) in &self.orders {
+            step_tables
+                .entry(*step)
+                .or_default()
+                .insert(String::from("order"), names(order));
+        }
+        step_tables.entry(Step::Success).or_default().insert(
+            String::from("errors"),
+            Value::String(choice_name(self.success_errors, &SUCCESS_ERRORS).to_owned()),
+        );
+        let mut table = Table::from_iter([(String::from("plugins"), names(&self.plugins))]);
+        for (step, step_table) in step_tables {
+            table.insert(step.as_str().to_owned(), Value::Table(step_table));
+        }
+        table
+    }
 }
 
-/// A lifecycle step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Step {
-    /// `verify_conditions`
-    VerifyConditions,
-    /// `analyze_commits`
-    AnalyzeCommits,
-    /// `verify_release`
-    VerifyRelease,
-    /// `generate_notes`
-    GenerateNotes,
-    /// `prepare`
-    Prepare,
-    /// `publish`
-    Publish,
-    /// `add_channel`
-    AddChannel,
-    /// `success`
-    Success,
-    /// `fail`
-    Fail,
+fn parse_plugin_list(path: &str, value: Value) -> Result<Vec<PluginName>, ConfigError> {
+    let mut names: Vec<PluginName> = Vec::new();
+    for (position, item) in array(path, value)?.into_iter().enumerate() {
+        let item_path = index(path, position);
+        let name = PluginName::parse(&item_path, &item)?;
+        if names.contains(&name) {
+            return Err(ConfigError::invalid(
+                &item_path,
+                &item,
+                "the plugin is already listed",
+            ));
+        }
+        names.push(name);
+    }
+    Ok(names)
 }
 
 /// What a failing `success` step does to a published release.
@@ -476,28 +566,8 @@ pub enum SuccessErrors {
     Fail,
 }
 
-/// A plugin's short name, e.g. `github`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PluginName(String);
-
-impl PluginName {
-    /// The name as written.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl FromStr for PluginName {
-    type Err = ConfigError;
-
-    fn from_str(name: &str) -> Result<Self, Self::Err> {
-        Ok(Self(name.to_owned()))
-    }
-}
-
 /// `[plugins.<name>]`
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct PluginConfig {
     version: Option<Version>,
     timeouts: BTreeMap<Step, Duration>,
@@ -529,6 +599,98 @@ impl PluginConfig {
     pub fn options(&self) -> &serde_json::Map<String, serde_json::Value> {
         &self.options
     }
+
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let version = fields
+            .take("version")
+            .map(|(path, value)| parse_version(&path, &value))
+            .transpose()?;
+        let mut timeouts = BTreeMap::new();
+        if let Some((path, value)) = fields.take("timeouts") {
+            for (step_path, name, duration) in Fields::from_value(&path, value)?.drain() {
+                let Some(step) = Step::from_name(&name) else {
+                    return Err(ConfigError::unknown(&step_path));
+                };
+                timeouts.insert(step, values::parse_duration(&step_path, &duration)?);
+            }
+        }
+        let show_output = match fields.take("show_output") {
+            Some((_, Value::Boolean(flag))) => flag,
+            Some((path, other)) => {
+                return Err(ConfigError::invalid(
+                    &path,
+                    &other,
+                    "expected `true` or `false`",
+                ));
+            }
+            None => false,
+        };
+        let options = fields
+            .drain()
+            .into_iter()
+            .map(|(path, name, value)| Ok((name, values::to_json(&path, &value)?)))
+            .collect::<Result<_, ConfigError>>()?;
+        Ok(Self {
+            version,
+            timeouts,
+            show_output,
+            options,
+        })
+    }
+
+    fn to_table(&self) -> Table {
+        let mut table: Table = self
+            .options
+            .iter()
+            .map(|(name, value)| (name.clone(), values::from_json(value)))
+            .collect();
+        if let Some(version) = &self.version {
+            table.insert(String::from("version"), Value::String(version.to_string()));
+        }
+        if !self.timeouts.is_empty() {
+            table.insert(
+                String::from("timeouts"),
+                Value::Table(
+                    self.timeouts
+                        .iter()
+                        .map(|(step, duration)| {
+                            (
+                                step.as_str().to_owned(),
+                                Value::String(values::format_duration(*duration)),
+                            )
+                        })
+                        .collect(),
+                ),
+            );
+        }
+        table.insert(
+            String::from("show_output"),
+            Value::Boolean(self.show_output),
+        );
+        table
+    }
+}
+
+/// Every enabled plugin with its settings: its table, or defaults without one.
+fn parse_plugins(
+    mut fields: Fields,
+    steps: &Steps,
+) -> Result<BTreeMap<PluginName, PluginConfig>, ConfigError> {
+    let mut plugins: BTreeMap<PluginName, PluginConfig> = BTreeMap::new();
+    for (path, name, value) in fields.drain() {
+        let name = PluginName::parse(&path, &Value::String(name))?;
+        if !steps.is_enabled(&name) {
+            return Err(ConfigError::not_enabled(&path, &name));
+        }
+        plugins.insert(
+            name,
+            PluginConfig::parse(Fields::from_value(&path, value)?)?,
+        );
+    }
+    for name in steps.plugins() {
+        plugins.entry(name.clone()).or_default();
+    }
+    Ok(plugins)
 }
 
 /// `[secrets]`
@@ -543,18 +705,97 @@ impl Secrets {
     pub fn mask_env(&self) -> &[EnvName] {
         &self.mask_env
     }
+
+    fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let mask_env = match fields.take("mask_env") {
+            Some((path, value)) => array(&path, value)?
+                .iter()
+                .enumerate()
+                .map(|(position, item)| EnvName::parse(&index(&path, position), item))
+                .collect::<Result<_, _>>()?,
+            None => Vec::new(),
+        };
+        fields.finish()?;
+        Ok(Self { mask_env })
+    }
+
+    fn to_table(&self) -> Table {
+        Table::from_iter([(
+            String::from("mask_env"),
+            Value::Array(
+                self.mask_env
+                    .iter()
+                    .map(|name| Value::String(name.as_str().to_owned()))
+                    .collect(),
+            ),
+        )])
+    }
 }
 
-/// An environment variable name.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnvName(String);
+/// The keys of one table, taken one by one; [`Fields::finish`] rejects any left over.
+struct Fields {
+    path: String,
+    table: Table,
+}
 
-impl EnvName {
-    /// The name as written.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
+impl Fields {
+    fn from_table(path: &str, table: Table) -> Self {
+        Self {
+            path: path.to_owned(),
+            table,
+        }
     }
+
+    fn from_value(path: &str, value: Value) -> Result<Self, ConfigError> {
+        match value {
+            Value::Table(table) => Ok(Self::from_table(path, table)),
+            other => Err(ConfigError::invalid(path, &other, "expected a table")),
+        }
+    }
+
+    /// The key's full path and value, if present.
+    fn take(&mut self, name: &str) -> Option<(String, Value)> {
+        self.table
+            .remove(name)
+            .map(|value| (key(&self.path, name), value))
+    }
+
+    /// A domain table, or an empty one when it isn't set.
+    fn domain(&mut self, name: &str) -> Result<Self, ConfigError> {
+        match self.take(name) {
+            Some((path, value)) => Self::from_value(&path, value),
+            None => Ok(Self::from_table(&key(&self.path, name), Table::new())),
+        }
+    }
+
+    /// Every remaining key with its full path, in key order.
+    fn drain(&mut self) -> Vec<(String, String, Value)> {
+        std::mem::take(&mut self.table)
+            .into_iter()
+            .map(|(name, value)| (key(&self.path, &name), name, value))
+            .collect()
+    }
+
+    fn finish(self) -> Result<(), ConfigError> {
+        match self.table.keys().next() {
+            Some(name) => Err(ConfigError::unknown(&key(&self.path, name))),
+            None => Ok(()),
+        }
+    }
+}
+
+/// `path.name`, or `name` at the top level.
+fn key(path: &str, name: &str) -> String {
+    if path.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{path}.{name}")
+    }
+}
+
+/// `path[position]`
+fn index(path: &str, position: usize) -> String {
+    format!("{path}[{position}]")
 }
 
 /// An invalid configuration: its code, the key path (`branches.rules[2].prerelease`) and what
@@ -571,6 +812,46 @@ impl ConfigError {
     #[must_use]
     pub fn path(&self) -> &str {
         &self.path
+    }
+
+    fn invalid(path: &str, value: &Value, problem: &str) -> Self {
+        Self {
+            code: CONFIG_INVALID_VALUE,
+            path: path.to_owned(),
+            message: format!("`{path}` = {value}: {problem}"),
+        }
+    }
+
+    fn unknown(path: &str) -> Self {
+        Self {
+            code: CONFIG_UNKNOWN_KEY,
+            path: path.to_owned(),
+            message: format!("unknown key `{path}`"),
+        }
+    }
+
+    fn conflicting(path: &str, problem: &str) -> Self {
+        Self {
+            code: CONFIG_CONFLICTING_KEYS,
+            path: path.to_owned(),
+            message: format!("`{path}`: {problem}"),
+        }
+    }
+
+    fn unsupported(path: &str) -> Self {
+        Self {
+            code: CONFIG_UNSUPPORTED_SECTION,
+            path: path.to_owned(),
+            message: format!("`{path}` isn't supported yet"),
+        }
+    }
+
+    fn not_enabled(path: &str, name: &PluginName) -> Self {
+        Self {
+            code: CONFIG_PLUGIN_NOT_ENABLED,
+            path: path.to_owned(),
+            message: format!("`{path}`: plugin `{name}` isn't in `steps.plugins`"),
+        }
     }
 }
 
