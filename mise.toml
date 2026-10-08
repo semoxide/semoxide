@@ -9,3 +9,5 @@
 "github:sourcefrog/cargo-mutants" = "27.1.0"
 "aqua:astral-sh/uv" = "0.12.5"
 "github:taiki-e/cargo-hack" = "0.6.45"
+# Same version as the `insta` crate in Cargo.toml.
+"aqua:mitsuhiko/insta" = "1.49.0"

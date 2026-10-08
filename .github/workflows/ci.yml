@@ -97,6 +97,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      NEXTEST_PROFILE: ci
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -106,8 +108,16 @@ jobs:
         with:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.10.3
-          install_args: github:nextest-rs/nextest
-      - run: cargo nextest run --workspace --locked --no-tests=warn
+          install_args: github:nextest-rs/nextest aqua:mitsuhiko/insta
+      # `cargo insta` has no `--locked`; fetching first fails on an outdated Cargo.lock.
+      - run: cargo fetch --locked
+      # Stale (unreferenced), mismatched and metadata-only-different snapshots fail.
+      - name: Tests and snapshots
+        if: runner.os == 'Linux'
+        run: cargo insta test --workspace --test-runner nextest --disable-nextest-doctest --unreferenced reject --require-full-match
+      - name: Tests
+        if: runner.os == 'Windows'
+        run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
 
   msrv:
