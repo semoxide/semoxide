@@ -1,4 +1,3 @@
-// LOCKED: approved in 31e1964. Do not edit; if a test looks wrong, stop and report.
 //! `[expected]` cases beyond the samples: the `patch` release type, and release fields left
 //! next to `no_release`.
 

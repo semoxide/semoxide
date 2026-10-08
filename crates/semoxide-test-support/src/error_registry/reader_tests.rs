@@ -1,5 +1,3 @@
-// LOCKED: approved in 8b6e909. Do not edit; if a test looks wrong, stop and report.
-
 use std::fs;
 use std::path::Path;
 

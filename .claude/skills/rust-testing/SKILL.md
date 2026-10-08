@@ -22,13 +22,11 @@ Outside the pure core, don't stop for test review: finish the work and report th
 
 For versions, bumps, branches, channels, the commit parser and config merge:
 
-1. **Tests only, in their own file.** Write tests from the approved source (a spec or table, e.g. `docs/test-tables/*.toml`) in a new sibling file for this feature, e.g. `src/next_version_tests.rs` declared as `#[cfg(test)] mod next_version_tests;`. Never append to an existing test file: the lock in step 5 must cover exactly what was approved.
+1. **Tests only, in their own file.** Write tests from the approved source (a spec or table, e.g. `docs/test-tables/*.toml`) in a new sibling file for this feature, e.g. `src/next_version_tests.rs` declared as `#[cfg(test)] mod next_version_tests;`. Never append to an existing test file: the review in step 4 must cover exactly the new tests.
 2. **Real red.** Make the stub return a wrong but valid value (e.g. `Version::new(0, 0, 0)`), so the new tests fail **on their assertions**. A `todo!()` panic or a compile error doesn't count as red. If a test already passes against the stub (e.g. a rejection case against a stub that always errors), keep it and list it in your report as "passes on stub".
 3. **One `test: …` commit** containing the new test file, the `mod` line and the wrong-value stub. The stub belongs here: it isn't implementation, and it makes this commit show the red on its own.
 4. **STOP and report** the failing test names (and any "passes on stub"), then wait for human review. Don't implement in the same turn.
-5. After approval, put this header at the top of the approved test file, then implement:
-   `// LOCKED: approved in <commit>. Do not edit; if a test looks wrong, stop and report.`
-6. Implement in a separate `feat:`/`fix:` commit. Never edit a LOCKED file; if one looks wrong, stop and report.
+5. After approval, implement in a separate `feat:`/`fix:` commit. Never weaken, skip, delete or rewrite an approved test to make code pass; if one looks wrong, stop and report. It changes only with the maintainer's agreement, as its own `test:` commit.
 
 New dependencies, including dev-dependencies: ask before adding them.
 

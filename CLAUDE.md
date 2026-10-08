@@ -21,6 +21,7 @@ A Rust release tool inspired by semantic-release. Current phase: **planning done
 - Docs: short, technical, never repeated (link instead). Each index doc is a one-line-per-entry list.
 - **Docs: use Mermaid diagrams wherever they help**: flows, processes, sequences and timing, how code should work, and how things connect. Never use ASCII art.
 - Git commit email is the default global config. Never override it.
+- Tests first: the maintainer approves them (failing on assertions) before implementation. Never weaken, skip, delete or rewrite an approved test or golden history to make code pass: stop and report. List every changed existing test in the PR ([A2](docs/CODE-ARCHITECTURE.md#10-approaches)).
 
 ## Rust rules
 

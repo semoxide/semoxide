@@ -1,5 +1,3 @@
-// LOCKED: approved in 9c9c6e9. Do not edit; if a test looks wrong, stop and report.
-
 use proptest::prelude::*;
 use rstest::rstest;
 
