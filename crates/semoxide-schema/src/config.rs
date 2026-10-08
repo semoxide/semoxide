@@ -18,6 +18,8 @@ use crate::codes::{
 
 mod branches;
 #[cfg(test)]
+mod defaults_tests;
+#[cfg(test)]
 mod message_tests;
 mod suggest;
 #[cfg(test)]
@@ -80,6 +82,14 @@ impl Config {
             plugins,
             secrets,
         })
+    }
+
+    /// The built-in defaults as the lowest config layer: [`Config::default`] as a table, without
+    /// `[config]` (set only by `semoxide.toml`) and `[plugins]` (per-plugin defaults depend on
+    /// `steps.plugins`, known only after merging).
+    #[must_use]
+    pub fn defaults_table() -> Table {
+        Table::new()
     }
 
     /// The configuration as a TOML table that [`Config::from_table`] reads back unchanged.
@@ -156,6 +166,37 @@ impl Config {
     #[must_use]
     pub fn secrets(&self) -> &Secrets {
         &self.secrets
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            layering: ConfigDomain {
+                merge: MergeMode::Shallow,
+            },
+            commits: Commits {
+                preset: Preset::Angular,
+            },
+            version: VersionDomain {
+                initial: Version::new(0, 0, 0),
+                zero: ZeroLevels::DEFAULT,
+            },
+            branches: Branches::default_rules(),
+            tags: Tags {
+                format: TagFormat::default_format(),
+                metadata: None,
+            },
+            steps: Steps {
+                plugins: Vec::new(),
+                orders: BTreeMap::new(),
+                success_errors: SuccessErrors::Fail,
+            },
+            plugins: BTreeMap::new(),
+            secrets: Secrets {
+                mask_env: Vec::new(),
+            },
+        }
     }
 }
 
