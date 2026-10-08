@@ -60,3 +60,47 @@ impl Tags {
         table
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::ErrorCode;
+
+    use crate::codes::{CONFIG_INVALID_VALUE, CONFIG_UNKNOWN_KEY};
+    use crate::config::test_support::{loaded, rejection};
+
+    #[test]
+    fn tags() {
+        let config = loaded(
+            r#"
+[tags]
+format = "release-{version}"
+metadata = "{{ commit.short_sha }}"
+"#,
+        );
+
+        assert_eq!(config.tags().format().as_str(), "release-{version}");
+        assert_eq!(
+            config.tags().metadata().map(super::Template::as_str),
+            Some("{{ commit.short_sha }}")
+        );
+    }
+
+    #[rstest]
+    // tags
+    #[case::tag_format_without_version(
+        r#"tags.format = "release-tag""#,
+        CONFIG_INVALID_VALUE,
+        "tags.format"
+    )]
+    #[case::tag_format_twice(
+        r#"tags.format = "{version}-{version}""#,
+        CONFIG_INVALID_VALUE,
+        "tags.format"
+    )]
+    #[case::tags_unknown_key(r#"tags.prefix = "v{version}""#, CONFIG_UNKNOWN_KEY, "tags.prefix")]
+    #[case::domain_not_a_table(r#"tags = "v{version}""#, CONFIG_INVALID_VALUE, "tags")]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+}

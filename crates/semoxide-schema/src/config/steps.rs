@@ -157,3 +157,157 @@ pub enum SuccessErrors {
     /// The partial-failure exit code, still without rollback.
     Fail,
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::{ErrorCode, ErrorInfo};
+
+    use super::*;
+    use crate::codes::{CONFIG_INVALID_VALUE, CONFIG_PLUGIN_NOT_ENABLED, CONFIG_UNKNOWN_KEY};
+    use crate::config::Config;
+    use crate::config::test_support::{loaded, plugins, rejection};
+
+    #[test]
+    fn steps() {
+        let config = loaded(
+            r#"
+[steps]
+plugins = ["commit-analyzer", "release-notes", "git", "github", "npm"]
+publish.order = ["npm", "github"]
+success.order = ["github"]
+success.errors = "fail"
+"#,
+        );
+
+        assert_eq!(
+            config.steps().plugins(),
+            plugins(&["commit-analyzer", "release-notes", "git", "github", "npm"])
+        );
+        assert_eq!(
+            config.steps().order(Step::Publish),
+            Some(plugins(&["npm", "github"]).as_slice())
+        );
+        assert_eq!(
+            config.steps().order(Step::Success),
+            Some(plugins(&["github"]).as_slice())
+        );
+        assert_eq!(config.steps().order(Step::Prepare), None);
+        assert_eq!(config.steps().success_errors(), SuccessErrors::Fail);
+    }
+
+    #[rstest]
+    #[case::warn("warn", SuccessErrors::Warn)]
+    #[case::fail("fail", SuccessErrors::Fail)]
+    fn success_errors(#[case] value: &str, #[case] expected: SuccessErrors) {
+        let config = loaded(&format!("steps.success.errors = \"{value}\""));
+
+        assert_eq!(config.steps().success_errors(), expected);
+    }
+
+    #[rstest]
+    #[case::verify_conditions("verify_conditions", Step::VerifyConditions)]
+    #[case::analyze_commits("analyze_commits", Step::AnalyzeCommits)]
+    #[case::verify_release("verify_release", Step::VerifyRelease)]
+    #[case::generate_notes("generate_notes", Step::GenerateNotes)]
+    #[case::prepare("prepare", Step::Prepare)]
+    #[case::publish("publish", Step::Publish)]
+    #[case::add_channel("add_channel", Step::AddChannel)]
+    #[case::success("success", Step::Success)]
+    #[case::fail("fail", Step::Fail)]
+    fn every_step_takes_an_order(#[case] name: &str, #[case] step: Step) {
+        let config = loaded(&format!("steps.{name}.order = [\"release-notes\"]"));
+
+        assert_eq!(
+            config.steps().order(step),
+            Some(plugins(&["release-notes"]).as_slice())
+        );
+    }
+
+    #[rstest]
+    // steps
+    #[case::plugins_not_a_list(r#"steps.plugins = "git""#, CONFIG_INVALID_VALUE, "steps.plugins")]
+    #[case::plugin_name_uppercase(
+        r#"steps.plugins = ["GitHub"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[0]"
+    )]
+    #[case::plugin_name_leading_digit(
+        r#"steps.plugins = ["3s"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[0]"
+    )]
+    #[case::plugin_name_leading_dash(
+        r#"steps.plugins = ["-git"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[0]"
+    )]
+    #[case::plugin_name_trailing_dash(
+        r#"steps.plugins = ["git-"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[0]"
+    )]
+    #[case::plugin_name_double_dash(
+        r#"steps.plugins = ["git--hub"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[0]"
+    )]
+    #[case::plugin_name_underscore(
+        r#"steps.plugins = ["git_hub"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[0]"
+    )]
+    #[case::plugin_name_empty(r#"steps.plugins = [""]"#, CONFIG_INVALID_VALUE, "steps.plugins[0]")]
+    #[case::duplicate_plugin(
+        r#"steps.plugins = ["git", "git"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[1]"
+    )]
+    #[case::unknown_step(r#"steps.deploy.order = ["git"]"#, CONFIG_UNKNOWN_KEY, "steps.deploy")]
+    #[case::step_unknown_key(
+        "steps.publish.parallel = true",
+        CONFIG_UNKNOWN_KEY,
+        "steps.publish.parallel"
+    )]
+    #[case::order_of_disabled_plugin(
+        r#"steps.publish.order = ["npm"]"#,
+        CONFIG_PLUGIN_NOT_ENABLED,
+        "steps.publish.order[0]"
+    )]
+    #[case::order_invalid_name(
+        r#"steps.publish.order = ["Git"]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.publish.order[0]"
+    )]
+    #[case::errors_on_another_step(
+        r#"steps.publish.errors = "fail""#,
+        CONFIG_UNKNOWN_KEY,
+        "steps.publish.errors"
+    )]
+    #[case::success_errors(
+        r#"steps.success.errors = "ignore""#,
+        CONFIG_INVALID_VALUE,
+        "steps.success.errors"
+    )]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+
+    #[rstest]
+    #[case::success_has_errors(
+        r#"steps.success.errorss = "fail""#,
+        Some("Use `steps.success.errors` instead.")
+    )]
+    #[case::other_steps_have_no_errors(r#"steps.publish.errorss = "fail""#, None)]
+    fn errors_is_suggested_only_on_the_success_step(
+        #[case] text: &str,
+        #[case] help: Option<&str>,
+    ) {
+        let table = text.parse::<toml::Table>().unwrap();
+
+        let error = Config::from_table(table);
+
+        assert!(error.is_err());
+        assert_eq!(error.unwrap_err().help().as_deref(), help);
+    }
+}

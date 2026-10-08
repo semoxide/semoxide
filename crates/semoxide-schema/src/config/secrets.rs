@@ -47,3 +47,53 @@ impl Secrets {
         )])
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::ErrorCode;
+
+    use super::*;
+    use crate::codes::{CONFIG_INVALID_VALUE, CONFIG_UNKNOWN_KEY};
+    use crate::config::test_support::{loaded, rejection};
+
+    #[test]
+    fn mask_env() {
+        let config = loaded(r#"secrets.mask_env = ["DEPLOY_TOKEN", "_private2"]"#);
+
+        let names: Vec<&str> = config
+            .secrets()
+            .mask_env()
+            .iter()
+            .map(EnvName::as_str)
+            .collect();
+        assert_eq!(names, ["DEPLOY_TOKEN", "_private2"]);
+    }
+
+    #[rstest]
+    // secrets
+    #[case::env_name_dash(
+        r#"secrets.mask_env = ["MY-TOKEN"]"#,
+        CONFIG_INVALID_VALUE,
+        "secrets.mask_env[0]"
+    )]
+    #[case::env_name_leading_digit(
+        r#"secrets.mask_env = ["1TOKEN"]"#,
+        CONFIG_INVALID_VALUE,
+        "secrets.mask_env[0]"
+    )]
+    #[case::env_name_empty(
+        r#"secrets.mask_env = [""]"#,
+        CONFIG_INVALID_VALUE,
+        "secrets.mask_env[0]"
+    )]
+    #[case::mask_env_not_a_list(
+        r#"secrets.mask_env = "TOKEN""#,
+        CONFIG_INVALID_VALUE,
+        "secrets.mask_env"
+    )]
+    #[case::secrets_unknown_key("secrets.files = []", CONFIG_UNKNOWN_KEY, "secrets.files")]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+}

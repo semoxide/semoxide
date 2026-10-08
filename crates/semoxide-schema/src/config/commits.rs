@@ -53,3 +53,30 @@ pub enum Preset {
     /// `angular`
     Angular,
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::ErrorCode;
+
+    use super::*;
+    use crate::codes::{CONFIG_INVALID_VALUE, CONFIG_UNKNOWN_KEY};
+    use crate::config::test_support::{loaded, rejection};
+
+    #[rstest]
+    #[case::conventional("conventionalcommits", Preset::ConventionalCommits)]
+    #[case::angular("angular", Preset::Angular)]
+    fn commits_preset(#[case] value: &str, #[case] expected: Preset) {
+        let config = loaded(&format!("commits.preset = \"{value}\""));
+
+        assert_eq!(config.commits().preset(), expected);
+    }
+
+    #[rstest]
+    // commits
+    #[case::preset(r#"commits.preset = "eslint""#, CONFIG_INVALID_VALUE, "commits.preset")]
+    #[case::commits_unknown_key("commits.types = []", CONFIG_UNKNOWN_KEY, "commits.types")]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+}

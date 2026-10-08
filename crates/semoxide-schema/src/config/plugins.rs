@@ -137,3 +137,157 @@ pub(super) fn parse_plugins(
     }
     Ok(plugins)
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::ErrorCode;
+
+    use super::*;
+    use crate::codes::{CONFIG_INVALID_VALUE, CONFIG_PLUGIN_NOT_ENABLED, CONFIG_UNKNOWN_KEY};
+    use crate::config::test_support::{loaded, plugin, rejection};
+
+    #[test]
+    fn enabled_plugins_without_a_table_have_default_settings() {
+        let config = loaded("");
+
+        for name in ["commit-analyzer", "release-notes"] {
+            let settings = config.plugin(&plugin(name));
+            assert!(settings.is_some(), "{name}");
+            let settings = settings.unwrap();
+            assert_eq!(settings.version(), None);
+            assert_eq!(settings.timeout(Step::Publish), None);
+            assert!(!settings.show_output());
+            assert_eq!(settings.options(), &serde_json::Map::new());
+        }
+        assert_eq!(config.plugin(&plugin("github")), None);
+    }
+
+    #[test]
+    fn plugin_config() {
+        let config = loaded(
+            r#"
+steps.plugins = ["commit-analyzer", "github"]
+
+[plugins.github]
+version = "1.4.2"
+timeouts.publish = "30m"
+timeouts.success = "90s"
+timeouts.prepare = "1h"
+show_output = true
+assets = ["dist/*.tar.gz"]
+draft = { enabled = true, limit = 3, ratio = 0.5 }
+"#,
+        );
+
+        let github = config.plugin(&plugin("github"));
+        assert!(github.is_some());
+        let github = github.unwrap();
+        assert_eq!(github.version(), Some(&Version::new(1, 4, 2)));
+        assert_eq!(github.timeout(Step::Publish), Some(Duration::from_mins(30)));
+        assert_eq!(github.timeout(Step::Success), Some(Duration::from_secs(90)));
+        assert_eq!(github.timeout(Step::Prepare), Some(Duration::from_hours(1)));
+        assert_eq!(github.timeout(Step::Fail), None);
+        assert!(github.show_output());
+        assert_eq!(
+            serde_json::Value::Object(github.options().clone()),
+            serde_json::json!({
+                "assets": ["dist/*.tar.gz"],
+                "draft": { "enabled": true, "limit": 3, "ratio": 0.5 },
+            })
+        );
+    }
+
+    #[test]
+    fn unknown_plugin_option_keys_are_left_to_the_plugin() {
+        let config = loaded("[plugins.release-notes]\nversion_from = \"tags\"");
+
+        let notes = config.plugin(&plugin("release-notes"));
+        assert!(notes.is_some());
+        assert_eq!(
+            notes.unwrap().options().get("version_from"),
+            Some(&serde_json::json!("tags"))
+        );
+    }
+
+    #[rstest]
+    // plugins
+    #[case::options_of_disabled_plugin(
+        "[plugins.npm]\ntag = \"next\"",
+        CONFIG_PLUGIN_NOT_ENABLED,
+        "plugins.npm"
+    )]
+    #[case::plugin_version(
+        "[plugins.release-notes]\nversion = \"1.4\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.version"
+    )]
+    #[case::timeout_words(
+        "[plugins.release-notes]\ntimeouts.publish = \"1 hour\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.timeouts.publish"
+    )]
+    #[case::timeout_zero(
+        "[plugins.release-notes]\ntimeouts.publish = \"0s\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.timeouts.publish"
+    )]
+    #[case::timeout_no_unit(
+        "[plugins.release-notes]\ntimeouts.publish = \"30\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.timeouts.publish"
+    )]
+    #[case::timeout_integer(
+        "[plugins.release-notes]\ntimeouts.publish = 30",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.timeouts.publish"
+    )]
+    #[case::timeout_days(
+        "[plugins.release-notes]\ntimeouts.publish = \"30d\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.timeouts.publish"
+    )]
+    #[case::timeout_fraction(
+        "[plugins.release-notes]\ntimeouts.publish = \"1.5h\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.timeouts.publish"
+    )]
+    #[case::timeout_unknown_step(
+        "[plugins.release-notes]\ntimeouts.deploy = \"1h\"",
+        CONFIG_UNKNOWN_KEY,
+        "plugins.release-notes.timeouts.deploy"
+    )]
+    #[case::show_output_not_bool(
+        "[plugins.release-notes]\nshow_output = \"yes\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.show_output"
+    )]
+    #[case::option_datetime(
+        "[plugins.release-notes]\nsince = 2026-01-01",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.since"
+    )]
+    #[case::option_datetime_in_array(
+        "[plugins.release-notes]\nwindows = [{ start = 2026-01-01T00:00:00Z }]",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.windows[0].start"
+    )]
+    #[case::option_datetime_in_table(
+        "[plugins.release-notes]\nrange = { from = 08:00:00 }",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.range.from"
+    )]
+    #[case::option_nan(
+        "[plugins.release-notes]\nratio = nan",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.ratio"
+    )]
+    #[case::option_inf_in_array(
+        "[plugins.release-notes]\nlimits = [1.0, inf]",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.limits[1]"
+    )]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+}

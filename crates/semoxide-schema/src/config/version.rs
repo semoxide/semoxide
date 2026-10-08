@@ -156,3 +156,92 @@ pub enum Level {
     /// `patch`
     Patch,
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::ErrorCode;
+
+    use super::*;
+    use crate::codes::{CONFIG_INVALID_VALUE, CONFIG_UNKNOWN_KEY};
+    use crate::config::test_support::{loaded, rejection};
+
+    #[rstest]
+    #[case::zero_x("0.1.0")]
+    #[case::prerelease("2.0.0-rc.1")]
+    fn initial_version(#[case] value: &str) {
+        let config = loaded(&format!("version.initial = \"{value}\""));
+
+        assert_eq!(config.version().initial(), &Version::parse(value).unwrap());
+    }
+
+    #[rstest]
+    #[case::major("major", Level::Major)]
+    #[case::minor("minor", Level::Minor)]
+    #[case::patch("patch", Level::Patch)]
+    fn zero_level(#[case] value: &str, #[case] expected: Level) {
+        let config = loaded(&format!(
+            "[version.zero]\nbreaking = \"{value}\"\nfeature = \"{value}\"\nfix = \"{value}\""
+        ));
+
+        let zero = config.version().zero();
+        assert_eq!(
+            (zero.breaking(), zero.feature(), zero.fix()),
+            (expected, expected, expected)
+        );
+    }
+
+    #[test]
+    fn zero_levels_not_set_keep_their_defaults() {
+        let config = loaded("version.zero.breaking = \"major\"");
+
+        let zero = config.version().zero();
+        assert_eq!(
+            (zero.breaking(), zero.feature(), zero.fix()),
+            (Level::Major, Level::Patch, Level::Patch)
+        );
+    }
+
+    #[rstest]
+    // version
+    #[case::initial_two_parts(
+        r#"version.initial = "1.0""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial"
+    )]
+    #[case::initial_v_prefix(
+        r#"version.initial = "v1.0.0""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial"
+    )]
+    #[case::initial_build_metadata(
+        r#"version.initial = "1.0.0+build""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial"
+    )]
+    #[case::initial_not_a_string("version.initial = 1", CONFIG_INVALID_VALUE, "version.initial")]
+    #[case::zero_breaking(
+        r#"version.zero.breaking = "huge""#,
+        CONFIG_INVALID_VALUE,
+        "version.zero.breaking"
+    )]
+    #[case::zero_feature(
+        r#"version.zero.feature = "none""#,
+        CONFIG_INVALID_VALUE,
+        "version.zero.feature"
+    )]
+    #[case::zero_fix(
+        r#"version.zero.fix = "Patch""#,
+        CONFIG_INVALID_VALUE,
+        "version.zero.fix"
+    )]
+    #[case::zero_unknown_key(
+        r#"version.zero.docs = "patch""#,
+        CONFIG_UNKNOWN_KEY,
+        "version.zero.docs"
+    )]
+    #[case::version_unknown_key(r#"version.first = "1.0.0""#, CONFIG_UNKNOWN_KEY, "version.first")]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+}

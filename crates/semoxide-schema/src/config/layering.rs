@@ -54,3 +54,40 @@ pub enum MergeMode {
     /// A domain from a later layer replaces the whole earlier domain.
     Shallow,
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use semoxide_error::ErrorCode;
+
+    use super::*;
+    use crate::codes::{CONFIG_INVALID_VALUE, CONFIG_UNKNOWN_KEY, CONFIG_UNSUPPORTED_SECTION};
+    use crate::config::test_support::{loaded, rejection};
+
+    #[rstest]
+    #[case::deep("deep", MergeMode::Deep)]
+    #[case::shallow("shallow", MergeMode::Shallow)]
+    fn merge_mode(#[case] value: &str, #[case] expected: MergeMode) {
+        let config = loaded(&format!("config.merge = \"{value}\""));
+
+        assert_eq!(config.config().merge(), expected);
+    }
+
+    #[rstest]
+    // config
+    #[case::merge(r#"config.merge = "partial""#, CONFIG_INVALID_VALUE, "config.merge")]
+    #[case::extends(
+        r#"config.extends = "preset:rust""#,
+        CONFIG_UNSUPPORTED_SECTION,
+        "config.extends"
+    )]
+    #[case::extends_list(
+        r#"config.extends = ["./a.toml"]"#,
+        CONFIG_UNSUPPORTED_SECTION,
+        "config.extends"
+    )]
+    #[case::config_unknown_key("config.strict = true", CONFIG_UNKNOWN_KEY, "config.strict")]
+    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+    }
+}
