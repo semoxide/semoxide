@@ -165,6 +165,8 @@ pub enum Level {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -213,41 +215,64 @@ mod tests {
     #[case::initial_two_parts(
         r#"version.initial = "1.0""#,
         CONFIG_INVALID_VALUE,
-        "version.initial"
+        "version.initial",
+        Rejects
     )]
     #[case::initial_v_prefix(
         r#"version.initial = "v1.0.0""#,
         CONFIG_INVALID_VALUE,
-        "version.initial"
+        "version.initial",
+        Rejects
     )]
     #[case::initial_build_metadata(
         r#"version.initial = "1.0.0+build""#,
         CONFIG_INVALID_VALUE,
-        "version.initial"
+        "version.initial",
+        Rejects
     )]
-    #[case::initial_not_a_string("version.initial = 1", CONFIG_INVALID_VALUE, "version.initial")]
+    #[case::initial_not_a_string(
+        "version.initial = 1",
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        Rejects
+    )]
     #[case::zero_breaking(
         r#"version.zero.breaking = "huge""#,
         CONFIG_INVALID_VALUE,
-        "version.zero.breaking"
+        "version.zero.breaking",
+        Rejects
     )]
     #[case::zero_feature(
         r#"version.zero.feature = "none""#,
         CONFIG_INVALID_VALUE,
-        "version.zero.feature"
+        "version.zero.feature",
+        Rejects
     )]
     #[case::zero_fix(
         r#"version.zero.fix = "Patch""#,
         CONFIG_INVALID_VALUE,
-        "version.zero.fix"
+        "version.zero.fix",
+        Rejects
     )]
     #[case::zero_unknown_key(
         r#"version.zero.docs = "patch""#,
         CONFIG_UNKNOWN_KEY,
-        "version.zero.docs"
+        "version.zero.docs",
+        Rejects
     )]
-    #[case::version_unknown_key(r#"version.first = "1.0.0""#, CONFIG_UNKNOWN_KEY, "version.first")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::version_unknown_key(
+        r#"version.first = "1.0.0""#,
+        CONFIG_UNKNOWN_KEY,
+        "version.first",
+        Rejects
+    )]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

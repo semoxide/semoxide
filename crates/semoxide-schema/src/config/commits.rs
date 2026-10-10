@@ -59,6 +59,8 @@ pub enum Preset {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -77,9 +79,20 @@ mod tests {
 
     #[rstest]
     // commits
-    #[case::preset(r#"commits.preset = "eslint""#, CONFIG_INVALID_VALUE, "commits.preset")]
-    #[case::commits_unknown_key("commits.types = []", CONFIG_UNKNOWN_KEY, "commits.types")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::preset(
+        r#"commits.preset = "eslint""#,
+        CONFIG_INVALID_VALUE,
+        "commits.preset",
+        Rejects
+    )]
+    #[case::commits_unknown_key("commits.types = []", CONFIG_UNKNOWN_KEY, "commits.types", Rejects)]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

@@ -66,6 +66,8 @@ impl Tags {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -94,16 +96,29 @@ metadata = "{{ commit.short_sha }}"
     #[case::tag_format_without_version(
         r#"tags.format = "release-tag""#,
         CONFIG_INVALID_VALUE,
-        "tags.format"
+        "tags.format",
+        Rejects
     )]
     #[case::tag_format_twice(
         r#"tags.format = "{version}-{version}""#,
         CONFIG_INVALID_VALUE,
-        "tags.format"
+        "tags.format",
+        ParserOnly
     )]
-    #[case::tags_unknown_key(r#"tags.prefix = "v{version}""#, CONFIG_UNKNOWN_KEY, "tags.prefix")]
-    #[case::domain_not_a_table(r#"tags = "v{version}""#, CONFIG_INVALID_VALUE, "tags")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::tags_unknown_key(
+        r#"tags.prefix = "v{version}""#,
+        CONFIG_UNKNOWN_KEY,
+        "tags.prefix",
+        Rejects
+    )]
+    #[case::domain_not_a_table(r#"tags = "v{version}""#, CONFIG_INVALID_VALUE, "tags", Rejects)]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

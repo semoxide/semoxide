@@ -60,6 +60,8 @@ pub enum MergeMode {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -78,19 +80,37 @@ mod tests {
 
     #[rstest]
     // config
-    #[case::merge(r#"config.merge = "partial""#, CONFIG_INVALID_VALUE, "config.merge")]
+    #[case::merge(
+        r#"config.merge = "partial""#,
+        CONFIG_INVALID_VALUE,
+        "config.merge",
+        Rejects
+    )]
     #[case::extends(
         r#"config.extends = "preset:rust""#,
         CONFIG_UNSUPPORTED_SECTION,
-        "config.extends"
+        "config.extends",
+        Rejects
     )]
     #[case::extends_list(
         r#"config.extends = ["./a.toml"]"#,
         CONFIG_UNSUPPORTED_SECTION,
-        "config.extends"
+        "config.extends",
+        Rejects
     )]
-    #[case::config_unknown_key("config.strict = true", CONFIG_UNKNOWN_KEY, "config.strict")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::config_unknown_key(
+        "config.strict = true",
+        CONFIG_UNKNOWN_KEY,
+        "config.strict",
+        Rejects
+    )]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

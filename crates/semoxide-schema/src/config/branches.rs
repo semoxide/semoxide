@@ -480,6 +480,8 @@ fn is_glob(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -619,136 +621,167 @@ rules = [
     #[case::branches_not_a_list(
         r#"branches.rules = "main""#,
         CONFIG_INVALID_VALUE,
-        "branches.rules"
+        "branches.rules",
+        Rejects
     )]
-    #[case::no_branch_rules("branches.rules = []", CONFIG_INVALID_VALUE, "branches.rules")]
+    #[case::no_branch_rules("branches.rules = []", CONFIG_INVALID_VALUE, "branches.rules", Rejects)]
     #[case::branches_unknown_key(
         r#"branches.remote = "origin""#,
         CONFIG_UNKNOWN_KEY,
-        "branches.remote"
+        "branches.remote",
+        Rejects
     )]
     #[case::rule_unknown_key(
         r#"branches.rules = [{ name = "main", colour = "red" }]"#,
         CONFIG_UNKNOWN_KEY,
-        "branches.rules[0].colour"
+        "branches.rules[0].colour",
+        Rejects
     )]
     #[case::rule_without_name(
         r#"branches.rules = [{ channel = "next" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0]"
+        "branches.rules[0]",
+        Rejects
     )]
     #[case::rule_not_a_string_or_table(
         "branches.rules = [1]",
         CONFIG_INVALID_VALUE,
-        "branches.rules[0]"
+        "branches.rules[0]",
+        Rejects
     )]
     // branches: conflicting keys (the path names the extra key)
     #[case::name_and_maintenance(
         r#"branches.rules = [{ name = "beta", maintenance = "N.x" }]"#,
         CONFIG_CONFLICTING_KEYS,
-        "branches.rules[0].maintenance"
+        "branches.rules[0].maintenance",
+        Rejects
     )]
     #[case::prerelease_on_maintenance(
         r#"branches.rules = [{ maintenance = "N.x", prerelease = true }]"#,
         CONFIG_CONFLICTING_KEYS,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::range_with_range_pattern(
         r#"branches.rules = [{ maintenance = "N.x", range = "1.x" }]"#,
         CONFIG_CONFLICTING_KEYS,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     // branches: maintenance
     #[case::maintenance_without_range(
         r#"branches.rules = [{ maintenance = "legacy" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].maintenance"
+        "branches.rules[0].maintenance",
+        Rejects
     )]
     #[case::maintenance_pattern_not_at_end(
         r#"branches.rules = [{ maintenance = "N.x/legacy" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].maintenance"
+        "branches.rules[0].maintenance",
+        Rejects
     )]
     #[case::range_full_version(
         r#"branches.rules = [{ maintenance = "legacy", range = "1.0.0" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     #[case::range_semver_range(
         r#"branches.rules = [{ maintenance = "legacy", range = ">=1 <2" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     // branches: upstream-style maintenance entries
     #[case::range_shaped_string(
         r#"branches.rules = ["1.x"]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0]"
+        "branches.rules[0]",
+        Rejects
     )]
     #[case::range_shaped_name(
         r#"branches.rules = [{ name = "1.2.x" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].name"
+        "branches.rules[0].name",
+        Rejects
     )]
     #[case::range_shaped_name_upper(
         r#"branches.rules = [{ name = "2.X" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].name"
+        "branches.rules[0].name",
+        Rejects
     )]
     #[case::range_on_name(
         r#"branches.rules = [{ name = "legacy", range = "1.x" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     // branches: prerelease
     #[case::prerelease_false(
         r#"branches.rules = [{ name = "beta", prerelease = false }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_invalid_char(
         r#"branches.rules = [{ name = "beta", prerelease = "rc!" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_empty(
         r#"branches.rules = [{ name = "beta", prerelease = "" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_leading_zero(
         r#"branches.rules = [{ name = "beta", prerelease = "01" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_true_on_invalid_name(
         r#"branches.rules = [{ name = "feature/x", prerelease = true }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        ParserOnly
     )]
     #[case::prerelease_unknown_placeholder(
         r#"branches.rules = [{ name = "beta", prerelease = "{branch}" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     // branches: channel
     #[case::channel_true(
         r#"branches.rules = ["main", { name = "next", channel = true }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[1].channel"
+        "branches.rules[1].channel",
+        Rejects
     )]
     #[case::channel_empty(
         r#"branches.rules = [{ name = "next", channel = "" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].channel"
+        "branches.rules[0].channel",
+        Rejects
     )]
     #[case::channel_unknown_placeholder(
         r#"branches.rules = [{ name = "next", channel = "{branch}" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].channel"
+        "branches.rules[0].channel",
+        Rejects
     )]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 
     #[test]
