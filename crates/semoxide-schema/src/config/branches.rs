@@ -473,9 +473,10 @@ impl Prerelease {
     }
 }
 
-/// Whether `1.0.0-<id>.1` is a valid version, as upstream checks.
+/// Whether `1.0.0-<id>.1` is a valid version, as upstream checks, with no `+` turning part of
+/// `id` into build metadata.
 fn is_prerelease_id(id: &str) -> bool {
-    semver::Version::parse(&format!("1.0.0-{id}.1")).is_ok()
+    semver::Version::parse(&format!("1.0.0-{id}.1")).is_ok_and(|version| version.build.is_empty())
 }
 
 fn is_glob(name: &str) -> bool {

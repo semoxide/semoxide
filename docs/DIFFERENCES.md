@@ -49,6 +49,7 @@ Every row is intentional. The linked doc owns the full rule.
 | 0.x and manual versions | no 0.x support; no manual version | 0.x policy (breaking → minor); `Release-As:` footer for 1.0.0 and any forced version | [CONFIG.md](CONFIG.md) |
 | Maintenance branches | Default pattern is an extglob `+([0-9])?(.{+([0-9]),x}).x`; a name shaped like a range (`1.x`) or a `range` key makes any entry a maintenance branch | Built-in matcher, written `{ maintenance = "N.x" }` (same `1.x`/`1.x.x`/`1.2.x` shapes); range-shaped names and `range` on a `name` entry are rejected with a hint, never silently turned into release branches; `migrate` converts them | [CONFIG.md](CONFIG.md#3-branches) |
 | `prerelease: false` | Same as no `prerelease` (JS configs may compute it) | Rejected: semoxide config is data, so a release branch has no `prerelease` key; `migrate` drops it | [CONFIG.md](CONFIG.md#3-branches) |
+| `+` in a prerelease identifier | Accepted (`1.0.0-<id>.1` is valid SemVer), so `beta+build` puts `+build.1` into build metadata | Rejected: an identifier is letters, digits, `-` and `.` | [CONFIG.md](CONFIG.md#3-branches) |
 | `channel: ""` | Kept, treated like the default channel | Rejected; `channel = false` is the default channel | [CONFIG.md](CONFIG.md#3-branches) |
 
 ## Plugins
