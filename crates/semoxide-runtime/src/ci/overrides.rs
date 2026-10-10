@@ -13,10 +13,11 @@ pub(super) fn apply(_env: &Env, context: CiContext) -> Result<CiContext, EnvErro
 mod tests {
     use std::ffi::OsString;
 
+    use rstest::rstest;
     use semoxide_error::{ErrorCode, ErrorInfo};
 
     use super::super::test_support::{detected, env, not_unicode};
-    use super::super::{PullRequest, detect};
+    use super::super::{PullRequest, Vendor, detect};
     use crate::Env;
     use crate::codes::{ENV_INVALID_VALUE, ENV_NOT_UNICODE};
     use crate::env::Case;
@@ -149,7 +150,206 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_branch_override_applies_to_pull_requests_and_runs_without_a_detected_branch() {
+        let pull_request = context(GITHUB_PR, &[("SEMOXIDE_CI_BRANCH", "release")]);
+        let review = context(
+            &[
+                ("GITHUB_ACTIONS", "true"),
+                ("GITHUB_EVENT_NAME", "pull_request_review"),
+                ("GITHUB_REF", "refs/pull/10/merge"),
+            ],
+            &[("SEMOXIDE_CI_BRANCH", "r")],
+        );
+
+        assert_eq!(
+            (
+                (pull_request.branch(), pull_request.pull_request()),
+                review.branch()
+            ),
+            ((Some("release"), pr(10)), Some("r"))
+        );
+    }
+
+    #[test]
+    fn the_branch_override_keeps_spaces_and_refs_without_a_vendor() {
+        let spaces = context(GITHUB_PUSH, &[("SEMOXIDE_CI_BRANCH", " main ")]);
+        let generic = context(
+            &[("CI", "true")],
+            &[("SEMOXIDE_CI_BRANCH", "refs/heads/main")],
+        );
+
+        assert_eq!(
+            (spaces.branch(), generic.branch()),
+            (Some(" main "), Some("refs/heads/main"))
+        );
+    }
+
+    #[test]
+    fn overrides_leave_the_commit_and_vendor_alone() {
+        let context = context(
+            GITHUB_PUSH,
+            &[("SEMOXIDE_CI_BRANCH", "r"), ("SEMOXIDE_CI_IS_PR", "true")],
+        );
+
+        assert_eq!(
+            (
+                context.branch(),
+                context.commit(),
+                context.vendor(),
+                context.is_ci()
+            ),
+            (Some("r"), Some("1234"), Some(Vendor::GitHubActions), true)
+        );
+    }
+
+    #[test]
+    fn is_pr_applies_without_a_vendor_and_doesnt_make_a_run_ci() {
+        let local = context(&[("PATH", "/bin")], &[("SEMOXIDE_CI_IS_PR", "true")]);
+        let generic = context(&[("CI", "true")], &[("SEMOXIDE_CI_IS_PR", "false")]);
+
+        assert_eq!(
+            (
+                (local.pull_request(), local.is_ci(), local.vendor()),
+                (generic.pull_request(), generic.is_ci(), generic.vendor())
+            ),
+            (
+                (PR_WITHOUT_NUMBER, false, None),
+                (PullRequest::No, true, None)
+            )
+        );
+    }
+
+    const GITLAB_MR: &[(&str, &str)] = &[
+        ("GITLAB_CI", "true"),
+        ("CI_COMMIT_SHA", "5678"),
+        ("CI_PIPELINE_SOURCE", "merge_request_event"),
+        ("CI_MERGE_REQUEST_IID", "10"),
+        ("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main"),
+    ];
+
+    #[test]
+    fn is_pr_keeps_a_gitlab_iid_or_turns_the_merge_request_off() {
+        let kept = context(GITLAB_MR, &[("SEMOXIDE_CI_IS_PR", "true")]);
+        let off = context(GITLAB_MR, &[("SEMOXIDE_CI_IS_PR", "false")]);
+
+        assert_eq!(
+            (kept.pull_request(), off.pull_request()),
+            (pr(10), PullRequest::No)
+        );
+    }
+
+    #[test]
+    fn is_pr_ignores_mixed_letter_case() {
+        let mixed_true = context(GITHUB_PUSH, &[("SEMOXIDE_CI_IS_PR", "tRuE")]);
+        let mixed_false = context(GITHUB_PR, &[("SEMOXIDE_CI_IS_PR", "fAlSe")]);
+
+        assert_eq!(
+            (mixed_true.pull_request(), mixed_false.pull_request()),
+            (PR_WITHOUT_NUMBER, PullRequest::No)
+        );
+    }
+
+    /// The invalid-value message for `value`, as written in it.
+    fn invalid_is_pr(shown: &str) -> (ErrorCode, String, Option<String>) {
+        (
+            ENV_INVALID_VALUE,
+            format!("the value of `SEMOXIDE_CI_IS_PR` is `{shown}`: expected `true` or `false`"),
+            Some(String::from(
+                "Set `SEMOXIDE_CI_IS_PR` to `true` or `false`.",
+            )),
+        )
+    }
+
+    #[rstest]
+    #[case::one("1")]
+    #[case::zero("0")]
+    #[case::on("on")]
+    #[case::prefix("t")]
+    #[case::leading_space(" true")]
+    #[case::trailing_space("true ")]
+    #[case::capitalised_yes("Yes")]
+    fn only_true_or_false_is_accepted_wherever_it_is_set(#[case] value: &str) {
+        let on_a_pr = env(&vars(
+            GITHUB_PR,
+            &[("SEMOXIDE_CI_BRANCH", "x"), ("SEMOXIDE_CI_IS_PR", value)],
+        ));
+        let without_a_vendor = env(&[("PATH", "/bin"), ("SEMOXIDE_CI_IS_PR", value)]);
+
+        assert_eq!(
+            (failure(&on_a_pr), failure(&without_a_vendor)),
+            (Some(invalid_is_pr(value)), Some(invalid_is_pr(value)))
+        );
+    }
+
+    #[test]
+    fn an_invalid_value_is_shown_with_control_characters_escaped() {
+        let env = env(&[("CI", "true"), ("SEMOXIDE_CI_IS_PR", "tr\nue")]);
+
+        assert_eq!(failure(&env), Some(invalid_is_pr("tr\\nue")));
+    }
+
+    #[test]
+    fn an_invalid_value_names_the_variable_as_set() {
+        let env = Env::with_case(
+            Case::Insensitive,
+            [("CI", "true"), ("Semoxide_Ci_Is_Pr", "yes")],
+        );
+
+        assert_eq!(
+            failure(&env).map(|(_, message, _)| message),
+            Some(String::from(
+                "the value of `Semoxide_Ci_Is_Pr` is `yes`: expected `true` or `false`"
+            ))
+        );
+    }
+
     // --- Both ---
+
+    #[test]
+    fn is_pr_that_isnt_utf_8_is_an_error_without_a_vendor() {
+        let env = Env::with_case(
+            Case::Sensitive,
+            [
+                (OsString::from("PATH"), OsString::from("/bin")),
+                (OsString::from("SEMOXIDE_CI_IS_PR"), not_unicode()),
+            ],
+        );
+
+        assert_eq!(
+            failure(&env).map(|(code, message, _)| (code, message)),
+            Some((
+                ENV_NOT_UNICODE,
+                String::from("the value of `SEMOXIDE_CI_IS_PR` isn't valid UTF-8")
+            ))
+        );
+    }
+
+    #[test]
+    fn the_branch_override_is_read_first() {
+        let with_is_pr = |is_pr: &str| {
+            Env::with_case(
+                Case::Sensitive,
+                [
+                    (OsString::from("CI"), OsString::from("true")),
+                    (OsString::from("SEMOXIDE_CI_BRANCH"), not_unicode()),
+                    (OsString::from("SEMOXIDE_CI_IS_PR"), OsString::from(is_pr)),
+                ],
+            )
+        };
+        let branch_error = Some((
+            ENV_NOT_UNICODE,
+            String::from("the value of `SEMOXIDE_CI_BRANCH` isn't valid UTF-8"),
+        ));
+
+        assert_eq!(
+            (
+                failure(&with_is_pr("true")).map(|(code, message, _)| (code, message)),
+                failure(&with_is_pr("yes")).map(|(code, message, _)| (code, message))
+            ),
+            (branch_error.clone(), branch_error)
+        );
+    }
 
     #[test]
     fn empty_overrides_count_as_unset() {
