@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::values::{EnvName, array, env_name_schema};
 use super::{ConfigError, Fields, index};
 
@@ -61,11 +61,12 @@ impl JsonSchema for Secrets {
     }
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        let names = env_name_schema();
         closed_table(
-            [(
+            "Extra values to mask in all output.",
+            [Property::new(
                 "mask_env",
-                json_schema!({ "type": "array", "items": names }),
+                "Names of environment variables whose values are masked.",
+                json_schema!({ "type": "array", "items": env_name_schema() }),
             )],
             &Self::DEFAULT.to_table(),
         )

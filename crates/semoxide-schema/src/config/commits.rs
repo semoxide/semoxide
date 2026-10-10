@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::values::{choice, choice_name, choice_schema};
 use super::{ConfigError, Fields};
 
@@ -68,7 +68,13 @@ impl JsonSchema for Commits {
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
-            [("preset", choice_schema(&PRESETS))],
+            "How commits are read.",
+            [Property::new(
+                "preset",
+                "The commit convention both bundled plugins use; `conventionalcommits` marks \
+                 breaking changes with `!`.",
+                choice_schema(&PRESETS),
+            )],
             &Self::DEFAULT.to_table(),
         )
     }

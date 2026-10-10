@@ -6,7 +6,7 @@ use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use semver::Version;
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::values::{choice, choice_name, choice_schema, string};
 use super::{ConfigError, Fields};
 
@@ -180,12 +180,14 @@ impl JsonSchema for VersionDomain {
 
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         closed_table(
+            "The first release version and the release levels on 0.x.",
             [
-                (
+                Property::new(
                     "initial",
+                    "The version of the first release: full SemVer, without build metadata.",
                     json_schema!({ "type": "string", "pattern": INITIAL_VERSION_PATTERN }),
                 ),
-                ("zero", generator.subschema_for::<ZeroLevels>()),
+                Property::table("zero", generator.subschema_for::<ZeroLevels>()),
             ],
             &Self::defaults().to_table(),
         )
@@ -199,7 +201,21 @@ impl JsonSchema for ZeroLevels {
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
-            ZERO_KEYS.map(|name| (name, choice_schema(&LEVELS))),
+            "The release level each kind of change gets while the version is 0.x.",
+            [
+                Property::new(
+                    "breaking",
+                    "The level of a breaking change on 0.x; `major` lets the first one release \
+                     1.0.0.",
+                    choice_schema(&LEVELS),
+                ),
+                Property::new(
+                    "feature",
+                    "The level of a feature on 0.x.",
+                    choice_schema(&LEVELS),
+                ),
+                Property::new("fix", "The level of a fix on 0.x.", choice_schema(&LEVELS)),
+            ],
             &Self::DEFAULT.to_table(),
         )
     }

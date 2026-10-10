@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::values::{
     PluginName, Step, array, choice, choice_name, choice_schema, plugin_name_schema,
 };
@@ -176,24 +176,43 @@ impl JsonSchema for Steps {
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
         let defaults = Self::defaults().to_table();
-        let name = plugin_name_schema();
-        let mut properties = vec![(
+        let names = json_schema!({ "type": "array", "items": plugin_name_schema() });
+        let mut unique_names = names.clone();
+        unique_names.insert(String::from("uniqueItems"), true.into());
+        let mut properties = vec![Property::new(
             "plugins",
-            json_schema!({ "type": "array", "items": name, "uniqueItems": true }),
+            "The enabled plugins, in run order.",
+            unique_names,
         )];
         for step in Step::NAMES {
-            let mut keys = vec![("order", json_schema!({ "type": "array", "items": name }))];
+            let mut keys = vec![Property::new(
+                "order",
+                "The plugin order for this step; only plugins in `steps.plugins`.",
+                names.clone(),
+            )];
             if step == Step::Success.as_str() {
-                keys.push(("errors", choice_schema(&SUCCESS_ERRORS)));
+                keys.push(Property::new(
+                    "errors",
+                    "What a failing `success` step does to a published release: warn and exit 0, \
+                     or fail with the partial-failure exit code (no rollback).",
+                    choice_schema(&SUCCESS_ERRORS),
+                ));
             }
             let step_defaults = defaults
                 .get(step)
                 .and_then(Value::as_table)
                 .cloned()
                 .unwrap_or_default();
-            properties.push((step, closed_table(keys, &step_defaults)));
+            properties.push(Property::table(
+                step,
+                closed_table("Settings of one step.", keys, &step_defaults),
+            ));
         }
-        closed_table(properties, &defaults)
+        closed_table(
+            "The enabled plugins, their order per step, and how `success` errors end a run.",
+            properties,
+            &defaults,
+        )
     }
 }
 

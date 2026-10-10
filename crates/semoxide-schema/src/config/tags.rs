@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::values::{TagFormat, Template, string, string_schema, tag_format_schema};
 use super::{ConfigError, Fields};
 
@@ -75,9 +75,19 @@ impl JsonSchema for Tags {
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
+            "How release tags are named.",
             [
-                ("format", tag_format_schema()),
-                ("metadata", string_schema()),
+                Property::new(
+                    "format",
+                    "The tag name; `{version}` marks the version and appears exactly once.",
+                    tag_format_schema(),
+                ),
+                Property::new(
+                    "metadata",
+                    "A template appended as `+<metadata>` to the git tag only, e.g. \
+                     `{{ commit.short_sha }}`.",
+                    string_schema(),
+                ),
             ],
             &Self::defaults().to_table(),
         )
