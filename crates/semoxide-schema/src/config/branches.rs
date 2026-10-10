@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::values::{Template, string, string_schema};
 use super::{ConfigError, Fields, index, key};
 
@@ -503,14 +503,21 @@ impl JsonSchema for Branches {
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         let rule = generator.subschema_for::<BranchRule>();
         closed_table(
-            [(
+            "Which branches release, and how.",
+            [Property::new(
                 "rules",
+                "The branch rules in order; the first release branch is the main line.",
                 json_schema!({ "type": "array", "minItems": 1, "items": rule }),
             )],
             &Table::from_iter([(String::from("rules"), Self::default_rules().to_value())]),
         )
     }
 }
+
+/// `channel` of any rule.
+const CHANNEL_DESCRIPTION: &str = "The release channel: `false` for the default channel, or a \
+                                   name that may contain `{name}`. Unset: the default channel \
+                                   for the first release branch, the branch name for the others.";
 
 impl JsonSchema for BranchRule {
     fn schema_name() -> Cow<'static, str> {
@@ -532,22 +539,39 @@ impl JsonSchema for BranchRule {
             ],
         });
         let mut rule = closed_table(
+            "A release branch, or a prerelease branch with `prerelease`.",
             [
-                ("name", name.clone()),
-                ("prerelease", prerelease),
-                ("channel", channel.clone()),
+                Property::new(
+                    "name",
+                    "The branch name or a glob; a name shaped like a range (`1.x`) is a \
+                     maintenance rule instead.",
+                    name.clone(),
+                ),
+                Property::new(
+                    "prerelease",
+                    "`true` for the branch name as the identifier, or an identifier that may \
+                     contain `{name}`.",
+                    prerelease,
+                ),
+                Property::new("channel", CHANNEL_DESCRIPTION, channel.clone()),
             ],
             &Table::new(),
         );
         rule.insert(String::from("required"), serde_json::json!(["name"]));
         let mut maintenance = closed_table(
+            "A maintenance branch.",
             [
-                ("maintenance", string_schema()),
-                (
+                Property::new(
+                    "maintenance",
+                    "A pattern ending in `N.x`, `N.x.x` or `N.N.x`, or a branch name with `range`.",
+                    string_schema(),
+                ),
+                Property::new(
                     "range",
+                    "The versions of a named maintenance branch: `1.x`, `1.x.x` or `1.2.x`.",
                     json_schema!({ "type": "string", "pattern": RANGE_PATTERN }),
                 ),
-                ("channel", channel),
+                Property::new("channel", CHANNEL_DESCRIPTION, channel),
             ],
             &Table::new(),
         );
@@ -565,7 +589,17 @@ impl JsonSchema for BranchRule {
             String::from("else"),
             serde_json::json!({ "required": ["range"] }),
         );
-        json_schema!({ "anyOf": [name, rule, maintenance] })
+        // `if`/`then`/`else` picks one form, so an error points at the key inside it.
+        json_schema!({
+            "description": "A branch name (a release branch), a release or prerelease table, or a maintenance table.",
+            "if": { "type": "string" },
+            "then": name,
+            "else": {
+                "if": { "type": "object", "required": ["maintenance"] },
+                "then": maintenance,
+                "else": rule,
+            },
+        })
     }
 }
 

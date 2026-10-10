@@ -3,15 +3,11 @@
   "additionalProperties": false,
   "definitions": {
     "BranchRule": {
-      "anyOf": [
-        {
-          "not": {
-            "pattern": "^[0-9]+(\\.([0-9]+|[xX]))?\\.[xX]$"
-          },
-          "type": "string"
-        },
-        {
+      "description": "A branch name (a release branch), a release or prerelease table, or a maintenance table.",
+      "else": {
+        "else": {
           "additionalProperties": false,
+          "description": "A release branch, or a prerelease branch with `prerelease`.",
           "properties": {
             "channel": {
               "anyOf": [
@@ -23,9 +19,11 @@
                   "pattern": "^([^{}]|\\{name\\})*$",
                   "type": "string"
                 }
-              ]
+              ],
+              "description": "The release channel: `false` for the default channel, or a name that may contain `{name}`. Unset: the default channel for the first release branch, the branch name for the others."
             },
             "name": {
+              "description": "The branch name or a glob; a name shaped like a range (`1.x`) is a maintenance rule instead.",
               "not": {
                 "pattern": "^[0-9]+(\\.([0-9]+|[xX]))?\\.[xX]$"
               },
@@ -40,7 +38,8 @@
                   "pattern": "^(0|[1-9][0-9]*|([0-9A-Za-z-]|\\{name\\})*([A-Za-z-]|\\{name\\})([0-9A-Za-z-]|\\{name\\})*)(\\.(0|[1-9][0-9]*|([0-9A-Za-z-]|\\{name\\})*([A-Za-z-]|\\{name\\})([0-9A-Za-z-]|\\{name\\})*))*$",
                   "type": "string"
                 }
-              ]
+              ],
+              "description": "`true` for the branch name as the identifier, or an identifier that may contain `{name}`."
             }
           },
           "required": [
@@ -48,8 +47,15 @@
           ],
           "type": "object"
         },
-        {
+        "if": {
+          "required": [
+            "maintenance"
+          ],
+          "type": "object"
+        },
+        "then": {
           "additionalProperties": false,
+          "description": "A maintenance branch.",
           "else": {
             "required": [
               "range"
@@ -73,12 +79,15 @@
                   "pattern": "^([^{}]|\\{name\\})*$",
                   "type": "string"
                 }
-              ]
+              ],
+              "description": "The release channel: `false` for the default channel, or a name that may contain `{name}`. Unset: the default channel for the first release branch, the branch name for the others."
             },
             "maintenance": {
+              "description": "A pattern ending in `N.x`, `N.x.x` or `N.N.x`, or a branch name with `range`.",
               "type": "string"
             },
             "range": {
+              "description": "The versions of a named maintenance branch: `1.x`, `1.x.x` or `1.2.x`.",
               "pattern": "^[0-9]+(\\.([0-9]+|[xX]))?\\.[xX]$",
               "type": "string"
             }
@@ -95,10 +104,20 @@
           },
           "type": "object"
         }
-      ]
+      },
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "not": {
+          "pattern": "^[0-9]+(\\.([0-9]+|[xX]))?\\.[xX]$"
+        },
+        "type": "string"
+      }
     },
     "Branches": {
       "additionalProperties": false,
+      "description": "Which branches release, and how.",
       "properties": {
         "rules": {
           "default": [
@@ -118,6 +137,7 @@
               "prerelease": true
             }
           ],
+          "description": "The branch rules in order; the first release branch is the main line.",
           "items": {
             "$ref": "#/definitions/BranchRule"
           },
@@ -129,9 +149,11 @@
     },
     "Commits": {
       "additionalProperties": false,
+      "description": "How commits are read.",
       "properties": {
         "preset": {
           "default": "conventionalcommits",
+          "description": "The commit convention both bundled plugins use; `conventionalcommits` marks breaking changes with `!`.",
           "enum": [
             "conventionalcommits",
             "angular"
@@ -143,9 +165,11 @@
     },
     "ConfigDomain": {
       "additionalProperties": false,
+      "description": "How the configuration itself is assembled.",
       "properties": {
         "merge": {
           "default": "deep",
+          "description": "How a domain from a later layer (an `extends` source, the file) combines with an earlier one: key by key, or replacing the whole domain.",
           "enum": [
             "deep",
             "shallow"
@@ -157,47 +181,59 @@
     },
     "PluginConfig": {
       "additionalProperties": true,
+      "description": "Settings of one plugin; any other keys are the plugin's own options.",
       "properties": {
         "show_output": {
           "default": false,
+          "description": "Show the plugin's captured output live.",
           "type": "boolean"
         },
         "timeouts": {
           "additionalProperties": false,
+          "description": "Per-step deadline overrides.",
           "properties": {
             "add_channel": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "analyze_commits": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "fail": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "generate_notes": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "prepare": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "publish": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "success": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "verify_conditions": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             },
             "verify_release": {
+              "description": "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
               "pattern": "^0*[1-9][0-9]*[smh]$",
               "type": "string"
             }
@@ -205,6 +241,7 @@
           "type": "object"
         },
         "version": {
+          "description": "The pinned plugin version; `semoxide sync` downloads it.",
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$",
           "type": "string"
         }
@@ -213,9 +250,11 @@
     },
     "Secrets": {
       "additionalProperties": false,
+      "description": "Extra values to mask in all output.",
       "properties": {
         "mask_env": {
           "default": [],
+          "description": "Names of environment variables whose values are masked.",
           "items": {
             "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
             "type": "string"
@@ -227,11 +266,14 @@
     },
     "Steps": {
       "additionalProperties": false,
+      "description": "The enabled plugins, their order per step, and how `success` errors end a run.",
       "properties": {
         "add_channel": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -243,8 +285,10 @@
         },
         "analyze_commits": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -256,8 +300,10 @@
         },
         "fail": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -269,8 +315,10 @@
         },
         "generate_notes": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -285,6 +333,7 @@
             "commit-analyzer",
             "release-notes"
           ],
+          "description": "The enabled plugins, in run order.",
           "items": {
             "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
             "type": "string"
@@ -294,8 +343,10 @@
         },
         "prepare": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -307,8 +358,10 @@
         },
         "publish": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -320,9 +373,11 @@
         },
         "success": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "errors": {
               "default": "warn",
+              "description": "What a failing `success` step does to a published release: warn and exit 0, or fail with the partial-failure exit code (no rollback).",
               "enum": [
                 "warn",
                 "fail"
@@ -330,6 +385,7 @@
               "type": "string"
             },
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -341,8 +397,10 @@
         },
         "verify_conditions": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -354,8 +412,10 @@
         },
         "verify_release": {
           "additionalProperties": false,
+          "description": "Settings of one step.",
           "properties": {
             "order": {
+              "description": "The plugin order for this step; only plugins in `steps.plugins`.",
               "items": {
                 "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
                 "type": "string"
@@ -370,13 +430,16 @@
     },
     "Tags": {
       "additionalProperties": false,
+      "description": "How release tags are named.",
       "properties": {
         "format": {
           "default": "v{version}",
+          "description": "The tag name; `{version}` marks the version and appears exactly once.",
           "pattern": "\\{version\\}",
           "type": "string"
         },
         "metadata": {
+          "description": "A template appended as `+<metadata>` to the git tag only, e.g. `{{ commit.short_sha }}`.",
           "type": "string"
         }
       },
@@ -384,9 +447,11 @@
     },
     "VersionDomain": {
       "additionalProperties": false,
+      "description": "The first release version and the release levels on 0.x.",
       "properties": {
         "initial": {
           "default": "1.0.0",
+          "description": "The version of the first release: full SemVer, without build metadata.",
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$",
           "type": "string"
         },
@@ -398,9 +463,11 @@
     },
     "ZeroLevels": {
       "additionalProperties": false,
+      "description": "The release level each kind of change gets while the version is 0.x.",
       "properties": {
         "breaking": {
           "default": "minor",
+          "description": "The level of a breaking change on 0.x; `major` lets the first one release 1.0.0.",
           "enum": [
             "major",
             "minor",
@@ -410,6 +477,7 @@
         },
         "feature": {
           "default": "patch",
+          "description": "The level of a feature on 0.x.",
           "enum": [
             "major",
             "minor",
@@ -419,6 +487,7 @@
         },
         "fix": {
           "default": "patch",
+          "description": "The level of a fix on 0.x.",
           "enum": [
             "major",
             "minor",
@@ -430,6 +499,7 @@
       "type": "object"
     }
   },
+  "description": "semoxide's release configuration (`semoxide.toml`).",
   "properties": {
     "branches": {
       "$ref": "#/definitions/Branches"
@@ -444,6 +514,7 @@
       "additionalProperties": {
         "$ref": "#/definitions/PluginConfig"
       },
+      "description": "Settings per enabled plugin, keyed by its short name (`[plugins.github]`).",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
         "type": "string"

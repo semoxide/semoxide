@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::values::{choice, choice_name, choice_schema};
 use super::{ConfigError, Fields};
 
@@ -69,7 +69,13 @@ impl JsonSchema for ConfigDomain {
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
-            [("merge", choice_schema(&MERGE_MODES))],
+            "How the configuration itself is assembled.",
+            [Property::new(
+                "merge",
+                "How a domain from a later layer (an `extends` source, the file) combines with an \
+                 earlier one: key by key, or replacing the whole domain.",
+                choice_schema(&MERGE_MODES),
+            )],
             &Self::DEFAULT.to_table(),
         )
     }

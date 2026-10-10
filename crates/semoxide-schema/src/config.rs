@@ -39,7 +39,7 @@ pub use version::{Level, VersionDomain, ZeroLevels};
 
 use plugins::parse_plugins;
 use reader::{DOMAINS, Fields, index, key};
-use schema::closed_table;
+use schema::{Property, closed_table};
 
 /// A validated configuration: the merged layers with every default applied.
 #[derive(Debug, Clone, PartialEq)]
@@ -203,25 +203,26 @@ impl JsonSchema for Config {
     }
 
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
-        let plugin_name = values::plugin_name_schema();
-        let plugin = generator.subschema_for::<PluginConfig>();
+        let plugins = json_schema!({
+            "type": "object",
+            "propertyNames": values::plugin_name_schema(),
+            "additionalProperties": generator.subschema_for::<PluginConfig>(),
+        });
         closed_table(
+            "semoxide's release configuration (`semoxide.toml`).",
             [
-                ("config", generator.subschema_for::<ConfigDomain>()),
-                ("commits", generator.subschema_for::<Commits>()),
-                ("version", generator.subschema_for::<VersionDomain>()),
-                ("branches", generator.subschema_for::<Branches>()),
-                ("tags", generator.subschema_for::<Tags>()),
-                ("steps", generator.subschema_for::<Steps>()),
-                (
+                Property::table("config", generator.subschema_for::<ConfigDomain>()),
+                Property::table("commits", generator.subschema_for::<Commits>()),
+                Property::table("version", generator.subschema_for::<VersionDomain>()),
+                Property::table("branches", generator.subschema_for::<Branches>()),
+                Property::table("tags", generator.subschema_for::<Tags>()),
+                Property::table("steps", generator.subschema_for::<Steps>()),
+                Property::new(
                     "plugins",
-                    json_schema!({
-                        "type": "object",
-                        "propertyNames": plugin_name,
-                        "additionalProperties": plugin,
-                    }),
+                    "Settings per enabled plugin, keyed by its short name (`[plugins.github]`).",
+                    plugins,
                 ),
-                ("secrets", generator.subschema_for::<Secrets>()),
+                Property::table("secrets", generator.subschema_for::<Secrets>()),
             ],
             &Table::new(),
         )

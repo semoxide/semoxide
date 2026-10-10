@@ -8,7 +8,7 @@ use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use semver::Version;
 use toml::{Table, Value};
 
-use super::schema::closed_table;
+use super::schema::{Property, closed_table};
 use super::steps::Steps;
 use super::values::{self, PluginName, Step};
 use super::version::{VERSION_PATTERN, parse_version};
@@ -148,17 +148,30 @@ impl JsonSchema for PluginConfig {
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
         let timeouts = closed_table(
-            Step::NAMES.map(|step| (step, values::duration_schema())),
+            "Per-step deadline overrides.",
+            Step::NAMES.map(|step| {
+                Property::new(
+                    step,
+                    "The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`.",
+                    values::duration_schema(),
+                )
+            }),
             &Table::new(),
         );
         let mut schema = closed_table(
+            "Settings of one plugin; any other keys are the plugin's own options.",
             [
-                (
+                Property::new(
                     "version",
+                    "The pinned plugin version; `semoxide sync` downloads it.",
                     json_schema!({ "type": "string", "pattern": VERSION_PATTERN }),
                 ),
-                ("timeouts", timeouts),
-                ("show_output", json_schema!({ "type": "boolean" })),
+                Property::table("timeouts", timeouts),
+                Property::new(
+                    "show_output",
+                    "Show the plugin's captured output live.",
+                    json_schema!({ "type": "boolean" }),
+                ),
             ],
             &Self::default().to_table(),
         );
