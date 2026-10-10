@@ -5,18 +5,42 @@ use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 
-use semoxide_error::{ErrorCode, ErrorInfo};
+use semoxide_error::{ErrorCode, ErrorInfo, suggest};
 
 use crate::codes::ENV_NOT_UNICODE;
 
 /// The `SEMOXIDE_*` variables semoxide reads (CLI.md).
-pub(crate) const KNOWN_VARS: [&str; 0] = [];
+pub(crate) const KNOWN_VARS: [&str; 4] = [
+    "SEMOXIDE_LOG",
+    "SEMOXIDE_CI_BRANCH",
+    "SEMOXIDE_CI_IS_PR",
+    "SEMOXIDE_SSH_BACKEND",
+];
+
+const PREFIX: &str = "SEMOXIDE_";
 
 /// Whether variable names differ by letter case: they do on Unix, not on Windows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Case {
     Sensitive,
     Insensitive,
+}
+
+impl Case {
+    /// How this operating system compares names.
+    const OS: Self = if cfg!(windows) {
+        Self::Insensitive
+    } else {
+        Self::Sensitive
+    };
+
+    /// Whether `a` and `b` name the same variable.
+    fn same(self, a: &str, b: &str) -> bool {
+        match self {
+            Self::Sensitive => a == b,
+            Self::Insensitive => a.eq_ignore_ascii_case(b),
+        }
+    }
 }
 
 /// A snapshot of environment variables, built by the caller (the CLI from
@@ -50,10 +74,18 @@ impl Env {
         }
     }
 
+    /// The first variable, in byte order, whose name is `name`.
+    fn entry(&self, name: &str) -> Option<(&OsStr, &OsStr)> {
+        self.vars
+            .iter()
+            .find(|(set, _)| set.to_str().is_some_and(|set| self.case.same(set, name)))
+            .map(|(set, value)| (set.as_os_str(), value.as_os_str()))
+    }
+
     /// The value of `name`, as set.
     #[must_use]
-    pub fn get(&self, _name: &str) -> Option<&OsStr> {
-        None
+    pub fn get(&self, name: &str) -> Option<&OsStr> {
+        self.entry(name).map(|(_, value)| value)
     }
 
     /// The value of `name` as text.
@@ -61,14 +93,41 @@ impl Env {
     /// # Errors
     ///
     /// Returns [`EnvError`] if the value isn't valid UTF-8.
-    pub fn get_str(&self, _name: &str) -> Result<Option<&str>, EnvError> {
-        Ok(None)
+    pub fn get_str(&self, name: &str) -> Result<Option<&str>, EnvError> {
+        let Some((set, value)) = self.entry(name) else {
+            return Ok(None);
+        };
+        value.to_str().map(Some).ok_or_else(|| EnvError {
+            name: set.to_string_lossy().into_owned(),
+        })
     }
 
     /// The `SEMOXIDE_*` variables semoxide doesn't know, in name order (likely typos).
     #[must_use]
     pub fn unknown_semoxide_vars(&self) -> Vec<UnknownVar> {
-        Vec::new()
+        self.vars
+            .keys()
+            .filter_map(|name| name.to_str())
+            .filter_map(|name| {
+                let suffix = self.semoxide_suffix(name)?;
+                if KNOWN_VARS.iter().any(|known| self.case.same(name, known)) {
+                    return None;
+                }
+                Some(UnknownVar {
+                    name: name.to_owned(),
+                    suggestion: closest_known(suffix),
+                })
+            })
+            .collect()
+    }
+
+    /// The part of `name` after `SEMOXIDE_`, if it starts with it.
+    fn semoxide_suffix<'a>(&self, name: &'a str) -> Option<&'a str> {
+        let head = name.get(..PREFIX.len())?;
+        if !self.case.same(head, PREFIX) {
+            return None;
+        }
+        name.get(PREFIX.len()..)
     }
 }
 
@@ -79,7 +138,7 @@ where
 {
     /// Names compare as the operating system does: ignoring case on Windows.
     fn from_iter<I: IntoIterator<Item = (K, V)>>(vars: I) -> Self {
-        Self::with_case(Case::Sensitive, vars)
+        Self::with_case(Case::OS, vars)
     }
 }
 
@@ -88,6 +147,19 @@ where
 pub struct UnknownVar {
     name: String,
     suggestion: Option<&'static str>,
+}
+
+/// The known name whose part after `SEMOXIDE_` is closest to `suffix`; comparing whole names
+/// would let the shared prefix make any name look close.
+fn closest_known(suffix: &str) -> Option<&'static str> {
+    let suffixes: Vec<&str> = KNOWN_VARS
+        .iter()
+        .filter_map(|known| known.strip_prefix(PREFIX))
+        .collect();
+    let closest = suggest::closest(suffix, &suffixes)?;
+    KNOWN_VARS
+        .into_iter()
+        .find(|known| known.strip_prefix(PREFIX) == Some(closest))
 }
 
 impl UnknownVar {
@@ -112,7 +184,7 @@ pub struct EnvError {
 
 impl fmt::Display for EnvError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "`{}`", self.name)
+        write!(f, "the value of `{}` isn't valid UTF-8", self.name)
     }
 }
 
@@ -121,6 +193,10 @@ impl std::error::Error for EnvError {}
 impl ErrorInfo for EnvError {
     fn code(&self) -> ErrorCode {
         ENV_NOT_UNICODE
+    }
+
+    fn help(&self) -> Option<String> {
+        Some(format!("Set `{}` to UTF-8 text.", self.name))
     }
 }
 
@@ -136,8 +212,8 @@ mod tests {
         Env::with_case(case, vars.iter().copied())
     }
 
-    fn os(text: &str) -> Option<&OsStr> {
-        Some(OsStr::new(text))
+    fn os(text: &str) -> &OsStr {
+        OsStr::new(text)
     }
 
     /// A value that isn't valid UTF-8 on this platform.
@@ -162,7 +238,7 @@ mod tests {
 
         assert_eq!(
             (env.get("SEMOXIDE_LOG"), env.get("SEMOXIDE_CI_BRANCH")),
-            (os("debug"), None)
+            (Some(os("debug")), None)
         );
     }
 
@@ -170,7 +246,7 @@ mod tests {
     fn case_sensitive_names_must_match_exactly() {
         let env = env(Case::Sensitive, &[("Path", "/bin")]);
 
-        assert_eq!((env.get("Path"), env.get("PATH")), (os("/bin"), None));
+        assert_eq!((env.get("Path"), env.get("PATH")), (Some(os("/bin")), None));
     }
 
     #[test]
@@ -179,7 +255,7 @@ mod tests {
 
         assert_eq!(
             (env.get("PATH"), env.get("path"), env.get("PATHS")),
-            (os("/bin"), os("/bin"), None)
+            (Some(os("/bin")), Some(os("/bin")), None)
         );
     }
 
@@ -189,7 +265,7 @@ mod tests {
 
         assert_eq!(
             (env.get("Path"), env.get("PATH").is_some()),
-            (os("/bin"), cfg!(windows))
+            (Some(os("/bin")), cfg!(windows))
         );
     }
 
@@ -245,7 +321,7 @@ mod tests {
 
         assert_eq!(
             (env.get("SEMOXIDE_LOG"), env.get("SEMOXIDE_LOG_X")),
-            (None, os("1"))
+            (None, Some(os("1")))
         );
     }
 
@@ -253,7 +329,10 @@ mod tests {
     fn a_case_insensitive_name_that_only_starts_with_the_query_is_not_a_match() {
         let env = env(Case::Insensitive, &[("PATHS", "/bin")]);
 
-        assert_eq!((env.get("path"), env.get("paths")), (None, os("/bin")));
+        assert_eq!(
+            (env.get("path"), env.get("paths")),
+            (None, Some(os("/bin")))
+        );
     }
 
     #[test]
@@ -279,7 +358,7 @@ mod tests {
 
         assert_eq!(
             (env.get("path"), env.get_str("path")),
-            (os("a"), Ok(Some("a")))
+            (Some(os("a")), Ok(Some("a")))
         );
     }
 

@@ -8,7 +8,7 @@ Logging, secret masking, CI output, errors and diagnostics. Exit codes, commands
 | --- | --- |
 | P1 | The library emits `tracing` spans/events only. It never installs a subscriber and never writes to stdout/stderr; the CLI or the embedder chooses the sink |
 | P2 | Secrets are masked **at the source** (core, plugin host) before an event exists; `MaskingWriter` masks again on output |
-| P3 | The library reads only the `Env` map passed to its builder (the CLI passes a copy of its own). It never reads or mutates the process env and builds child-process envs from that map |
+| P3 | The library reads only the `Env` snapshot passed to its builder (the CLI builds it from `std::env::vars_os()`; names ignore ASCII case on Windows). It never reads or mutates the process env and builds child-process envs from that map |
 | P4 | Logs go to stderr. stdout carries data only (`--output=json`, the printed next version) |
 | P5 | No release is never silent: a typed reason is always reported ([§7](#7-no-release-reasons)) |
 
