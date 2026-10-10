@@ -1,6 +1,6 @@
 //! What every semoxide error tells its users (OBSERVABILITY §8, CLI.md error object).
 
-use crate::ErrorCode;
+use crate::{ErrorCode, Location};
 
 /// Where error pages live until the docs site exists; `url()` appends `<slug>.md`.
 pub const DOCS_BASE_URL: &str = "https://github.com/semoxide/semoxide/blob/main/docs/errors/";
@@ -14,6 +14,11 @@ pub trait ErrorInfo: std::error::Error {
 
     /// A one-line hint on how to fix it.
     fn help(&self) -> Option<String> {
+        None
+    }
+
+    /// Where the cause is, e.g. the line in `semoxide.toml`, for a pointer in the output.
+    fn location(&self) -> Option<Location> {
         None
     }
 

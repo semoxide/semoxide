@@ -176,7 +176,8 @@ mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
 
-    use semoxide_error::ErrorInfo;
+    use rstest::rstest;
+    use semoxide_error::{ErrorInfo, Location};
     use semoxide_schema::config::{Config, MergeMode};
     use tempfile::TempDir;
 
@@ -451,5 +452,129 @@ mod tests {
         let help = load(dir.path(), &[]).err().and_then(|error| error.help());
 
         assert_eq!(help.as_deref(), Some("Use `tags.format` instead."));
+    }
+
+    // --- Locations ---
+
+    /// Where the load error points, as `file:line:column` (the file relative to `dir`), `file`
+    /// for a whole file, or `flag #n: <flag>`.
+    fn pointer(dir: &TempDir, set: &[&str]) -> Option<String> {
+        let location = load(dir.path(), &flags(set)).err()?.location()?;
+        Some(match location {
+            Location::File(file) => {
+                let path = file
+                    .path()
+                    .strip_prefix(dir.path())
+                    .unwrap_or_else(|_| file.path())
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                match (file.line(), file.column()) {
+                    (Some(line), Some(column)) => format!("{path}:{line}:{column}"),
+                    _ => path,
+                }
+            }
+            Location::Flag(flag) => format!("flag #{}: {}", flag.position(), flag.flag()),
+            other => format!("{other:?}"),
+        })
+    }
+
+    #[rstest]
+    #[case::invalid_value_at_the_value("[tags]\nformat = \"release\"", "semoxide.toml:2:10")]
+    #[case::dotted_key_value("tags.format = \"release\"", "semoxide.toml:1:15")]
+    #[case::unknown_key_at_the_key("[tags]\nformta = \"v{version}\"", "semoxide.toml:2:1")]
+    #[case::unknown_domain_header("[tgas]\nformat = \"v{version}\"", "semoxide.toml:1:2")]
+    #[case::unsupported_section("[packages]\na = 1", "semoxide.toml:1:2")]
+    #[case::conflicting_keys(
+        "[[branches.rules]]\nmaintenance = \"1.x\"\nname = \"main\"",
+        "semoxide.toml:2:1"
+    )]
+    #[case::plugin_not_enabled("[plugins.github]\ndraft = true", "semoxide.toml:1:10")]
+    #[case::array_item("steps.publish.order = [\"github\"]", "semoxide.toml:1:24")]
+    #[case::inline_table_key(
+        "branches.rules = [{ name = \"main\", chnanel = \"stable\" }]",
+        "semoxide.toml:1:36"
+    )]
+    #[case::missing_key_at_its_entry(
+        "branches.rules = [{ channel = \"stable\" }]",
+        "semoxide.toml:1:19"
+    )]
+    #[case::second_table_of_an_array(
+        "[[branches.rules]]\nname = \"main\"\n\n[[branches.rules]]\nchannel = \"next\"",
+        "semoxide.toml:4:1"
+    )]
+    #[case::invalid_toml("tags.format = \"v{version}", "semoxide.toml:1:26")]
+    #[case::invalid_toml_on_a_later_line("a = 1\nb = = 2", "semoxide.toml:2:5")]
+    fn a_file_error_points_at_the_line_and_column(#[case] text: &str, #[case] expected: &str) {
+        let dir = dir(&[(MAIN, text)]);
+
+        assert_eq!(pointer(&dir, &[]).as_deref(), Some(expected));
+    }
+
+    #[test]
+    fn the_fallback_file_is_named() {
+        let dir = dir(&[(FALLBACK, "tags.format = \"release\"")]);
+
+        assert_eq!(
+            pointer(&dir, &[]).as_deref(),
+            Some(".config/semoxide.toml:1:15")
+        );
+    }
+
+    #[test]
+    fn a_flag_elsewhere_does_not_move_a_file_error() {
+        let dir = dir(&[(MAIN, "[tags]\nformat = \"release\"")]);
+
+        assert_eq!(
+            pointer(&dir, &["version.initial=0.1.0"]).as_deref(),
+            Some("semoxide.toml:2:10")
+        );
+    }
+
+    #[rstest]
+    #[case::invalid_flag(&["tags.format"], "flag #1: --set tags.format")]
+    #[case::invalid_value(&["tags.format=release"], "flag #1: --set tags.format=release")]
+    #[case::second_flag(
+        &["version.initial=0.1.0", "tags.format=release"],
+        "flag #2: --set tags.format=release"
+    )]
+    #[case::unknown_key(&["tags.formta=v{version}"], "flag #1: --set tags.formta=v{version}")]
+    #[case::unsupported_section(&["packages.a=1"], "flag #1: --set packages.a=1")]
+    fn a_flag_error_points_at_the_flag(#[case] set: &[&str], #[case] expected: &str) {
+        let dir = dir(&[]);
+
+        assert_eq!(pointer(&dir, set).as_deref(), Some(expected));
+    }
+
+    #[test]
+    fn a_flag_overriding_the_file_is_blamed() {
+        let dir = dir(&[(MAIN, "tags.format = \"v{version}\"")]);
+
+        assert_eq!(
+            pointer(&dir, &["tags.format=release"]).as_deref(),
+            Some("flag #1: --set tags.format=release")
+        );
+    }
+
+    #[test]
+    fn an_unreadable_file_points_at_the_whole_file() {
+        let dir = dir(&[("semoxide.toml/README.md", "")]);
+
+        assert_eq!(pointer(&dir, &[]).as_deref(), Some("semoxide.toml"));
+    }
+
+    #[test]
+    fn the_file_location_carries_the_parsed_text() {
+        let text = "[tags]\nformat = \"release\"";
+        let dir = dir(&[(MAIN, text)]);
+
+        let location = load(dir.path(), &[])
+            .err()
+            .and_then(|error| error.location());
+
+        let Some(Location::File(file)) = location else {
+            panic!("expected a file location: {location:?}");
+        };
+        assert_eq!(file.text(), Some(text));
+        assert_eq!(file.span(), Some(16..25));
     }
 }

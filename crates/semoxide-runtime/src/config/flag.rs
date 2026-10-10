@@ -119,7 +119,7 @@ impl ErrorInfo for FlagError {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
-    use semoxide_error::ErrorInfo;
+    use semoxide_error::{ErrorInfo, FlagLocation, Location};
     use toml::Table;
 
     use super::*;
@@ -198,6 +198,19 @@ mod tests {
         let message = result.unwrap_err().to_string();
         assert!(message.contains("`--set tags.format`"), "{message}");
         assert!(message.contains("expected `<key>=<value>`"), "{message}");
+    }
+
+    #[test]
+    fn the_error_points_at_the_flag() {
+        let result = parse_flag(2, "tags.format");
+
+        assert_eq!(
+            result.err().and_then(|error| error.location()),
+            Some(Location::Flag(FlagLocation::new(
+                2,
+                String::from("--set tags.format")
+            )))
+        );
     }
 
     #[test]

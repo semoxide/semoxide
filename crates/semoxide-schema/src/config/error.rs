@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use semoxide_error::{ErrorCode, ErrorInfo};
+use semoxide_error::{ErrorCode, ErrorInfo, Location};
 use toml::Value;
 
 use super::{PluginName, key, suggest};
@@ -11,14 +11,16 @@ use crate::codes::{
     CONFIG_UNSUPPORTED_SECTION,
 };
 
-/// An invalid configuration: its code, the key path (`branches.rules[2].prerelease`) and what
-/// is wrong.
+/// An invalid configuration: its code, the key path (`branches.rules[2].prerelease`), what is
+/// wrong and, once the loader adds it, where the key is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfigError {
     code: ErrorCode,
     path: String,
     message: String,
     help: Option<String>,
+    // Boxed: a location holds the file's text, and `ConfigError` is the `Err` of every parser.
+    location: Option<Box<Location>>,
 }
 
 impl ConfigError {
@@ -28,12 +30,19 @@ impl ConfigError {
         &self.path
     }
 
+    /// The same error, pointing at `location`.
+    #[must_use]
+    pub fn with_location(self, _location: Location) -> Self {
+        self
+    }
+
     pub(super) fn invalid(path: &str, value: &Value, problem: &str) -> Self {
         Self {
             code: CONFIG_INVALID_VALUE,
             path: path.to_owned(),
             message: format!("`{path}` = {value}: {problem}"),
             help: None,
+            location: None,
         }
     }
 
@@ -47,6 +56,7 @@ impl ConfigError {
             path: path.to_owned(),
             message: format!("unknown key `{path}`"),
             help,
+            location: None,
         }
     }
 
@@ -56,6 +66,7 @@ impl ConfigError {
             path: path.to_owned(),
             message: format!("`{path}`: {problem}"),
             help: None,
+            location: None,
         }
     }
 
@@ -65,6 +76,7 @@ impl ConfigError {
             path: path.to_owned(),
             message: format!("`{path}` isn't supported yet"),
             help: None,
+            location: None,
         }
     }
 
@@ -74,6 +86,7 @@ impl ConfigError {
             path: path.to_owned(),
             message: format!("`{path}`: plugin `{name}` isn't in `steps.plugins`"),
             help: None,
+            location: None,
         }
     }
 }
@@ -94,11 +107,16 @@ impl ErrorInfo for ConfigError {
     fn help(&self) -> Option<String> {
         self.help.clone()
     }
+
+    fn location(&self) -> Option<Location> {
+        self.location.as_deref().cloned()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
+    use semoxide_error::FlagLocation;
 
     use super::*;
     use crate::config::Config;
@@ -160,6 +178,20 @@ mod tests {
             unknown_key_help(text),
             Some((CONFIG_UNKNOWN_KEY.to_string(), help.map(str::to_owned)))
         );
+    }
+
+    #[test]
+    fn the_location_is_kept() {
+        let error = parse(r#"tags.format = "release-tag""#);
+        assert!(error.is_err());
+        let location = Location::Flag(FlagLocation::new(
+            2,
+            String::from("--set tags.format=release-tag"),
+        ));
+
+        let located = error.unwrap_err().with_location(location.clone());
+
+        assert_eq!(located.location(), Some(location));
     }
 
     #[test]

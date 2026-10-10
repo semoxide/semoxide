@@ -127,13 +127,16 @@ pub(crate) fn json(error: &dyn ErrorInfo) -> JsonError {
 #[cfg(test)]
 mod tests {
     use std::fmt;
+    use std::path::PathBuf;
 
-    use semoxide::{ErrorCode, ErrorInfo};
+    use semoxide::{ErrorCode, ErrorInfo, FileLocation, FlagLocation, Location};
+    use serde_json::json;
 
     use super::*;
 
     const CORE_NO_GIT_REPO: ErrorCode = ErrorCode::from_static("core::no_git_repo");
     const GIT_PUSH_TIMED_OUT: ErrorCode = ErrorCode::from_static("git::push_timed_out");
+    const CONFIG_INVALID_VALUE: ErrorCode = ErrorCode::from_static("config::invalid_value");
 
     /// An error with a help line, like most real ones.
     #[derive(Debug)]
@@ -185,6 +188,81 @@ mod tests {
         }
     }
 
+    /// A config error pointing at the value on line 2 of `semoxide.toml`.
+    #[derive(Debug)]
+    struct InvalidTagFormat;
+
+    impl fmt::Display for InvalidTagFormat {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("`tags.format` = \"release\": must contain `{version}`")
+        }
+    }
+
+    impl std::error::Error for InvalidTagFormat {}
+
+    impl ErrorInfo for InvalidTagFormat {
+        fn code(&self) -> ErrorCode {
+            CONFIG_INVALID_VALUE
+        }
+
+        fn location(&self) -> Option<Location> {
+            Some(Location::File(FileLocation::at(
+                PathBuf::from("semoxide.toml"),
+                String::from("[tags]\nformat = \"release\"\n"),
+                16..25,
+            )))
+        }
+    }
+
+    /// A config error pointing at the second `--set` flag.
+    #[derive(Debug)]
+    struct InvalidFlagValue;
+
+    impl fmt::Display for InvalidFlagValue {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("`tags.format` = \"release\": must contain `{version}`")
+        }
+    }
+
+    impl std::error::Error for InvalidFlagValue {}
+
+    impl ErrorInfo for InvalidFlagValue {
+        fn code(&self) -> ErrorCode {
+            CONFIG_INVALID_VALUE
+        }
+
+        fn location(&self) -> Option<Location> {
+            Some(Location::Flag(FlagLocation::new(
+                2,
+                String::from("--set tags.format=release"),
+            )))
+        }
+    }
+
+    /// An error pointing at a whole file, with no line.
+    #[derive(Debug)]
+    struct Unreadable;
+
+    impl fmt::Display for Unreadable {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("`semoxide.toml`: Access is denied.")
+        }
+    }
+
+    impl std::error::Error for Unreadable {}
+
+    impl ErrorInfo for Unreadable {
+        fn code(&self) -> ErrorCode {
+            ErrorCode::from_static("config::unreadable")
+        }
+
+        fn location(&self) -> Option<Location> {
+            Some(Location::File(FileLocation::new(PathBuf::from(
+                "semoxide.toml",
+            ))))
+        }
+    }
+
     #[test]
     fn plain_text_with_help() {
         insta::assert_snapshot!(text(&NoGitRepo, TextStyle::Plain));
@@ -230,5 +308,100 @@ mod tests {
         let colored = text(&NoGitRepo, TextStyle::Graphical { colors: Colors::On });
 
         assert!(colored.contains('\u{1b}'), "{colored:?}");
+    }
+
+    // --- Locations ---
+
+    fn graphical_no_colors(error: &dyn ErrorInfo) -> String {
+        text(
+            error,
+            TextStyle::Graphical {
+                colors: Colors::Off,
+            },
+        )
+    }
+
+    #[test]
+    fn plain_text_points_at_the_line() {
+        let plain = text(&InvalidTagFormat, TextStyle::Plain);
+
+        assert!(plain.contains("\n  --> semoxide.toml:2:10\n"), "{plain}");
+        insta::assert_snapshot!(plain);
+    }
+
+    #[test]
+    fn plain_text_points_at_the_flag() {
+        let plain = text(&InvalidFlagValue, TextStyle::Plain);
+
+        assert!(
+            plain.contains("\n  --> flag #2: --set tags.format=release\n"),
+            "{plain}"
+        );
+        insta::assert_snapshot!(plain);
+    }
+
+    #[test]
+    fn plain_text_points_at_the_whole_file() {
+        let plain = text(&Unreadable, TextStyle::Plain);
+
+        assert!(plain.contains("\n  --> semoxide.toml\n"), "{plain}");
+        insta::assert_snapshot!(plain);
+    }
+
+    #[test]
+    fn graphical_text_shows_the_line() {
+        let graphical = graphical_no_colors(&InvalidTagFormat);
+
+        assert!(graphical.contains("format = \"release\""), "{graphical}");
+        insta::assert_snapshot!(graphical);
+    }
+
+    #[test]
+    fn graphical_text_shows_the_flag() {
+        let graphical = graphical_no_colors(&InvalidFlagValue);
+
+        assert!(
+            graphical.contains("--set tags.format=release"),
+            "{graphical}"
+        );
+        insta::assert_snapshot!(graphical);
+    }
+
+    /// The `location` field of the JSON error object.
+    fn json_location(error: &dyn ErrorInfo) -> serde_json::Value {
+        serde_json::to_value(json(error)).unwrap()["error"]["location"].clone()
+    }
+
+    #[test]
+    fn json_file_location() {
+        assert_eq!(
+            json_location(&InvalidTagFormat),
+            json!({ "file": "semoxide.toml", "line": 2, "column": 10 })
+        );
+    }
+
+    #[test]
+    fn json_flag_location() {
+        assert_eq!(
+            json_location(&InvalidFlagValue),
+            json!({ "flag": "--set tags.format=release", "position": 2 })
+        );
+    }
+
+    #[test]
+    fn json_whole_file_location() {
+        assert_eq!(
+            json_location(&Unreadable),
+            json!({ "file": "semoxide.toml" })
+        );
+    }
+
+    #[test]
+    fn json_without_a_location_omits_the_field() {
+        let value = serde_json::to_value(json(&InvalidTagFormat)).unwrap();
+        let without = serde_json::to_value(json(&NoGitRepo)).unwrap();
+
+        assert!(value["error"].get("location").is_some(), "{value}");
+        assert!(without["error"].get("location").is_none(), "{without}");
     }
 }
