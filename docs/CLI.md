@@ -87,7 +87,7 @@ Error object fields:
 | --- | --- |
 | `code` | namespaced error code, e.g. `git::push_rejected` (catalog: [OBSERVABILITY.md](OBSERVABILITY.md)) |
 | `message`, `help`, docs link | as rendered in text output |
-| config pointer | line in `semoxide.toml`, for config errors |
+| `location` | where the cause is, when known: `{"file", "line", "column"}` (`file` alone for a whole file) or `{"flag", "position"}` for the `n`th `--set` |
 | `retryable` | transient failure (network timeout, rate limit, SSH handshake flake) |
 | `remote_writes_happened` | true once anything was pushed or published |
 

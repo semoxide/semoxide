@@ -1,0 +1,11 @@
+---
+source: crates/semoxide-cli/src/render.rs
+expression: graphical
+---
+]8;;https://github.com/semoxide/semoxide/blob/main/docs/errors/config/invalid-value.md\config::invalid_value (link)]8;;\
+
+  × `tags.format` = "release": must contain `{version}`
+   ╭─[flag #2:1:1]
+ 1 │ --set tags.format=release
+   · ─────────────────────────
+   ╰────

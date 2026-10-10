@@ -1,0 +1,7 @@
+---
+source: crates/semoxide-cli/src/render.rs
+expression: plain
+---
+error[config::unreadable]: `semoxide.toml`: Access is denied.
+  --> semoxide.toml
+  docs: https://github.com/semoxide/semoxide/blob/main/docs/errors/config/unreadable.md

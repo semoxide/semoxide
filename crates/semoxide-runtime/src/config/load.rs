@@ -4,11 +4,12 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use semoxide_error::{ErrorCode, ErrorInfo};
+use semoxide_error::{ErrorCode, ErrorInfo, FileLocation, Location};
 use semoxide_schema::config::{Config, ConfigError, MergeMode};
 use toml::Table;
 
 use super::flag::{FlagError, parse_flag};
+use super::locate::{SourceFile, locate};
 use super::merge::{Layer, Merged, Source, merge};
 use crate::codes::{CONFIG_INVALID_TOML, CONFIG_UNREADABLE};
 
@@ -58,7 +59,7 @@ const CANDIDATES: [&str; 2] = ["semoxide.toml", ".config/semoxide.toml"];
 /// Returns [`LoadError`] if a flag is malformed, the config file can't be read or isn't TOML,
 /// or the merged config is invalid.
 pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
-    let flags = flags
+    let flag_layers = flags
         .iter()
         .enumerate()
         .map(|(index, flag)| parse_flag(index + 1, flag))
@@ -70,14 +71,30 @@ pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
         .filter(|path| path.exists());
     let file = found.next();
     let ignored: Vec<PathBuf> = found.collect();
-    let layers = match &file {
-        Some(path) => vec![Layer::new(Source::File(path.clone()), read(path)?)],
-        None => Vec::new(),
+    let (layers, source_file) = match &file {
+        Some(path) => {
+            let (text, table) = read(path)?;
+            (
+                vec![Layer::new(Source::File(path.clone()), table)],
+                Some(SourceFile::new(path.clone(), text)),
+            )
+        }
+        None => (Vec::new(), None),
     };
     // With a single user layer, shallow and deep give the same result; `config.merge` takes effect
     // once `extends` adds a second one.
-    let merged = merge(&Config::defaults_table(), &layers, &flags, MergeMode::Deep);
-    let config = Config::from_table(merged.table().clone()).map_err(LoadError::Config)?;
+    let merged = merge(
+        &Config::defaults_table(),
+        &layers,
+        &flag_layers,
+        MergeMode::Deep,
+    );
+    let config = Config::from_table(merged.table().clone()).map_err(|error| {
+        LoadError::Config(match locate(&error, &merged, source_file.as_ref(), flags) {
+            Some(location) => error.with_location(location),
+            None => error,
+        })
+    })?;
     Ok(Loaded {
         config,
         merged,
@@ -86,18 +103,38 @@ pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
     })
 }
 
-fn read(path: &Path) -> Result<Table, LoadError> {
-    let file_error = |code: ErrorCode, message: String| {
+/// The file's text and its table.
+fn read(path: &Path) -> Result<(String, Table), LoadError> {
+    let text = std::fs::read_to_string(path).map_err(|error| {
         LoadError::File(FileError {
-            code,
+            code: CONFIG_UNREADABLE,
             path: path.to_path_buf(),
-            message,
+            message: error.to_string(),
+            location: Box::new(FileLocation::new(path.to_path_buf())),
         })
+    })?;
+    match text.parse::<Table>() {
+        Ok(table) => Ok((text, table)),
+        Err(error) => Err(LoadError::File(invalid_toml(path, text, &error))),
+    }
+}
+
+/// A TOML syntax error, pointing at the parser's position.
+fn invalid_toml(path: &Path, text: String, error: &toml::de::Error) -> FileError {
+    let location = match error.span() {
+        Some(span) => FileLocation::at(path.to_path_buf(), text, span),
+        None => FileLocation::new(path.to_path_buf()),
     };
-    let text = std::fs::read_to_string(path)
-        .map_err(|error| file_error(CONFIG_UNREADABLE, error.to_string()))?;
-    text.parse::<Table>()
-        .map_err(|error| file_error(CONFIG_INVALID_TOML, error.to_string().trim_end().to_owned()))
+    let position = match (location.line(), location.column()) {
+        (Some(line), Some(column)) => format!("line {line}, column {column}: "),
+        _ => String::new(),
+    };
+    FileError {
+        code: CONFIG_INVALID_TOML,
+        path: path.to_path_buf(),
+        message: format!("{position}{}", error.message()),
+        location: Box::new(location),
+    }
 }
 
 /// Why a config couldn't be loaded.
@@ -139,6 +176,14 @@ impl ErrorInfo for LoadError {
             Self::Config(error) => error.help(),
         }
     }
+
+    fn location(&self) -> Option<Location> {
+        match self {
+            Self::Flag(error) => error.location(),
+            Self::File(error) => error.location(),
+            Self::Config(error) => error.location(),
+        }
+    }
 }
 
 /// A config file that can't be read or isn't TOML.
@@ -147,6 +192,8 @@ pub struct FileError {
     code: ErrorCode,
     path: PathBuf,
     message: String,
+    // Boxed: it holds the file's text.
+    location: Box<FileLocation>,
 }
 
 impl FileError {
@@ -169,6 +216,10 @@ impl ErrorInfo for FileError {
     fn code(&self) -> ErrorCode {
         self.code.clone()
     }
+
+    fn location(&self) -> Option<Location> {
+        Some(Location::File(FileLocation::clone(&self.location)))
+    }
 }
 
 #[cfg(test)]
@@ -176,7 +227,8 @@ mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
 
-    use semoxide_error::ErrorInfo;
+    use rstest::rstest;
+    use semoxide_error::{ErrorInfo, Location};
     use semoxide_schema::config::{Config, MergeMode};
     use tempfile::TempDir;
 
@@ -451,5 +503,133 @@ mod tests {
         let help = load(dir.path(), &[]).err().and_then(|error| error.help());
 
         assert_eq!(help.as_deref(), Some("Use `tags.format` instead."));
+    }
+
+    // --- Locations ---
+
+    /// Where the load error points, as `file:line:column` (the file relative to `dir`), `file`
+    /// for a whole file, or `flag #n: <flag>`.
+    fn pointer(dir: &TempDir, set: &[&str]) -> Option<String> {
+        let location = load(dir.path(), &flags(set)).err()?.location()?;
+        Some(match location {
+            Location::File(file) => {
+                let path = file
+                    .path()
+                    .strip_prefix(dir.path())
+                    .unwrap_or_else(|_| file.path())
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                match (file.line(), file.column()) {
+                    (Some(line), Some(column)) => format!("{path}:{line}:{column}"),
+                    _ => path,
+                }
+            }
+            Location::Flag(flag) => format!("flag #{}: {}", flag.position(), flag.flag()),
+            other => format!("{other:?}"),
+        })
+    }
+
+    #[rstest]
+    #[case::invalid_value_at_the_value("[tags]\nformat = \"release\"", "semoxide.toml:2:10")]
+    #[case::dotted_key_value("tags.format = \"release\"", "semoxide.toml:1:15")]
+    #[case::unknown_key_at_the_key("[tags]\nformta = \"v{version}\"", "semoxide.toml:2:1")]
+    #[case::unknown_domain_header("[tgas]\nformat = \"v{version}\"", "semoxide.toml:1:2")]
+    #[case::unsupported_section("[packages]\na = 1", "semoxide.toml:1:2")]
+    #[case::conflicting_keys(
+        "[[branches.rules]]\nmaintenance = \"1.x\"\nname = \"main\"",
+        "semoxide.toml:2:1"
+    )]
+    #[case::plugin_not_enabled("[plugins.github]\ndraft = true", "semoxide.toml:1:10")]
+    #[case::array_item("steps.publish.order = [\"github\"]", "semoxide.toml:1:24")]
+    #[case::inline_table_key(
+        "branches.rules = [{ name = \"main\", chnanel = \"stable\" }]",
+        "semoxide.toml:1:36"
+    )]
+    #[case::missing_key_at_its_entry(
+        "branches.rules = [{ channel = \"stable\" }]",
+        "semoxide.toml:1:19"
+    )]
+    #[case::second_table_of_an_array(
+        "[[branches.rules]]\nname = \"main\"\n\n[[branches.rules]]\nchannel = \"next\"",
+        "semoxide.toml:4:1"
+    )]
+    #[case::a_longer_sibling_is_not_picked(
+        "[version]\ninitial = \"0.1.0\"\n\n[tags]\nformat = \"release\"",
+        "semoxide.toml:5:10"
+    )]
+    #[case::invalid_toml("tags.format = \"v{version}", "semoxide.toml:1:26")]
+    #[case::invalid_toml_on_a_later_line("a = 1\nb = = 2", "semoxide.toml:2:5")]
+    fn a_file_error_points_at_the_line_and_column(#[case] text: &str, #[case] expected: &str) {
+        let dir = dir(&[(MAIN, text)]);
+
+        assert_eq!(pointer(&dir, &[]).as_deref(), Some(expected));
+    }
+
+    #[test]
+    fn the_fallback_file_is_named() {
+        let dir = dir(&[(FALLBACK, "tags.format = \"release\"")]);
+
+        assert_eq!(
+            pointer(&dir, &[]).as_deref(),
+            Some(".config/semoxide.toml:1:15")
+        );
+    }
+
+    #[test]
+    fn a_flag_elsewhere_does_not_move_a_file_error() {
+        let dir = dir(&[(MAIN, "[tags]\nformat = \"release\"")]);
+
+        assert_eq!(
+            pointer(&dir, &["version.initial=0.1.0"]).as_deref(),
+            Some("semoxide.toml:2:10")
+        );
+    }
+
+    #[rstest]
+    #[case::invalid_flag(&["tags.format"], "flag #1: --set tags.format")]
+    #[case::invalid_value(&["tags.format=release"], "flag #1: --set tags.format=release")]
+    #[case::second_flag(
+        &["version.initial=0.1.0", "tags.format=release"],
+        "flag #2: --set tags.format=release"
+    )]
+    #[case::unknown_key(&["tags.formta=v{version}"], "flag #1: --set tags.formta=v{version}")]
+    #[case::unsupported_section(&["packages.a=1"], "flag #1: --set packages.a=1")]
+    fn a_flag_error_points_at_the_flag(#[case] set: &[&str], #[case] expected: &str) {
+        let dir = dir(&[]);
+
+        assert_eq!(pointer(&dir, set).as_deref(), Some(expected));
+    }
+
+    #[test]
+    fn a_flag_overriding_the_file_is_blamed() {
+        let dir = dir(&[(MAIN, "tags.format = \"v{version}\"")]);
+
+        assert_eq!(
+            pointer(&dir, &["tags.format=release"]).as_deref(),
+            Some("flag #1: --set tags.format=release")
+        );
+    }
+
+    #[test]
+    fn an_unreadable_file_points_at_the_whole_file() {
+        let dir = dir(&[("semoxide.toml/README.md", "")]);
+
+        assert_eq!(pointer(&dir, &[]).as_deref(), Some("semoxide.toml"));
+    }
+
+    #[test]
+    fn the_file_location_carries_the_parsed_text() {
+        let text = "[tags]\nformat = \"release\"";
+        let dir = dir(&[(MAIN, text)]);
+
+        let location = load(dir.path(), &[])
+            .err()
+            .and_then(|error| error.location());
+
+        let Some(Location::File(file)) = location else {
+            panic!("expected a file location: {location:?}");
+        };
+        assert_eq!(file.text(), Some(text));
+        assert_eq!(file.span(), Some(16..25));
     }
 }

@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use semoxide_error::{ErrorCode, ErrorInfo};
+use semoxide_error::{ErrorCode, ErrorInfo, FlagLocation, Location};
 use toml::{Table, Value};
 
 use super::merge::{Layer, Source};
@@ -114,12 +114,21 @@ impl ErrorInfo for FlagError {
     fn code(&self) -> ErrorCode {
         CONFIG_INVALID_FLAG
     }
+
+    fn location(&self) -> Option<Location> {
+        Some(flag_location(self.position, &self.flag))
+    }
+}
+
+/// The `position`th `--set` flag as it was typed.
+pub(super) fn flag_location(position: usize, flag: &str) -> Location {
+    Location::Flag(FlagLocation::new(position, format!("--set {flag}")))
 }
 
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
-    use semoxide_error::ErrorInfo;
+    use semoxide_error::{ErrorInfo, FlagLocation, Location};
     use toml::Table;
 
     use super::*;
@@ -198,6 +207,19 @@ mod tests {
         let message = result.unwrap_err().to_string();
         assert!(message.contains("`--set tags.format`"), "{message}");
         assert!(message.contains("expected `<key>=<value>`"), "{message}");
+    }
+
+    #[test]
+    fn the_error_points_at_the_flag() {
+        let result = parse_flag(2, "tags.format");
+
+        assert_eq!(
+            result.err().and_then(|error| error.location()),
+            Some(Location::Flag(FlagLocation::new(
+                2,
+                String::from("--set tags.format")
+            )))
+        );
     }
 
     #[test]
