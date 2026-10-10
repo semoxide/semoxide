@@ -150,6 +150,7 @@ Development phase only. A scheduled job runs a pinned semantic-release version i
 
 - **Runner:** `cargo-nextest`, configured in `.config/nextest.toml`; CI sets `NEXTEST_PROFILE=ci` (no fail-fast, failures shown immediately and at the end, slow-test summary, JUnit). Retries come with the first flaky network test.
 - **Snapshots:** on Linux the tests run through `cargo insta test --test-runner nextest --unreferenced reject --require-full-match`, so a stale, mismatched or metadata-only-different snapshot fails; insta never writes snapshots in CI. Redactions (temp paths, …) arrive as a shared `semoxide-test-support` helper with the first snapshot that needs them.
+- **JSON Schema:** a test compares the generated schema with the committed file, like a snapshot ([CONFIG](CONFIG.md#12-json-schema)).
 - Linux jobs run in Docker containers; Windows runs natively.
 - **Toolchains:** stable on PRs; MSRV check with `cargo hack --rust-version` (policy: [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md)); beta scheduled.
 - **Speed:** `rust-cache`; dependency opt-level per [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md) profiles.
