@@ -7,7 +7,9 @@
 /// The semoxide version, shared by the library and the CLI.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub use semoxide_runtime::{ErrorCode, ErrorInfo, FileLocation, FlagLocation, Location};
+pub use semoxide_runtime::{
+    Env, EnvError, ErrorCode, ErrorInfo, FileLocation, FlagLocation, Location, UnknownVar,
+};
 
 /// Every error code semoxide can report; each has a docs page at [`ErrorInfo::url`].
 #[must_use]

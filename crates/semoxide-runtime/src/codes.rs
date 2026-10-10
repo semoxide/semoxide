@@ -10,8 +10,16 @@ pub const CONFIG_INVALID_TOML: ErrorCode = ErrorCode::from_static("config::inval
 /// A config file that exists but can't be read.
 pub const CONFIG_UNREADABLE: ErrorCode = ErrorCode::from_static("config::unreadable");
 
+/// An environment variable read as text whose value isn't valid UTF-8.
+pub const ENV_NOT_UNICODE: ErrorCode = ErrorCode::from_static("env::not_unicode");
+
 /// Every error code this crate can produce.
-pub const ALL: &[ErrorCode] = &[CONFIG_INVALID_FLAG, CONFIG_INVALID_TOML, CONFIG_UNREADABLE];
+pub const ALL: &[ErrorCode] = &[
+    CONFIG_INVALID_FLAG,
+    CONFIG_INVALID_TOML,
+    CONFIG_UNREADABLE,
+    ENV_NOT_UNICODE,
+];
 
 /// Every error code of semoxide's crates, for the docs-page check and `semoxide schema`.
 #[must_use]
