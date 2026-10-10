@@ -833,8 +833,20 @@ rules = [
         "branches.rules[0].prerelease",
         Rejects
     )]
+    #[case::prerelease_with_plus(
+        r#"branches.rules = [{ name = "beta", prerelease = "beta+build" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease",
+        Rejects
+    )]
     #[case::prerelease_true_on_invalid_name(
         r#"branches.rules = [{ name = "feature/x", prerelease = true }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease",
+        ParserOnly
+    )]
+    #[case::prerelease_true_on_name_with_plus(
+        r#"branches.rules = [{ name = "beta+x", prerelease = true }]"#,
         CONFIG_INVALID_VALUE,
         "branches.rules[0].prerelease",
         ParserOnly
