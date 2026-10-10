@@ -67,25 +67,11 @@ impl JsonSchema for ConfigDomain {
         Cow::Borrowed("ConfigDomain")
     }
 
-    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
-            [("merge", generator.subschema_for::<MergeMode>())],
+            [("merge", choice_schema(&MERGE_MODES))],
             &Self::DEFAULT.to_table(),
         )
-    }
-}
-
-impl JsonSchema for MergeMode {
-    fn inline_schema() -> bool {
-        true
-    }
-
-    fn schema_name() -> Cow<'static, str> {
-        Cow::Borrowed("MergeMode")
-    }
-
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        choice_schema(&MERGE_MODES)
     }
 }
 

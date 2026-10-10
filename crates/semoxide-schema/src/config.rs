@@ -203,7 +203,7 @@ impl JsonSchema for Config {
     }
 
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
-        let plugin_name = generator.subschema_for::<PluginName>();
+        let plugin_name = values::plugin_name_schema();
         let plugin = generator.subschema_for::<PluginConfig>();
         closed_table(
             [

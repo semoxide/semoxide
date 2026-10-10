@@ -6,7 +6,7 @@ use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
 use super::schema::closed_table;
-use super::values::{EnvName, array};
+use super::values::{EnvName, array, env_name_schema};
 use super::{ConfigError, Fields, index};
 
 /// `[secrets]`
@@ -60,8 +60,8 @@ impl JsonSchema for Secrets {
         Cow::Borrowed("Secrets")
     }
 
-    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
-        let names = generator.subschema_for::<EnvName>();
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let names = env_name_schema();
         closed_table(
             [(
                 "mask_env",

@@ -66,25 +66,11 @@ impl JsonSchema for Commits {
         Cow::Borrowed("Commits")
     }
 
-    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
-            [("preset", generator.subschema_for::<Preset>())],
+            [("preset", choice_schema(&PRESETS))],
             &Self::DEFAULT.to_table(),
         )
-    }
-}
-
-impl JsonSchema for Preset {
-    fn inline_schema() -> bool {
-        true
-    }
-
-    fn schema_name() -> Cow<'static, str> {
-        Cow::Borrowed("Preset")
-    }
-
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        choice_schema(&PRESETS)
     }
 }
 

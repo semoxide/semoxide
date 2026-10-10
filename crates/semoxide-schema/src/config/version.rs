@@ -197,25 +197,11 @@ impl JsonSchema for ZeroLevels {
         Cow::Borrowed("ZeroLevels")
     }
 
-    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
-            ZERO_KEYS.map(|name| (name, generator.subschema_for::<Level>())),
+            ZERO_KEYS.map(|name| (name, choice_schema(&LEVELS))),
             &Self::DEFAULT.to_table(),
         )
-    }
-}
-
-impl JsonSchema for Level {
-    fn inline_schema() -> bool {
-        true
-    }
-
-    fn schema_name() -> Cow<'static, str> {
-        Cow::Borrowed("Level")
-    }
-
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        choice_schema(&LEVELS)
     }
 }
 

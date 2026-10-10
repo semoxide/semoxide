@@ -6,7 +6,7 @@ use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
 use super::schema::closed_table;
-use super::values::{TagFormat, Template, string, string_schema};
+use super::values::{TagFormat, Template, string, string_schema, tag_format_schema};
 use super::{ConfigError, Fields};
 
 /// `[tags]`
@@ -73,10 +73,10 @@ impl JsonSchema for Tags {
         Cow::Borrowed("Tags")
     }
 
-    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
         closed_table(
             [
-                ("format", generator.subschema_for::<TagFormat>()),
+                ("format", tag_format_schema()),
                 ("metadata", string_schema()),
             ],
             &Self::defaults().to_table(),
