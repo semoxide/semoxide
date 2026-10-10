@@ -32,8 +32,11 @@ impl ConfigError {
 
     /// The same error, pointing at `location`.
     #[must_use]
-    pub fn with_location(self, _location: Location) -> Self {
-        self
+    pub fn with_location(self, location: Location) -> Self {
+        Self {
+            location: Some(Box::new(location)),
+            ..self
+        }
     }
 
     pub(super) fn invalid(path: &str, value: &Value, problem: &str) -> Self {

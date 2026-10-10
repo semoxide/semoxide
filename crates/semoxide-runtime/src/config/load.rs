@@ -4,11 +4,12 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use semoxide_error::{ErrorCode, ErrorInfo};
+use semoxide_error::{ErrorCode, ErrorInfo, FileLocation, Location};
 use semoxide_schema::config::{Config, ConfigError, MergeMode};
 use toml::Table;
 
 use super::flag::{FlagError, parse_flag};
+use super::locate::{SourceFile, locate};
 use super::merge::{Layer, Merged, Source, merge};
 use crate::codes::{CONFIG_INVALID_TOML, CONFIG_UNREADABLE};
 
@@ -58,7 +59,7 @@ const CANDIDATES: [&str; 2] = ["semoxide.toml", ".config/semoxide.toml"];
 /// Returns [`LoadError`] if a flag is malformed, the config file can't be read or isn't TOML,
 /// or the merged config is invalid.
 pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
-    let flags = flags
+    let flag_layers = flags
         .iter()
         .enumerate()
         .map(|(index, flag)| parse_flag(index + 1, flag))
@@ -70,14 +71,30 @@ pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
         .filter(|path| path.exists());
     let file = found.next();
     let ignored: Vec<PathBuf> = found.collect();
-    let layers = match &file {
-        Some(path) => vec![Layer::new(Source::File(path.clone()), read(path)?)],
-        None => Vec::new(),
+    let (layers, source_file) = match &file {
+        Some(path) => {
+            let (text, table) = read(path)?;
+            (
+                vec![Layer::new(Source::File(path.clone()), table)],
+                Some(SourceFile::new(path.clone(), text)),
+            )
+        }
+        None => (Vec::new(), None),
     };
     // With a single user layer, shallow and deep give the same result; `config.merge` takes effect
     // once `extends` adds a second one.
-    let merged = merge(&Config::defaults_table(), &layers, &flags, MergeMode::Deep);
-    let config = Config::from_table(merged.table().clone()).map_err(LoadError::Config)?;
+    let merged = merge(
+        &Config::defaults_table(),
+        &layers,
+        &flag_layers,
+        MergeMode::Deep,
+    );
+    let config = Config::from_table(merged.table().clone()).map_err(|error| {
+        LoadError::Config(match locate(&error, &merged, source_file.as_ref(), flags) {
+            Some(location) => error.with_location(location),
+            None => error,
+        })
+    })?;
     Ok(Loaded {
         config,
         merged,
@@ -86,18 +103,38 @@ pub fn load(dir: &Path, flags: &[String]) -> Result<Loaded, LoadError> {
     })
 }
 
-fn read(path: &Path) -> Result<Table, LoadError> {
-    let file_error = |code: ErrorCode, message: String| {
+/// The file's text and its table.
+fn read(path: &Path) -> Result<(String, Table), LoadError> {
+    let text = std::fs::read_to_string(path).map_err(|error| {
         LoadError::File(FileError {
-            code,
+            code: CONFIG_UNREADABLE,
             path: path.to_path_buf(),
-            message,
+            message: error.to_string(),
+            location: Box::new(FileLocation::new(path.to_path_buf())),
         })
+    })?;
+    match text.parse::<Table>() {
+        Ok(table) => Ok((text, table)),
+        Err(error) => Err(LoadError::File(invalid_toml(path, text, &error))),
+    }
+}
+
+/// A TOML syntax error, pointing at the parser's position.
+fn invalid_toml(path: &Path, text: String, error: &toml::de::Error) -> FileError {
+    let location = match error.span() {
+        Some(span) => FileLocation::at(path.to_path_buf(), text, span),
+        None => FileLocation::new(path.to_path_buf()),
     };
-    let text = std::fs::read_to_string(path)
-        .map_err(|error| file_error(CONFIG_UNREADABLE, error.to_string()))?;
-    text.parse::<Table>()
-        .map_err(|error| file_error(CONFIG_INVALID_TOML, error.to_string().trim_end().to_owned()))
+    let position = match (location.line(), location.column()) {
+        (Some(line), Some(column)) => format!("line {line}, column {column}: "),
+        _ => String::new(),
+    };
+    FileError {
+        code: CONFIG_INVALID_TOML,
+        path: path.to_path_buf(),
+        message: format!("{position}{}", error.message()),
+        location: Box::new(location),
+    }
 }
 
 /// Why a config couldn't be loaded.
@@ -139,6 +176,14 @@ impl ErrorInfo for LoadError {
             Self::Config(error) => error.help(),
         }
     }
+
+    fn location(&self) -> Option<Location> {
+        match self {
+            Self::Flag(error) => error.location(),
+            Self::File(error) => error.location(),
+            Self::Config(error) => error.location(),
+        }
+    }
 }
 
 /// A config file that can't be read or isn't TOML.
@@ -147,6 +192,8 @@ pub struct FileError {
     code: ErrorCode,
     path: PathBuf,
     message: String,
+    // Boxed: it holds the file's text.
+    location: Box<FileLocation>,
 }
 
 impl FileError {
@@ -168,6 +215,10 @@ impl std::error::Error for FileError {}
 impl ErrorInfo for FileError {
     fn code(&self) -> ErrorCode {
         self.code.clone()
+    }
+
+    fn location(&self) -> Option<Location> {
+        Some(Location::File(FileLocation::clone(&self.location)))
     }
 }
 

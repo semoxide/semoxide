@@ -3,6 +3,7 @@
 
 mod flag;
 mod load;
+mod locate;
 mod merge;
 
 pub use flag::{FlagError, parse_flag};

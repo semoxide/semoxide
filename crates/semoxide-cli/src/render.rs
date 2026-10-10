@@ -3,8 +3,11 @@
 
 use std::fmt;
 
-use miette::{Diagnostic, GraphicalReportHandler, GraphicalTheme};
-use semoxide::ErrorInfo;
+use miette::{
+    Diagnostic, GraphicalReportHandler, GraphicalTheme, LabeledSpan, NamedSource, SourceCode,
+    SourceSpan,
+};
+use semoxide::{ErrorInfo, Location};
 use serde::Serialize;
 
 /// Version of the JSON output format (CLI.md: fields are only added within a version).
@@ -35,15 +38,32 @@ pub(crate) fn text(error: &dyn ErrorInfo, style: TextStyle) -> String {
 }
 
 fn plain(error: &dyn ErrorInfo) -> String {
+    let location = error
+        .location()
+        .and_then(|location| pointer(&location))
+        .map(|pointer| format!("  --> {pointer}\n"))
+        .unwrap_or_default();
     let help = error
         .help()
         .map(|help| format!("  help: {help}\n"))
         .unwrap_or_default();
     format!(
-        "error[{}]: {error}\n{help}  docs: {}\n",
+        "error[{}]: {error}\n{location}{help}  docs: {}\n",
         error.code(),
         error.url()
     )
+}
+
+/// The location as one line: `semoxide.toml:2:10`, `semoxide.toml` or `flag #2: --set …`.
+fn pointer(location: &Location) -> Option<String> {
+    match location {
+        Location::File(file) => Some(match (file.line(), file.column()) {
+            (Some(line), Some(column)) => format!("{}:{line}:{column}", file.path().display()),
+            _ => file.path().display().to_string(),
+        }),
+        Location::Flag(flag) => Some(format!("flag #{}: {}", flag.position(), flag.flag())),
+        _ => None,
+    }
 }
 
 fn graphical(error: &dyn ErrorInfo, colors: Colors) -> String {
@@ -53,23 +73,51 @@ fn graphical(error: &dyn ErrorInfo, colors: Colors) -> String {
     };
     let mut text = String::new();
     // Writing into a String can't fail.
-    let _ =
-        GraphicalReportHandler::new_themed(theme).render_report(&mut text, &AsDiagnostic(error));
+    let _ = GraphicalReportHandler::new_themed(theme)
+        .render_report(&mut text, &AsDiagnostic::new(error));
     text
 }
 
-/// `ErrorInfo` seen through miette's `Diagnostic` trait; miette stays inside the CLI.
-struct AsDiagnostic<'a>(&'a dyn ErrorInfo);
+/// `ErrorInfo` seen through miette's `Diagnostic` trait, with the location as a code snippet;
+/// miette stays inside the CLI.
+struct AsDiagnostic<'a> {
+    error: &'a dyn ErrorInfo,
+    snippet: Option<(NamedSource<String>, SourceSpan)>,
+}
+
+impl<'a> AsDiagnostic<'a> {
+    fn new(error: &'a dyn ErrorInfo) -> Self {
+        let snippet = error.location().and_then(|location| snippet(&location));
+        Self { error, snippet }
+    }
+}
+
+/// The text to show and the part to underline: the line in a file, or the whole flag.
+fn snippet(location: &Location) -> Option<(NamedSource<String>, SourceSpan)> {
+    match location {
+        Location::File(file) => {
+            let (text, span) = file.text().zip(file.span())?;
+            let name = file.path().display().to_string();
+            Some((NamedSource::new(name, text.to_owned()), span.into()))
+        }
+        Location::Flag(flag) => {
+            let name = format!("flag #{}", flag.position());
+            let span = (0..flag.flag().len()).into();
+            Some((NamedSource::new(name, flag.flag().to_owned()), span))
+        }
+        _ => None,
+    }
+}
 
 impl fmt::Debug for AsDiagnostic<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.0, f)
+        fmt::Debug::fmt(self.error, f)
     }
 }
 
 impl fmt::Display for AsDiagnostic<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.0, f)
+        fmt::Display::fmt(self.error, f)
     }
 }
 
@@ -77,17 +125,28 @@ impl std::error::Error for AsDiagnostic<'_> {}
 
 impl Diagnostic for AsDiagnostic<'_> {
     fn code<'b>(&'b self) -> Option<Box<dyn fmt::Display + 'b>> {
-        Some(Box::new(self.0.code()))
+        Some(Box::new(self.error.code()))
     }
 
     fn help<'b>(&'b self) -> Option<Box<dyn fmt::Display + 'b>> {
-        self.0
+        self.error
             .help()
             .map(|help| Box::new(help) as Box<dyn fmt::Display>)
     }
 
     fn url<'b>(&'b self) -> Option<Box<dyn fmt::Display + 'b>> {
-        Some(Box::new(self.0.url()))
+        Some(Box::new(self.error.url()))
+    }
+
+    fn source_code(&self) -> Option<&dyn SourceCode> {
+        self.snippet
+            .as_ref()
+            .map(|(source, _)| source as &dyn SourceCode)
+    }
+
+    fn labels(&self) -> Option<Box<dyn Iterator<Item = LabeledSpan> + '_>> {
+        let (_, span) = self.snippet.as_ref()?;
+        Some(Box::new(std::iter::once(LabeledSpan::underline(*span))))
     }
 }
 
@@ -107,6 +166,42 @@ struct JsonErrorObject {
     url: String,
     retryable: bool,
     remote_writes_happened: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    location: Option<JsonLocation>,
+}
+
+/// `{"file", "line", "column"}` (no line and column for a whole file) or `{"flag", "position"}`.
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+enum JsonLocation {
+    File {
+        file: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        line: Option<usize>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        column: Option<usize>,
+    },
+    Flag {
+        flag: String,
+        position: usize,
+    },
+}
+
+impl JsonLocation {
+    fn new(location: &Location) -> Option<Self> {
+        match location {
+            Location::File(file) => Some(Self::File {
+                file: file.path().display().to_string(),
+                line: file.line(),
+                column: file.column(),
+            }),
+            Location::Flag(flag) => Some(Self::Flag {
+                flag: flag.flag().to_owned(),
+                position: flag.position(),
+            }),
+            _ => None,
+        }
+    }
 }
 
 /// The error as the JSON document printed on stdout with `--output=json`.
@@ -120,6 +215,9 @@ pub(crate) fn json(error: &dyn ErrorInfo) -> JsonError {
             url: error.url(),
             retryable: error.retryable(),
             remote_writes_happened: error.remote_writes_happened(),
+            location: error
+                .location()
+                .and_then(|location| JsonLocation::new(&location)),
         },
     }
 }

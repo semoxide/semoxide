@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use semoxide_error::{ErrorCode, ErrorInfo};
+use semoxide_error::{ErrorCode, ErrorInfo, FlagLocation, Location};
 use toml::{Table, Value};
 
 use super::merge::{Layer, Source};
@@ -114,6 +114,15 @@ impl ErrorInfo for FlagError {
     fn code(&self) -> ErrorCode {
         CONFIG_INVALID_FLAG
     }
+
+    fn location(&self) -> Option<Location> {
+        Some(flag_location(self.position, &self.flag))
+    }
+}
+
+/// The `position`th `--set` flag as it was typed.
+pub(super) fn flag_location(position: usize, flag: &str) -> Location {
+    Location::Flag(FlagLocation::new(position, format!("--set {flag}")))
 }
 
 #[cfg(test)]

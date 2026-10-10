@@ -37,8 +37,16 @@ impl FileLocation {
     /// The byte range `span` in the file's `text`; a range outside the text or between the
     /// bytes of one character is narrowed to fit.
     #[must_use]
-    pub fn at(path: PathBuf, _text: String, _span: Range<usize>) -> Self {
-        Self { path, spot: None }
+    pub fn at(path: PathBuf, text: String, span: Range<usize>) -> Self {
+        let start = text.floor_char_boundary(span.start);
+        let end = text.ceil_char_boundary(span.end.max(start));
+        Self {
+            path,
+            spot: Some(Spot {
+                text,
+                span: start..end,
+            }),
+        }
     }
 
     /// The file.
@@ -62,13 +70,26 @@ impl FileLocation {
     /// The line where the span starts, counting from 1.
     #[must_use]
     pub fn line(&self) -> Option<usize> {
-        None
+        self.before_span()
+            .map(|before| before.matches('\n').count() + 1)
     }
 
     /// The column where the span starts, in characters, counting from 1.
     #[must_use]
     pub fn column(&self) -> Option<usize> {
-        None
+        self.before_span().map(|before| {
+            let line_start = before.rfind('\n').map_or(0, |newline| newline + 1);
+            before
+                .get(line_start..)
+                .map_or(0, |line| line.chars().count())
+                + 1
+        })
+    }
+
+    /// The text before the span.
+    fn before_span(&self) -> Option<&str> {
+        let spot = self.spot.as_ref()?;
+        spot.text.get(..spot.span.start)
     }
 }
 
