@@ -172,8 +172,8 @@ mod tests {
     }
 
     #[test]
-    fn the_branch_override_keeps_spaces_and_refs_without_a_vendor() {
-        let spaces = context(GITHUB_PUSH, &[("SEMOXIDE_CI_BRANCH", " main ")]);
+    fn the_branch_override_keeps_spaces_case_and_refs_without_a_vendor() {
+        let spaces = context(GITHUB_PUSH, &[("SEMOXIDE_CI_BRANCH", " Main ")]);
         let generic = context(
             &[("CI", "true")],
             &[("SEMOXIDE_CI_BRANCH", "refs/heads/main")],
@@ -181,7 +181,7 @@ mod tests {
 
         assert_eq!(
             (spaces.branch(), generic.branch()),
-            (Some(" main "), Some("refs/heads/main"))
+            (Some(" Main "), Some("refs/heads/main"))
         );
     }
 
@@ -282,11 +282,22 @@ mod tests {
         );
     }
 
-    #[test]
-    fn an_invalid_value_is_shown_with_control_characters_escaped() {
-        let env = env(&[("CI", "true"), ("SEMOXIDE_CI_IS_PR", "tr\nue")]);
+    #[rstest]
+    #[case::newline("tr\nue", "tr\\nue")]
+    #[case::tab("a\tb", "a\\tb")]
+    #[case::quote("it's", "it\\'s")]
+    #[case::non_ascii("да", "да")]
+    #[case::long(
+        "this value is forty characters long, no",
+        "this value is forty characters long, no"
+    )]
+    fn an_invalid_value_is_shown_whole_with_control_characters_escaped(
+        #[case] value: &str,
+        #[case] shown: &str,
+    ) {
+        let env = env(&[("CI", "true"), ("SEMOXIDE_CI_IS_PR", value)]);
 
-        assert_eq!(failure(&env), Some(invalid_is_pr("tr\\nue")));
+        assert_eq!(failure(&env), Some(invalid_is_pr(shown)));
     }
 
     #[test]
@@ -297,9 +308,14 @@ mod tests {
         );
 
         assert_eq!(
-            failure(&env).map(|(_, message, _)| message),
-            Some(String::from(
-                "the value of `Semoxide_Ci_Is_Pr` is `yes`: expected `true` or `false`"
+            failure(&env).map(|(_, message, help)| (message, help)),
+            Some((
+                String::from(
+                    "the value of `Semoxide_Ci_Is_Pr` is `yes`: expected `true` or `false`"
+                ),
+                Some(String::from(
+                    "Set `Semoxide_Ci_Is_Pr` to `true` or `false`."
+                ))
             ))
         );
     }
@@ -347,7 +363,19 @@ mod tests {
                 failure(&with_is_pr("true")).map(|(code, message, _)| (code, message)),
                 failure(&with_is_pr("yes")).map(|(code, message, _)| (code, message))
             ),
-            (branch_error.clone(), branch_error)
+            (branch_error.clone(), branch_error.clone())
+        );
+        let both_not_unicode = Env::with_case(
+            Case::Sensitive,
+            [
+                (OsString::from("CI"), OsString::from("true")),
+                (OsString::from("SEMOXIDE_CI_BRANCH"), not_unicode()),
+                (OsString::from("SEMOXIDE_CI_IS_PR"), not_unicode()),
+            ],
+        );
+        assert_eq!(
+            failure(&both_not_unicode).map(|(code, message, _)| (code, message)),
+            branch_error
         );
     }
 
