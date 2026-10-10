@@ -51,7 +51,7 @@ impl Case {
 ///
 /// ```
 /// let env: semoxide_runtime::Env = [("SEMOXIDE_LOG", "debug")].into_iter().collect();
-/// assert_eq!(env.get_str("SEMOXIDE_LOG"), Ok(Some("debug")));
+/// assert_eq!(env.var("SEMOXIDE_LOG"), Ok(Some("debug")));
 /// ```
 #[derive(Debug, Clone)]
 pub struct Env {
@@ -84,7 +84,7 @@ impl Env {
 
     /// The value of `name`, as set.
     #[must_use]
-    pub fn get(&self, name: &str) -> Option<&OsStr> {
+    pub fn var_os(&self, name: &str) -> Option<&OsStr> {
         self.entry(name).map(|(_, value)| value)
     }
 
@@ -93,7 +93,7 @@ impl Env {
     /// # Errors
     ///
     /// Returns [`EnvError`] if the value isn't valid UTF-8.
-    pub fn get_str(&self, name: &str) -> Result<Option<&str>, EnvError> {
+    pub fn var(&self, name: &str) -> Result<Option<&str>, EnvError> {
         let Some((set, value)) = self.entry(name) else {
             return Ok(None);
         };
@@ -237,7 +237,7 @@ mod tests {
         let env = env(Case::Sensitive, &[("SEMOXIDE_LOG", "debug")]);
 
         assert_eq!(
-            (env.get("SEMOXIDE_LOG"), env.get("SEMOXIDE_CI_BRANCH")),
+            (env.var_os("SEMOXIDE_LOG"), env.var_os("SEMOXIDE_CI_BRANCH")),
             (Some(os("debug")), None)
         );
     }
@@ -246,7 +246,10 @@ mod tests {
     fn case_sensitive_names_must_match_exactly() {
         let env = env(Case::Sensitive, &[("Path", "/bin")]);
 
-        assert_eq!((env.get("Path"), env.get("PATH")), (Some(os("/bin")), None));
+        assert_eq!(
+            (env.var_os("Path"), env.var_os("PATH")),
+            (Some(os("/bin")), None)
+        );
     }
 
     #[test]
@@ -254,7 +257,7 @@ mod tests {
         let env = env(Case::Insensitive, &[("Path", "/bin")]);
 
         assert_eq!(
-            (env.get("PATH"), env.get("path"), env.get("PATHS")),
+            (env.var_os("PATH"), env.var_os("path"), env.var_os("PATHS")),
             (Some(os("/bin")), Some(os("/bin")), None)
         );
     }
@@ -264,7 +267,7 @@ mod tests {
         let env: Env = [("Path", "/bin")].into_iter().collect();
 
         assert_eq!(
-            (env.get("Path"), env.get("PATH").is_some()),
+            (env.var_os("Path"), env.var_os("PATH").is_some()),
             (Some(os("/bin")), cfg!(windows))
         );
     }
@@ -274,10 +277,7 @@ mod tests {
         let env = env(Case::Sensitive, &[("SEMOXIDE_CI_BRANCH", "main")]);
 
         assert_eq!(
-            (
-                env.get_str("SEMOXIDE_CI_BRANCH"),
-                env.get_str("SEMOXIDE_CI_IS_PR")
-            ),
+            (env.var("SEMOXIDE_CI_BRANCH"), env.var("SEMOXIDE_CI_IS_PR")),
             (Ok(Some("main")), Ok(None))
         );
     }
@@ -289,7 +289,7 @@ mod tests {
             [(OsString::from("SEMOXIDE_CI_BRANCH"), not_unicode())],
         );
 
-        let error = env.get_str("SEMOXIDE_CI_BRANCH").err();
+        let error = env.var("SEMOXIDE_CI_BRANCH").err();
 
         assert_eq!(
             error.map(|error| (error.code(), error.to_string())),
@@ -307,7 +307,7 @@ mod tests {
             [(OsString::from("SEMOXIDE_CI_BRANCH"), not_unicode())],
         );
 
-        let error = env.get_str("SEMOXIDE_CI_BRANCH").err();
+        let error = env.var("SEMOXIDE_CI_BRANCH").err();
 
         assert_eq!(
             error.and_then(|error| error.help()),
@@ -320,7 +320,7 @@ mod tests {
         let env = env(Case::Sensitive, &[("SEMOXIDE_LOG_X", "1")]);
 
         assert_eq!(
-            (env.get("SEMOXIDE_LOG"), env.get("SEMOXIDE_LOG_X")),
+            (env.var_os("SEMOXIDE_LOG"), env.var_os("SEMOXIDE_LOG_X")),
             (None, Some(os("1")))
         );
     }
@@ -330,7 +330,7 @@ mod tests {
         let env = env(Case::Insensitive, &[("PATHS", "/bin")]);
 
         assert_eq!(
-            (env.get("path"), env.get("paths")),
+            (env.var_os("path"), env.var_os("paths")),
             (None, Some(os("/bin")))
         );
     }
@@ -342,7 +342,7 @@ mod tests {
             [(OsString::from("Semoxide_Ci_Branch"), not_unicode())],
         );
 
-        let error = env.get_str("SEMOXIDE_CI_BRANCH").err();
+        let error = env.var("SEMOXIDE_CI_BRANCH").err();
 
         assert_eq!(
             error.map(|error| error.to_string()),
@@ -357,7 +357,7 @@ mod tests {
         let env = env(Case::Insensitive, &[("Path", "b"), ("PATH", "a")]);
 
         assert_eq!(
-            (env.get("path"), env.get_str("path")),
+            (env.var_os("path"), env.var("path")),
             (Some(os("a")), Ok(Some("a")))
         );
     }
