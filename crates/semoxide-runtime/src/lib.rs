@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod ci;
 pub mod codes;
 pub mod config;
 mod env;

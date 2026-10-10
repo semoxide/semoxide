@@ -112,6 +112,10 @@ Every row is intentional. The linked doc owns the full rule.
 | Runtime | Node.js ≥ 22 required to run (npm package) | a single static binary; no Node, npm or other runtime | [ARCHITECTURE.md](ARCHITECTURE.md#9-distribution) |
 | Environment | Core mutates `process.env` (`GIT_ASKPASS`, `GIT_AUTHOR_*`, …) | Never mutates the env; reads an explicit snapshot and builds child envs from it | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | CI detection | env-ci, ~31 vendors | GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, Bitbucket Pipelines, plus `SEMOXIDE_CI_BRANCH` / `SEMOXIDE_CI_IS_PR` overrides on any CI | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| GitHub pull request runs | `pull_request`, `pull_request_target` only; branch and number from the event file | also `pull_request_review`, `pull_request_review_comment` and `merge_group` (merge queue, branch from `gh-readonly-queue/<base>/…`); branch from `GITHUB_BASE_REF`, number from `refs/pull/<n>/merge`, no event file, so no number on `pull_request_target` ([GitHub events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)) | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| GitHub tags and refs | a tag push reports `refs/tags/<tag>` as the branch | only `refs/heads/<name>` or a bare name is a branch; a tag push has none | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| GitLab pull request runs | `CI_MERGE_REQUEST_ID` set; its instance-wide ID as the number; external pull request pipelines run as their source branch | merge request pipelines by source or IID, external pull request pipelines (`CI_EXTERNAL_PULL_REQUEST_*`), merge trains; the number is the IID users see (`!12`) ([GitLab variables](https://docs.gitlab.com/ci/variables/predefined_variables/)) | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| GitLab branch | `CI_COMMIT_REF_NAME`, so a tag pipeline reports the tag | `CI_COMMIT_BRANCH`; a tag pipeline has none | [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 ## Library
 

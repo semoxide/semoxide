@@ -7,6 +7,7 @@
 /// The semoxide version, shared by the library and the CLI.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub use semoxide_runtime::ci::{CiContext, PullRequest, Vendor};
 pub use semoxide_runtime::{
     Env, EnvError, ErrorCode, ErrorInfo, FileLocation, FlagLocation, Location, UnknownVar,
 };
