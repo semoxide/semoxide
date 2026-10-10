@@ -13,12 +13,16 @@ pub const CONFIG_UNREADABLE: ErrorCode = ErrorCode::from_static("config::unreada
 /// An environment variable read as text whose value isn't valid UTF-8.
 pub const ENV_NOT_UNICODE: ErrorCode = ErrorCode::from_static("env::not_unicode");
 
+/// An environment variable whose value isn't one semoxide accepts.
+pub const ENV_INVALID_VALUE: ErrorCode = ErrorCode::from_static("env::invalid_value");
+
 /// Every error code this crate can produce.
 pub const ALL: &[ErrorCode] = &[
     CONFIG_INVALID_FLAG,
     CONFIG_INVALID_TOML,
     CONFIG_UNREADABLE,
     ENV_NOT_UNICODE,
+    ENV_INVALID_VALUE,
 ];
 
 /// Every error code of semoxide's crates, for the docs-page check and `semoxide schema`.

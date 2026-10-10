@@ -4,6 +4,7 @@
 
 mod github;
 mod gitlab;
+mod overrides;
 
 use crate::{Env, EnvError};
 
@@ -79,6 +80,11 @@ impl CiContext {
 ///
 /// Returns [`EnvError`] if a variable it reads isn't valid UTF-8.
 pub fn detect(env: &Env) -> Result<CiContext, EnvError> {
+    overrides::apply(env, detect_vendor(env)?)
+}
+
+/// The context the vendor variables give, before the `SEMOXIDE_CI_*` overrides.
+fn detect_vendor(env: &Env) -> Result<CiContext, EnvError> {
     // In env-ci's order; the first match wins and the others' variables are never read.
     for (vendor, variable, read) in VENDORS {
         if value(env, variable)?.is_some() {
