@@ -96,6 +96,7 @@ mod tests {
     #[case::empty_candidate("abc", "", Some(3))]
     #[case::classic("kitten", "sitting", Some(3))]
     #[case::over_the_limit("kitten", "sitting", None)]
+    #[case::match_at_the_candidates_start_is_no_swap("zab", "a", Some(2))]
     fn edit_distance_cases(#[case] a: &str, #[case] b: &str, #[case] expected: Option<usize>) {
         let limit = if expected.is_none() { 2 } else { 10 };
 
