@@ -80,6 +80,7 @@ fn graphical(error: &dyn ErrorInfo, colors: Colors) -> String {
 
 /// `ErrorInfo` seen through miette's `Diagnostic` trait, with the location as a code snippet;
 /// miette stays inside the CLI.
+#[derive(Debug)]
 struct AsDiagnostic<'a> {
     error: &'a dyn ErrorInfo,
     snippet: Option<(NamedSource<String>, SourceSpan)>,
@@ -106,12 +107,6 @@ fn snippet(location: &Location) -> Option<(NamedSource<String>, SourceSpan)> {
             Some((NamedSource::new(name, flag.flag().to_owned()), span))
         }
         _ => None,
-    }
-}
-
-impl fmt::Debug for AsDiagnostic<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.error, f)
     }
 }
 
