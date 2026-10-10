@@ -256,6 +256,12 @@ draft = { enabled = true, limit = 3, ratio = 0.5 }
         "plugins.release-notes.version",
         Rejects
     )]
+    #[case::plugin_version_number_overflows(
+        "[plugins.release-notes]\nversion = \"1.18446744073709551616.0\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.version",
+        ParserOnly
+    )]
     #[case::timeout_words(
         "[plugins.release-notes]\ntimeouts.publish = \"1 hour\"",
         CONFIG_INVALID_VALUE,

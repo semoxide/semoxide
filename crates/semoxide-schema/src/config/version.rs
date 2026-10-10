@@ -207,7 +207,7 @@ impl JsonSchema for ZeroLevels {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::test_support::Schema::{self, Rejects};
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
     use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
@@ -277,6 +277,12 @@ mod tests {
         CONFIG_INVALID_VALUE,
         "version.initial",
         Rejects
+    )]
+    #[case::initial_number_overflows(
+        r#"version.initial = "18446744073709551616.0.0""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        ParserOnly
     )]
     #[case::zero_breaking(
         r#"version.zero.breaking = "huge""#,

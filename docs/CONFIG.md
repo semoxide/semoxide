@@ -222,5 +222,5 @@ The author of commits made by `[plugins.git]` ([ARCHITECTURE.md](ARCHITECTURE.md
   #:schema https://raw.githubusercontent.com/semoxide/semoxide/main/schemas/semoxide.schema.json
   ```
 
-- Tests keep it in step with the parser: every table lists exactly the parser's keys and rejects others (except `[plugins.<name>]`, open for the plugin's options), the defaults match, every config the parser accepts validates, and each rejected config is marked as rejected by the schema too or only by the parser (checks across keys). A type change without regenerating fails the test suite; regenerate with `SEMOXIDE_UPDATE_SCHEMA=1 cargo nextest run -p semoxide-schema` and review the diff.
+- Tests keep it in step with the parser: every table lists exactly the parser's keys and rejects others (except `[plugins.<name>]`, open for the plugin's options), the defaults match, every config the parser accepts validates, and each rejected config is marked as rejected by the schema too or only by the parser (checks across keys, numbers too large for their type). A type change without regenerating fails the test suite; regenerate with `SEMOXIDE_UPDATE_SCHEMA=1 cargo nextest run -p semoxide-schema` and review the diff.
 - The editor schema for `semoxide.toml` includes the configured plugins' option schemas.
