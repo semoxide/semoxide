@@ -11,6 +11,9 @@ pub struct Commits {
     preset: Preset,
 }
 
+/// The keys of `[commits]`.
+pub(super) const KEYS: [&str; 1] = ["preset"];
+
 const PRESETS: [(&str, Preset); 2] = [
     ("conventionalcommits", Preset::ConventionalCommits),
     ("angular", Preset::Angular),
@@ -33,7 +36,7 @@ impl Commits {
             .map(|(path, value)| choice(&path, &value, &PRESETS))
             .transpose()?
             .unwrap_or(Preset::ConventionalCommits);
-        fields.finish(&["preset"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { preset })
     }
 

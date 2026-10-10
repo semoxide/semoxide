@@ -62,7 +62,7 @@ impl Config {
         let version = VersionDomain::parse(fields.domain("version")?)?;
         let mut branch_fields = fields.domain("branches")?;
         let branches = Branches::parse(&mut branch_fields)?;
-        branch_fields.finish(&["rules"])?;
+        branch_fields.finish(&branches::KEYS)?;
         let tags = Tags::parse(fields.domain("tags")?)?;
         let steps = Steps::parse(fields.domain("steps")?)?;
         let plugins = parse_plugins(fields.domain("plugins")?, &steps)?;

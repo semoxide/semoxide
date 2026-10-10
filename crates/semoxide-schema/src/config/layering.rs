@@ -11,6 +11,9 @@ pub struct ConfigDomain {
     merge: MergeMode,
 }
 
+/// The keys of `[config]`.
+pub(super) const KEYS: [&str; 1] = ["merge"];
+
 const MERGE_MODES: [(&str, MergeMode); 2] =
     [("deep", MergeMode::Deep), ("shallow", MergeMode::Shallow)];
 
@@ -34,7 +37,7 @@ impl ConfigDomain {
             .map(|(path, value)| choice(&path, &value, &MERGE_MODES))
             .transpose()?
             .unwrap_or(MergeMode::Deep);
-        fields.finish(&["merge"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { merge })
     }
 

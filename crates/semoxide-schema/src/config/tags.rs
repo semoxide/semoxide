@@ -12,6 +12,9 @@ pub struct Tags {
     metadata: Option<Template>,
 }
 
+/// The keys of `[tags]`.
+pub(super) const KEYS: [&str; 2] = ["format", "metadata"];
+
 impl Tags {
     pub(super) fn defaults() -> Self {
         Self {
@@ -42,7 +45,7 @@ impl Tags {
             .take("metadata")
             .map(|(path, value)| string(&path, &value).map(Template::unchecked))
             .transpose()?;
-        fields.finish(&["format", "metadata"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { format, metadata })
     }
 

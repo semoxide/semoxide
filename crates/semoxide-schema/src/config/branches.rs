@@ -11,6 +11,15 @@ pub struct Branches {
     rules: Vec<BranchRule>,
 }
 
+/// The keys of `[branches]`.
+pub(super) const KEYS: [&str; 1] = ["rules"];
+
+/// The keys of a release or prerelease rule.
+pub(super) const RULE_KEYS: [&str; 3] = ["name", "prerelease", "channel"];
+
+/// The keys of a maintenance rule.
+pub(super) const MAINTENANCE_KEYS: [&str; 3] = ["maintenance", "range", "channel"];
+
 impl Branches {
     /// `branches.rules`, in order.
     #[must_use]
@@ -171,7 +180,7 @@ impl BranchRule {
                 })
             }
         };
-        fields.finish(&["name", "prerelease", "channel"])?;
+        fields.finish(&RULE_KEYS)?;
         Ok(rule)
     }
 
@@ -348,7 +357,7 @@ impl MaintenanceRule {
             }
         };
         let channel = take_channel(&mut fields)?;
-        fields.finish(&["maintenance", "range", "channel"])?;
+        fields.finish(&MAINTENANCE_KEYS)?;
         Ok(Self {
             pattern,
             range,

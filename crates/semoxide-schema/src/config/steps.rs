@@ -18,6 +18,12 @@ pub struct Steps {
 const SUCCESS_ERRORS: [(&str, SuccessErrors); 2] =
     [("warn", SuccessErrors::Warn), ("fail", SuccessErrors::Fail)];
 
+/// The keys of `steps.<step>`.
+pub(super) const STEP_KEYS: [&str; 1] = ["order"];
+
+/// The keys of `steps.success`.
+pub(super) const SUCCESS_KEYS: [&str; 2] = ["order", "errors"];
+
 const BUNDLED_PLUGINS: [&str; 2] = ["commit-analyzer", "release-notes"];
 
 impl Steps {
@@ -76,9 +82,9 @@ impl Steps {
                 steps.success_errors = choice(&errors_path, &errors, &SUCCESS_ERRORS)?;
             }
             step_fields.finish(if step == Step::Success {
-                &["order", "errors"]
+                &SUCCESS_KEYS
             } else {
-                &["order"]
+                &STEP_KEYS
             })?;
         }
         Ok(steps)
@@ -145,7 +151,7 @@ fn parse_plugin_list(path: &str, value: Value) -> Result<Vec<PluginName>, Config
 }
 
 /// The keys valid directly under `[steps]`.
-fn step_keys() -> Vec<&'static str> {
+pub(super) fn step_keys() -> Vec<&'static str> {
     std::iter::once("plugins").chain(Step::NAMES).collect()
 }
 

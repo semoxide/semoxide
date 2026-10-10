@@ -13,6 +13,12 @@ pub struct VersionDomain {
     zero: ZeroLevels,
 }
 
+/// The keys of `[version]`.
+pub(super) const KEYS: [&str; 2] = ["initial", "zero"];
+
+/// The keys of `version.zero`.
+pub(super) const ZERO_KEYS: [&str; 3] = ["breaking", "feature", "fix"];
+
 impl VersionDomain {
     pub(super) fn defaults() -> Self {
         Self {
@@ -50,7 +56,7 @@ impl VersionDomain {
             Some((path, value)) => ZeroLevels::parse(Fields::from_value(&path, value)?)?,
             None => ZeroLevels::DEFAULT,
         };
-        fields.finish(&["initial", "zero"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { initial, zero })
     }
 
@@ -132,7 +138,7 @@ impl ZeroLevels {
             feature: level("feature", Self::DEFAULT.feature)?,
             fix: level("fix", Self::DEFAULT.fix)?,
         };
-        fields.finish(&["breaking", "feature", "fix"])?;
+        fields.finish(&ZERO_KEYS)?;
         Ok(levels)
     }
 

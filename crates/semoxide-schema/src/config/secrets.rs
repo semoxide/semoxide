@@ -11,6 +11,9 @@ pub struct Secrets {
     mask_env: Vec<EnvName>,
 }
 
+/// The keys of `[secrets]`.
+pub(super) const KEYS: [&str; 1] = ["mask_env"];
+
 impl Secrets {
     pub(super) const DEFAULT: Self = Self {
         mask_env: Vec::new(),
@@ -31,7 +34,7 @@ impl Secrets {
                 .collect::<Result<_, _>>()?,
             None => Vec::new(),
         };
-        fields.finish(&["mask_env"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { mask_env })
     }
 
