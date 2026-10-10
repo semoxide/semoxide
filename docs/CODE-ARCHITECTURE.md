@@ -21,7 +21,7 @@ flowchart TD
 
 | Crate | Holds | Heavy deps | Published |
 | --- | --- | --- | --- |
-| `semoxide-error` | `ErrorInfo` trait and error-code type (§4); bottom of the graph | none | yes, internal (§5) |
+| `semoxide-error` | `ErrorInfo` trait, error-code type (§4), error locations, "did you mean" hints (`suggest`); bottom of the graph | none | yes, internal (§5) |
 | `semoxide-schema` | `semoxide.toml` types and parsing (`Config::from_table`, coded errors), JSON Schema generation | none (toml, semver, serde_json, schemars) | yes, internal |
 | `semoxide-version-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal |
 | `semoxide-git` | git2, SSH transports, push guards, credential rules ([ARCHITECTURE](ARCHITECTURE.md)) | git2, russh | yes, internal |
@@ -149,6 +149,7 @@ Each tool runs directly: pinned in `mise.toml`, run locally by lefthook (`leftho
 | a public API item | `semoxide` façade | `#[non_exhaustive]` (P14); semver-checked |
 | a CLI command or flag | one file in `semoxide-cli` | P6; contract in [CLI](CLI.md) (`--output=json` + schema, no TTY prompts) |
 | an error | its crate's enum + `ErrorInfo`; its code as a `const` in the crate's `codes.rs`, listed in `codes::ALL` | a page `docs/errors/<slug>.md`; the registry test (façade crate) fails on a missing page, an orphan page or a code missing from `ALL` ([OBSERVABILITY](OBSERVABILITY.md)) |
+| a "did you mean" hint | `semoxide_error::suggest::closest` | candidates are the valid names; the hint goes in `help()` |
 | logging | `tracing` events in the library crates | the library never prints ([OBSERVABILITY](OBSERVABILITY.md)) |
 | test fixtures / helpers | `semoxide-test-support` | [TESTING](TESTING.md) |
 | a test | the module's `#[cfg(test)] mod tests { … }` (unit) or `tests/it/` (integration) | the test module is the last item; A2 workflow; [TESTING](TESTING.md) |
