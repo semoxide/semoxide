@@ -17,7 +17,7 @@ pub struct Tags {
 }
 
 /// The keys of `[tags]`.
-pub(super) const KEYS: [&str; 2] = ["format", "metadata"];
+pub(super) const KEYS: [&str; 3] = ["format", "metadata", "annotate"];
 
 impl Tags {
     pub(super) fn defaults() -> Self {
@@ -49,6 +49,10 @@ impl Tags {
             .take("metadata")
             .map(|(path, value)| string(&path, &value).map(Template::unchecked))
             .transpose()?;
+        let _annotate = fields
+            .take("annotate")
+            .map(|(path, value)| string(&path, &value))
+            .transpose()?;
         fields.finish(&KEYS)?;
         Ok(Self { format, metadata })
     }
@@ -78,6 +82,7 @@ impl JsonSchema for Tags {
             [
                 ("format", tag_format_schema()),
                 ("metadata", string_schema()),
+                ("annotate", string_schema()),
             ],
             &Self::defaults().to_table(),
         )
