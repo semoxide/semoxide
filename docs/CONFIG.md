@@ -215,5 +215,12 @@ The author of commits made by `[plugins.git]` ([ARCHITECTURE.md](ARCHITECTURE.md
 
 ## 12. JSON Schema
 
-- Generated from the `semoxide-schema` types with schemars ([CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md)) and committed to the repo.
+- [`schemas/semoxide.schema.json`](../schemas/semoxide.schema.json), JSON Schema draft-07, generated from the `semoxide-schema` types with schemars ([CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md)) and committed. Each table's schema sits next to its parser and takes its defaults from the code.
+- Editors based on Taplo (Even Better TOML, Zed) pick it up from a comment on the first line of `semoxide.toml`:
+
+  ```toml
+  #:schema https://raw.githubusercontent.com/semoxide/semoxide/main/schemas/semoxide.schema.json
+  ```
+
+- Tests keep it in step with the parser: every table lists exactly the parser's keys and rejects others (except `[plugins.<name>]`, open for the plugin's options), the defaults match, every config the parser accepts validates, and each rejected config is marked as rejected by the schema too or only by the parser (checks across keys, numbers too large for their type). A type change without regenerating fails the test suite; regenerate with `SEMOXIDE_UPDATE_SCHEMA=1 cargo nextest run -p semoxide-schema` and review the diff.
 - The editor schema for `semoxide.toml` includes the configured plugins' option schemas.

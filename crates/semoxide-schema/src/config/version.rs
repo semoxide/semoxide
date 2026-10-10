@@ -1,9 +1,13 @@
 //! `[version]`: the first release version and the 0.x release levels.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use semver::Version;
 use toml::{Table, Value};
 
-use super::values::{choice, choice_name, string};
+use super::schema::closed_table;
+use super::values::{choice, choice_name, choice_schema, string};
 use super::{ConfigError, Fields};
 
 /// `[version]`
@@ -12,6 +16,12 @@ pub struct VersionDomain {
     initial: Version,
     zero: ZeroLevels,
 }
+
+/// The keys of `[version]`.
+pub(super) const KEYS: [&str; 2] = ["initial", "zero"];
+
+/// The keys of `version.zero`.
+pub(super) const ZERO_KEYS: [&str; 3] = ["breaking", "feature", "fix"];
 
 impl VersionDomain {
     pub(super) fn defaults() -> Self {
@@ -50,7 +60,7 @@ impl VersionDomain {
             Some((path, value)) => ZeroLevels::parse(Fields::from_value(&path, value)?)?,
             None => ZeroLevels::DEFAULT,
         };
-        fields.finish(&["initial", "zero"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { initial, zero })
     }
 
@@ -132,7 +142,7 @@ impl ZeroLevels {
             feature: level("feature", Self::DEFAULT.feature)?,
             fix: level("fix", Self::DEFAULT.fix)?,
         };
-        fields.finish(&["breaking", "feature", "fix"])?;
+        fields.finish(&ZERO_KEYS)?;
         Ok(levels)
     }
 
@@ -157,8 +167,48 @@ pub enum Level {
     Patch,
 }
 
+/// A version as `semver` parses it, build metadata included (the regex from semver.org).
+pub(super) const VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$";
+
+/// A version as `semver` parses it, without build metadata.
+const INITIAL_VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$";
+
+impl JsonSchema for VersionDomain {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("VersionDomain")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [
+                (
+                    "initial",
+                    json_schema!({ "type": "string", "pattern": INITIAL_VERSION_PATTERN }),
+                ),
+                ("zero", generator.subschema_for::<ZeroLevels>()),
+            ],
+            &Self::defaults().to_table(),
+        )
+    }
+}
+
+impl JsonSchema for ZeroLevels {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("ZeroLevels")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            ZERO_KEYS.map(|name| (name, choice_schema(&LEVELS))),
+            &Self::DEFAULT.to_table(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -207,41 +257,70 @@ mod tests {
     #[case::initial_two_parts(
         r#"version.initial = "1.0""#,
         CONFIG_INVALID_VALUE,
-        "version.initial"
+        "version.initial",
+        Rejects
     )]
     #[case::initial_v_prefix(
         r#"version.initial = "v1.0.0""#,
         CONFIG_INVALID_VALUE,
-        "version.initial"
+        "version.initial",
+        Rejects
     )]
     #[case::initial_build_metadata(
         r#"version.initial = "1.0.0+build""#,
         CONFIG_INVALID_VALUE,
-        "version.initial"
+        "version.initial",
+        Rejects
     )]
-    #[case::initial_not_a_string("version.initial = 1", CONFIG_INVALID_VALUE, "version.initial")]
+    #[case::initial_not_a_string(
+        "version.initial = 1",
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        Rejects
+    )]
+    #[case::initial_number_overflows(
+        r#"version.initial = "18446744073709551616.0.0""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        ParserOnly
+    )]
     #[case::zero_breaking(
         r#"version.zero.breaking = "huge""#,
         CONFIG_INVALID_VALUE,
-        "version.zero.breaking"
+        "version.zero.breaking",
+        Rejects
     )]
     #[case::zero_feature(
         r#"version.zero.feature = "none""#,
         CONFIG_INVALID_VALUE,
-        "version.zero.feature"
+        "version.zero.feature",
+        Rejects
     )]
     #[case::zero_fix(
         r#"version.zero.fix = "Patch""#,
         CONFIG_INVALID_VALUE,
-        "version.zero.fix"
+        "version.zero.fix",
+        Rejects
     )]
     #[case::zero_unknown_key(
         r#"version.zero.docs = "patch""#,
         CONFIG_UNKNOWN_KEY,
-        "version.zero.docs"
+        "version.zero.docs",
+        Rejects
     )]
-    #[case::version_unknown_key(r#"version.first = "1.0.0""#, CONFIG_UNKNOWN_KEY, "version.first")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::version_unknown_key(
+        r#"version.first = "1.0.0""#,
+        CONFIG_UNKNOWN_KEY,
+        "version.first",
+        Rejects
+    )]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

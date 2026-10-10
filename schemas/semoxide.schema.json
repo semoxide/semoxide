@@ -1,0 +1,468 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "BranchRule": {
+      "anyOf": [
+        {
+          "not": {
+            "pattern": "^[0-9]+(\\.([0-9]+|[xX]))?\\.[xX]$"
+          },
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "anyOf": [
+                {
+                  "const": false
+                },
+                {
+                  "minLength": 1,
+                  "pattern": "^([^{}]|\\{name\\})*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "name": {
+              "not": {
+                "pattern": "^[0-9]+(\\.([0-9]+|[xX]))?\\.[xX]$"
+              },
+              "type": "string"
+            },
+            "prerelease": {
+              "anyOf": [
+                {
+                  "const": true
+                },
+                {
+                  "pattern": "^(0|[1-9][0-9]*|([0-9A-Za-z-]|\\{name\\})*([A-Za-z-]|\\{name\\})([0-9A-Za-z-]|\\{name\\})*)(\\.(0|[1-9][0-9]*|([0-9A-Za-z-]|\\{name\\})*([A-Za-z-]|\\{name\\})([0-9A-Za-z-]|\\{name\\})*))*$",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "else": {
+            "required": [
+              "range"
+            ]
+          },
+          "if": {
+            "properties": {
+              "maintenance": {
+                "pattern": "(N\\.x|N\\.x\\.x|N\\.N\\.x)$"
+              }
+            }
+          },
+          "properties": {
+            "channel": {
+              "anyOf": [
+                {
+                  "const": false
+                },
+                {
+                  "minLength": 1,
+                  "pattern": "^([^{}]|\\{name\\})*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "maintenance": {
+              "type": "string"
+            },
+            "range": {
+              "pattern": "^[0-9]+(\\.([0-9]+|[xX]))?\\.[xX]$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "maintenance"
+          ],
+          "then": {
+            "not": {
+              "required": [
+                "range"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "Branches": {
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "default": [
+            {
+              "maintenance": "N.x"
+            },
+            "master",
+            "main",
+            "next",
+            "next-major",
+            {
+              "name": "beta",
+              "prerelease": true
+            },
+            {
+              "name": "alpha",
+              "prerelease": true
+            }
+          ],
+          "items": {
+            "$ref": "#/definitions/BranchRule"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Commits": {
+      "additionalProperties": false,
+      "properties": {
+        "preset": {
+          "default": "conventionalcommits",
+          "enum": [
+            "conventionalcommits",
+            "angular"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ConfigDomain": {
+      "additionalProperties": false,
+      "properties": {
+        "merge": {
+          "default": "deep",
+          "enum": [
+            "deep",
+            "shallow"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PluginConfig": {
+      "additionalProperties": true,
+      "properties": {
+        "show_output": {
+          "default": false,
+          "type": "boolean"
+        },
+        "timeouts": {
+          "additionalProperties": false,
+          "properties": {
+            "add_channel": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "analyze_commits": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "fail": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "generate_notes": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "prepare": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "publish": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "success": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "verify_conditions": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            },
+            "verify_release": {
+              "pattern": "^0*[1-9][0-9]*[smh]$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "version": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Secrets": {
+      "additionalProperties": false,
+      "properties": {
+        "mask_env": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Steps": {
+      "additionalProperties": false,
+      "properties": {
+        "add_channel": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "analyze_commits": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "fail": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "generate_notes": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "plugins": {
+          "default": [
+            "commit-analyzer",
+            "release-notes"
+          ],
+          "items": {
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "prepare": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "publish": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "success": {
+          "additionalProperties": false,
+          "properties": {
+            "errors": {
+              "default": "warn",
+              "enum": [
+                "warn",
+                "fail"
+              ],
+              "type": "string"
+            },
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "verify_conditions": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "verify_release": {
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "items": {
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "Tags": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "default": "v{version}",
+          "pattern": "\\{version\\}",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "VersionDomain": {
+      "additionalProperties": false,
+      "properties": {
+        "initial": {
+          "default": "1.0.0",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$",
+          "type": "string"
+        },
+        "zero": {
+          "$ref": "#/definitions/ZeroLevels"
+        }
+      },
+      "type": "object"
+    },
+    "ZeroLevels": {
+      "additionalProperties": false,
+      "properties": {
+        "breaking": {
+          "default": "minor",
+          "enum": [
+            "major",
+            "minor",
+            "patch"
+          ],
+          "type": "string"
+        },
+        "feature": {
+          "default": "patch",
+          "enum": [
+            "major",
+            "minor",
+            "patch"
+          ],
+          "type": "string"
+        },
+        "fix": {
+          "default": "patch",
+          "enum": [
+            "major",
+            "minor",
+            "patch"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "properties": {
+    "branches": {
+      "$ref": "#/definitions/Branches"
+    },
+    "commits": {
+      "$ref": "#/definitions/Commits"
+    },
+    "config": {
+      "$ref": "#/definitions/ConfigDomain"
+    },
+    "plugins": {
+      "additionalProperties": {
+        "$ref": "#/definitions/PluginConfig"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "secrets": {
+      "$ref": "#/definitions/Secrets"
+    },
+    "steps": {
+      "$ref": "#/definitions/Steps"
+    },
+    "tags": {
+      "$ref": "#/definitions/Tags"
+    },
+    "version": {
+      "$ref": "#/definitions/VersionDomain"
+    }
+  },
+  "title": "semoxide.toml",
+  "type": "object"
+}

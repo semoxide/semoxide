@@ -1,8 +1,12 @@
 //! `[commits]`: how commits are read.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::values::{choice, choice_name};
+use super::schema::closed_table;
+use super::values::{choice, choice_name, choice_schema};
 use super::{ConfigError, Fields};
 
 /// `[commits]`: how commits are read.
@@ -10,6 +14,9 @@ use super::{ConfigError, Fields};
 pub struct Commits {
     preset: Preset,
 }
+
+/// The keys of `[commits]`.
+pub(super) const KEYS: [&str; 1] = ["preset"];
 
 const PRESETS: [(&str, Preset); 2] = [
     ("conventionalcommits", Preset::ConventionalCommits),
@@ -33,7 +40,7 @@ impl Commits {
             .map(|(path, value)| choice(&path, &value, &PRESETS))
             .transpose()?
             .unwrap_or(Preset::ConventionalCommits);
-        fields.finish(&["preset"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { preset })
     }
 
@@ -54,8 +61,23 @@ pub enum Preset {
     Angular,
 }
 
+impl JsonSchema for Commits {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Commits")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [("preset", choice_schema(&PRESETS))],
+            &Self::DEFAULT.to_table(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -74,9 +96,20 @@ mod tests {
 
     #[rstest]
     // commits
-    #[case::preset(r#"commits.preset = "eslint""#, CONFIG_INVALID_VALUE, "commits.preset")]
-    #[case::commits_unknown_key("commits.types = []", CONFIG_UNKNOWN_KEY, "commits.types")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::preset(
+        r#"commits.preset = "eslint""#,
+        CONFIG_INVALID_VALUE,
+        "commits.preset",
+        Rejects
+    )]
+    #[case::commits_unknown_key("commits.types = []", CONFIG_UNKNOWN_KEY, "commits.types", Rejects)]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

@@ -1,10 +1,15 @@
 //! `[steps]`: the enabled plugins, their order per step and how `success` errors end a run.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::values::{PluginName, Step, array, choice, choice_name};
+use super::schema::closed_table;
+use super::values::{
+    PluginName, Step, array, choice, choice_name, choice_schema, plugin_name_schema,
+};
 use super::{ConfigError, Fields, index};
 
 /// `[steps]`
@@ -17,6 +22,12 @@ pub struct Steps {
 
 const SUCCESS_ERRORS: [(&str, SuccessErrors); 2] =
     [("warn", SuccessErrors::Warn), ("fail", SuccessErrors::Fail)];
+
+/// The keys of `steps.<step>`.
+pub(super) const STEP_KEYS: [&str; 1] = ["order"];
+
+/// The keys of `steps.success`.
+pub(super) const SUCCESS_KEYS: [&str; 2] = ["order", "errors"];
 
 const BUNDLED_PLUGINS: [&str; 2] = ["commit-analyzer", "release-notes"];
 
@@ -76,9 +87,9 @@ impl Steps {
                 steps.success_errors = choice(&errors_path, &errors, &SUCCESS_ERRORS)?;
             }
             step_fields.finish(if step == Step::Success {
-                &["order", "errors"]
+                &SUCCESS_KEYS
             } else {
-                &["order"]
+                &STEP_KEYS
             })?;
         }
         Ok(steps)
@@ -145,7 +156,7 @@ fn parse_plugin_list(path: &str, value: Value) -> Result<Vec<PluginName>, Config
 }
 
 /// The keys valid directly under `[steps]`.
-fn step_keys() -> Vec<&'static str> {
+pub(super) fn step_keys() -> Vec<&'static str> {
     std::iter::once("plugins").chain(Step::NAMES).collect()
 }
 
@@ -158,8 +169,38 @@ pub enum SuccessErrors {
     Fail,
 }
 
+impl JsonSchema for Steps {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Steps")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let defaults = Self::defaults().to_table();
+        let name = plugin_name_schema();
+        let mut properties = vec![(
+            "plugins",
+            json_schema!({ "type": "array", "items": name, "uniqueItems": true }),
+        )];
+        for step in Step::NAMES {
+            let mut keys = vec![("order", json_schema!({ "type": "array", "items": name }))];
+            if step == Step::Success.as_str() {
+                keys.push(("errors", choice_schema(&SUCCESS_ERRORS)));
+            }
+            let step_defaults = defaults
+                .get(step)
+                .and_then(Value::as_table)
+                .cloned()
+                .unwrap_or_default();
+            properties.push((step, closed_table(keys, &step_defaults)));
+        }
+        closed_table(properties, &defaults)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::{ErrorCode, ErrorInfo};
 
@@ -226,71 +267,104 @@ success.errors = "fail"
 
     #[rstest]
     // steps
-    #[case::plugins_not_a_list(r#"steps.plugins = "git""#, CONFIG_INVALID_VALUE, "steps.plugins")]
+    #[case::plugins_not_a_list(
+        r#"steps.plugins = "git""#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins",
+        Rejects
+    )]
     #[case::plugin_name_uppercase(
         r#"steps.plugins = ["GitHub"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.plugins[0]"
+        "steps.plugins[0]",
+        Rejects
     )]
     #[case::plugin_name_leading_digit(
         r#"steps.plugins = ["3s"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.plugins[0]"
+        "steps.plugins[0]",
+        Rejects
     )]
     #[case::plugin_name_leading_dash(
         r#"steps.plugins = ["-git"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.plugins[0]"
+        "steps.plugins[0]",
+        Rejects
     )]
     #[case::plugin_name_trailing_dash(
         r#"steps.plugins = ["git-"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.plugins[0]"
+        "steps.plugins[0]",
+        Rejects
     )]
     #[case::plugin_name_double_dash(
         r#"steps.plugins = ["git--hub"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.plugins[0]"
+        "steps.plugins[0]",
+        Rejects
     )]
     #[case::plugin_name_underscore(
         r#"steps.plugins = ["git_hub"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.plugins[0]"
+        "steps.plugins[0]",
+        Rejects
     )]
-    #[case::plugin_name_empty(r#"steps.plugins = [""]"#, CONFIG_INVALID_VALUE, "steps.plugins[0]")]
+    #[case::plugin_name_empty(
+        r#"steps.plugins = [""]"#,
+        CONFIG_INVALID_VALUE,
+        "steps.plugins[0]",
+        Rejects
+    )]
     #[case::duplicate_plugin(
         r#"steps.plugins = ["git", "git"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.plugins[1]"
+        "steps.plugins[1]",
+        Rejects
     )]
-    #[case::unknown_step(r#"steps.deploy.order = ["git"]"#, CONFIG_UNKNOWN_KEY, "steps.deploy")]
+    #[case::unknown_step(
+        r#"steps.deploy.order = ["git"]"#,
+        CONFIG_UNKNOWN_KEY,
+        "steps.deploy",
+        Rejects
+    )]
     #[case::step_unknown_key(
         "steps.publish.parallel = true",
         CONFIG_UNKNOWN_KEY,
-        "steps.publish.parallel"
+        "steps.publish.parallel",
+        Rejects
     )]
     #[case::order_of_disabled_plugin(
         r#"steps.publish.order = ["npm"]"#,
         CONFIG_PLUGIN_NOT_ENABLED,
-        "steps.publish.order[0]"
+        "steps.publish.order[0]",
+        ParserOnly
     )]
     #[case::order_invalid_name(
         r#"steps.publish.order = ["Git"]"#,
         CONFIG_INVALID_VALUE,
-        "steps.publish.order[0]"
+        "steps.publish.order[0]",
+        Rejects
     )]
     #[case::errors_on_another_step(
         r#"steps.publish.errors = "fail""#,
         CONFIG_UNKNOWN_KEY,
-        "steps.publish.errors"
+        "steps.publish.errors",
+        Rejects
     )]
     #[case::success_errors(
         r#"steps.success.errors = "ignore""#,
         CONFIG_INVALID_VALUE,
-        "steps.success.errors"
+        "steps.success.errors",
+        Rejects
     )]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 
     #[rstest]

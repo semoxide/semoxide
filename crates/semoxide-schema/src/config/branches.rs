@@ -1,8 +1,12 @@
 //! `branches.rules`: release, prerelease and maintenance rules (CONFIG §3).
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::values::{Template, string};
+use super::schema::closed_table;
+use super::values::{Template, string, string_schema};
 use super::{ConfigError, Fields, index, key};
 
 /// `[branches]`
@@ -10,6 +14,15 @@ use super::{ConfigError, Fields, index, key};
 pub struct Branches {
     rules: Vec<BranchRule>,
 }
+
+/// The keys of `[branches]`.
+pub(super) const KEYS: [&str; 1] = ["rules"];
+
+/// The keys of a release or prerelease rule.
+pub(super) const RULE_KEYS: [&str; 3] = ["name", "prerelease", "channel"];
+
+/// The keys of a maintenance rule.
+pub(super) const MAINTENANCE_KEYS: [&str; 3] = ["maintenance", "range", "channel"];
 
 impl Branches {
     /// `branches.rules`, in order.
@@ -171,7 +184,7 @@ impl BranchRule {
                 })
             }
         };
-        fields.finish(&["name", "prerelease", "channel"])?;
+        fields.finish(&RULE_KEYS)?;
         Ok(rule)
     }
 
@@ -348,7 +361,7 @@ impl MaintenanceRule {
             }
         };
         let channel = take_channel(&mut fields)?;
-        fields.finish(&["maintenance", "range", "channel"])?;
+        fields.finish(&MAINTENANCE_KEYS)?;
         Ok(Self {
             pattern,
             range,
@@ -460,17 +473,106 @@ impl Prerelease {
     }
 }
 
-/// Whether `1.0.0-<id>.1` is a valid version, as upstream checks.
+/// Whether `1.0.0-<id>.1` is a valid version, as upstream checks, with no `+` turning part of
+/// `id` into build metadata.
 fn is_prerelease_id(id: &str) -> bool {
-    semver::Version::parse(&format!("1.0.0-{id}.1")).is_ok()
+    semver::Version::parse(&format!("1.0.0-{id}.1")).is_ok_and(|version| version.build.is_empty())
 }
 
 fn is_glob(name: &str) -> bool {
     name.contains(['*', '?', '[', '{'])
 }
 
+/// What [`is_range_shaped`] accepts.
+const RANGE_PATTERN: &str = r"^[0-9]+(\.([0-9]+|[xX]))?\.[xX]$";
+
+/// What [`pattern_prefix`] finds.
+const RANGE_ENDING_PATTERN: &str = r"(N\.x|N\.x\.x|N\.N\.x)$";
+
+/// A prerelease identifier as [`is_prerelease_id`] checks it, `{name}` counting as a letter.
+const PRERELEASE_PATTERN: &str = r"^(0|[1-9][0-9]*|([0-9A-Za-z-]|\{name\})*([A-Za-z-]|\{name\})([0-9A-Za-z-]|\{name\})*)(\.(0|[1-9][0-9]*|([0-9A-Za-z-]|\{name\})*([A-Za-z-]|\{name\})([0-9A-Za-z-]|\{name\})*))*$";
+
+/// Text whose only placeholder is `{name}`.
+const NAME_PLACEHOLDER_PATTERN: &str = r"^([^{}]|\{name\})*$";
+
+impl JsonSchema for Branches {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Branches")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        let rule = generator.subschema_for::<BranchRule>();
+        closed_table(
+            [(
+                "rules",
+                json_schema!({ "type": "array", "minItems": 1, "items": rule }),
+            )],
+            &Table::from_iter([(String::from("rules"), Self::default_rules().to_value())]),
+        )
+    }
+}
+
+impl JsonSchema for BranchRule {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("BranchRule")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let name = json_schema!({ "type": "string", "not": { "pattern": RANGE_PATTERN } });
+        let channel = json_schema!({
+            "anyOf": [
+                { "const": false },
+                { "type": "string", "minLength": 1, "pattern": NAME_PLACEHOLDER_PATTERN },
+            ],
+        });
+        let prerelease = json_schema!({
+            "anyOf": [
+                { "const": true },
+                { "type": "string", "pattern": PRERELEASE_PATTERN },
+            ],
+        });
+        let mut rule = closed_table(
+            [
+                ("name", name.clone()),
+                ("prerelease", prerelease),
+                ("channel", channel.clone()),
+            ],
+            &Table::new(),
+        );
+        rule.insert(String::from("required"), serde_json::json!(["name"]));
+        let mut maintenance = closed_table(
+            [
+                ("maintenance", string_schema()),
+                (
+                    "range",
+                    json_schema!({ "type": "string", "pattern": RANGE_PATTERN }),
+                ),
+                ("channel", channel),
+            ],
+            &Table::new(),
+        );
+        maintenance.insert(String::from("required"), serde_json::json!(["maintenance"]));
+        // A pattern ending in `N.x` takes its range from the branch name; any other needs one.
+        maintenance.insert(
+            String::from("if"),
+            serde_json::json!({ "properties": { "maintenance": { "pattern": RANGE_ENDING_PATTERN } } }),
+        );
+        maintenance.insert(
+            String::from("then"),
+            serde_json::json!({ "not": { "required": ["range"] } }),
+        );
+        maintenance.insert(
+            String::from("else"),
+            serde_json::json!({ "required": ["range"] }),
+        );
+        json_schema!({ "anyOf": [name, rule, maintenance] })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -610,136 +712,179 @@ rules = [
     #[case::branches_not_a_list(
         r#"branches.rules = "main""#,
         CONFIG_INVALID_VALUE,
-        "branches.rules"
+        "branches.rules",
+        Rejects
     )]
-    #[case::no_branch_rules("branches.rules = []", CONFIG_INVALID_VALUE, "branches.rules")]
+    #[case::no_branch_rules("branches.rules = []", CONFIG_INVALID_VALUE, "branches.rules", Rejects)]
     #[case::branches_unknown_key(
         r#"branches.remote = "origin""#,
         CONFIG_UNKNOWN_KEY,
-        "branches.remote"
+        "branches.remote",
+        Rejects
     )]
     #[case::rule_unknown_key(
         r#"branches.rules = [{ name = "main", colour = "red" }]"#,
         CONFIG_UNKNOWN_KEY,
-        "branches.rules[0].colour"
+        "branches.rules[0].colour",
+        Rejects
     )]
     #[case::rule_without_name(
         r#"branches.rules = [{ channel = "next" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0]"
+        "branches.rules[0]",
+        Rejects
     )]
     #[case::rule_not_a_string_or_table(
         "branches.rules = [1]",
         CONFIG_INVALID_VALUE,
-        "branches.rules[0]"
+        "branches.rules[0]",
+        Rejects
     )]
     // branches: conflicting keys (the path names the extra key)
     #[case::name_and_maintenance(
         r#"branches.rules = [{ name = "beta", maintenance = "N.x" }]"#,
         CONFIG_CONFLICTING_KEYS,
-        "branches.rules[0].maintenance"
+        "branches.rules[0].maintenance",
+        Rejects
     )]
     #[case::prerelease_on_maintenance(
         r#"branches.rules = [{ maintenance = "N.x", prerelease = true }]"#,
         CONFIG_CONFLICTING_KEYS,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::range_with_range_pattern(
         r#"branches.rules = [{ maintenance = "N.x", range = "1.x" }]"#,
         CONFIG_CONFLICTING_KEYS,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     // branches: maintenance
     #[case::maintenance_without_range(
         r#"branches.rules = [{ maintenance = "legacy" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].maintenance"
+        "branches.rules[0].maintenance",
+        Rejects
     )]
     #[case::maintenance_pattern_not_at_end(
         r#"branches.rules = [{ maintenance = "N.x/legacy" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].maintenance"
+        "branches.rules[0].maintenance",
+        Rejects
     )]
     #[case::range_full_version(
         r#"branches.rules = [{ maintenance = "legacy", range = "1.0.0" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     #[case::range_semver_range(
         r#"branches.rules = [{ maintenance = "legacy", range = ">=1 <2" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     // branches: upstream-style maintenance entries
     #[case::range_shaped_string(
         r#"branches.rules = ["1.x"]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0]"
+        "branches.rules[0]",
+        Rejects
     )]
     #[case::range_shaped_name(
         r#"branches.rules = [{ name = "1.2.x" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].name"
+        "branches.rules[0].name",
+        Rejects
     )]
     #[case::range_shaped_name_upper(
         r#"branches.rules = [{ name = "2.X" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].name"
+        "branches.rules[0].name",
+        Rejects
     )]
     #[case::range_on_name(
         r#"branches.rules = [{ name = "legacy", range = "1.x" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].range"
+        "branches.rules[0].range",
+        Rejects
     )]
     // branches: prerelease
     #[case::prerelease_false(
         r#"branches.rules = [{ name = "beta", prerelease = false }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_invalid_char(
         r#"branches.rules = [{ name = "beta", prerelease = "rc!" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_empty(
         r#"branches.rules = [{ name = "beta", prerelease = "" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_leading_zero(
         r#"branches.rules = [{ name = "beta", prerelease = "01" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
+    )]
+    #[case::prerelease_with_plus(
+        r#"branches.rules = [{ name = "beta", prerelease = "beta+build" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     #[case::prerelease_true_on_invalid_name(
         r#"branches.rules = [{ name = "feature/x", prerelease = true }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        ParserOnly
+    )]
+    #[case::prerelease_true_on_name_with_plus(
+        r#"branches.rules = [{ name = "beta+x", prerelease = true }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].prerelease",
+        ParserOnly
     )]
     #[case::prerelease_unknown_placeholder(
         r#"branches.rules = [{ name = "beta", prerelease = "{branch}" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].prerelease"
+        "branches.rules[0].prerelease",
+        Rejects
     )]
     // branches: channel
     #[case::channel_true(
         r#"branches.rules = ["main", { name = "next", channel = true }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[1].channel"
+        "branches.rules[1].channel",
+        Rejects
     )]
     #[case::channel_empty(
         r#"branches.rules = [{ name = "next", channel = "" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].channel"
+        "branches.rules[0].channel",
+        Rejects
     )]
     #[case::channel_unknown_placeholder(
         r#"branches.rules = [{ name = "next", channel = "{branch}" }]"#,
         CONFIG_INVALID_VALUE,
-        "branches.rules[0].channel"
+        "branches.rules[0].channel",
+        Rejects
     )]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 
     #[test]

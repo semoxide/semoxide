@@ -1,8 +1,12 @@
 //! `[config]`: how the configuration itself is assembled.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::values::{choice, choice_name};
+use super::schema::closed_table;
+use super::values::{choice, choice_name, choice_schema};
 use super::{ConfigError, Fields};
 
 /// `[config]`: how the configuration itself is assembled.
@@ -10,6 +14,9 @@ use super::{ConfigError, Fields};
 pub struct ConfigDomain {
     merge: MergeMode,
 }
+
+/// The keys of `[config]`.
+pub(super) const KEYS: [&str; 1] = ["merge"];
 
 const MERGE_MODES: [(&str, MergeMode); 2] =
     [("deep", MergeMode::Deep), ("shallow", MergeMode::Shallow)];
@@ -34,7 +41,7 @@ impl ConfigDomain {
             .map(|(path, value)| choice(&path, &value, &MERGE_MODES))
             .transpose()?
             .unwrap_or(MergeMode::Deep);
-        fields.finish(&["merge"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { merge })
     }
 
@@ -55,8 +62,23 @@ pub enum MergeMode {
     Shallow,
 }
 
+impl JsonSchema for ConfigDomain {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("ConfigDomain")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [("merge", choice_schema(&MERGE_MODES))],
+            &Self::DEFAULT.to_table(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -75,19 +97,37 @@ mod tests {
 
     #[rstest]
     // config
-    #[case::merge(r#"config.merge = "partial""#, CONFIG_INVALID_VALUE, "config.merge")]
+    #[case::merge(
+        r#"config.merge = "partial""#,
+        CONFIG_INVALID_VALUE,
+        "config.merge",
+        Rejects
+    )]
     #[case::extends(
         r#"config.extends = "preset:rust""#,
         CONFIG_UNSUPPORTED_SECTION,
-        "config.extends"
+        "config.extends",
+        Rejects
     )]
     #[case::extends_list(
         r#"config.extends = ["./a.toml"]"#,
         CONFIG_UNSUPPORTED_SECTION,
-        "config.extends"
+        "config.extends",
+        Rejects
     )]
-    #[case::config_unknown_key("config.strict = true", CONFIG_UNKNOWN_KEY, "config.strict")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::config_unknown_key(
+        "config.strict = true",
+        CONFIG_UNKNOWN_KEY,
+        "config.strict",
+        Rejects
+    )]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

@@ -32,6 +32,8 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **Plugin order from `steps.plugins`, options in `[plugins.<name>]`** — TOML gives table order no meaning, and order must survive layer merges; an array replaces whole. (→ [CONFIG](CONFIG.md#9-plugins-and-steps))
 - **`extends` from pinned git refs, no npm** — no npm runtime and no registry to run; a SHA pin gives integrity. (→ [CONFIG](CONFIG.md))
 - **JSON Schema for plugin config, not TOML Schema** — editors (Taplo/SchemaStore) support it today and schemars generates it; TOML Schema is not 1.0 yet. (→ [CONFIG](CONFIG.md))
+- **Hand-written `JsonSchema` impls next to each parser** — the parser is hand-written, so a derive wouldn't describe the file; a key's schema and its parser change in the same diff, and drift tests catch the rest. (→ [CONFIG](CONFIG.md#12-json-schema))
+- **JSON Schema draft-07** — Taplo, which Even Better TOML uses, validates drafts 04/06/07 only; SchemaStore recommends 07; ruff and uv use it too. (→ [CONFIG](CONFIG.md#12-json-schema))
 - **`fancy-regex`** — upstream patterns with lookaround or backreferences port unchanged; a backtrack limit prevents hangs. (→ [CONFIG](CONFIG.md))
 - **`icu_collator` for notes sorting** — the only option matching JS `localeCompare` exactly (0/36 mismatches) for +1.1 MiB. (→ [CONFIG](CONFIG.md))
 - **`git-conventional` as-is** — maintained, zero-copy, handles `!` and both breaking footers; its two known spec deviations (footer `:` without space, lowercase `breaking-change`) are cheaper to document than to patch. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))

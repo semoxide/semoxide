@@ -1,8 +1,12 @@
 //! `[secrets]`: extra environment variables whose values are masked.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::values::{EnvName, array};
+use super::schema::closed_table;
+use super::values::{EnvName, array, env_name_schema};
 use super::{ConfigError, Fields, index};
 
 /// `[secrets]`
@@ -10,6 +14,9 @@ use super::{ConfigError, Fields, index};
 pub struct Secrets {
     mask_env: Vec<EnvName>,
 }
+
+/// The keys of `[secrets]`.
+pub(super) const KEYS: [&str; 1] = ["mask_env"];
 
 impl Secrets {
     pub(super) const DEFAULT: Self = Self {
@@ -31,7 +38,7 @@ impl Secrets {
                 .collect::<Result<_, _>>()?,
             None => Vec::new(),
         };
-        fields.finish(&["mask_env"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { mask_env })
     }
 
@@ -48,8 +55,27 @@ impl Secrets {
     }
 }
 
+impl JsonSchema for Secrets {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Secrets")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let names = env_name_schema();
+        closed_table(
+            [(
+                "mask_env",
+                json_schema!({ "type": "array", "items": names }),
+            )],
+            &Self::DEFAULT.to_table(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -75,25 +101,35 @@ mod tests {
     #[case::env_name_dash(
         r#"secrets.mask_env = ["MY-TOKEN"]"#,
         CONFIG_INVALID_VALUE,
-        "secrets.mask_env[0]"
+        "secrets.mask_env[0]",
+        Rejects
     )]
     #[case::env_name_leading_digit(
         r#"secrets.mask_env = ["1TOKEN"]"#,
         CONFIG_INVALID_VALUE,
-        "secrets.mask_env[0]"
+        "secrets.mask_env[0]",
+        Rejects
     )]
     #[case::env_name_empty(
         r#"secrets.mask_env = [""]"#,
         CONFIG_INVALID_VALUE,
-        "secrets.mask_env[0]"
+        "secrets.mask_env[0]",
+        Rejects
     )]
     #[case::mask_env_not_a_list(
         r#"secrets.mask_env = "TOKEN""#,
         CONFIG_INVALID_VALUE,
-        "secrets.mask_env"
+        "secrets.mask_env",
+        Rejects
     )]
-    #[case::secrets_unknown_key("secrets.files = []", CONFIG_UNKNOWN_KEY, "secrets.files")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::secrets_unknown_key("secrets.files = []", CONFIG_UNKNOWN_KEY, "secrets.files", Rejects)]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

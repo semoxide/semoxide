@@ -1,14 +1,17 @@
 //! `[plugins.<name>]`: per-plugin settings and the plugin's own options.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use semver::Version;
 use toml::{Table, Value};
 
+use super::schema::closed_table;
 use super::steps::Steps;
 use super::values::{self, PluginName, Step};
-use super::version::parse_version;
+use super::version::{VERSION_PATTERN, parse_version};
 use super::{ConfigError, Fields};
 
 /// `[plugins.<name>]`
@@ -138,8 +141,37 @@ pub(super) fn parse_plugins(
     Ok(plugins)
 }
 
+impl JsonSchema for PluginConfig {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("PluginConfig")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let timeouts = closed_table(
+            Step::NAMES.map(|step| (step, values::duration_schema())),
+            &Table::new(),
+        );
+        let mut schema = closed_table(
+            [
+                (
+                    "version",
+                    json_schema!({ "type": "string", "pattern": VERSION_PATTERN }),
+                ),
+                ("timeouts", timeouts),
+                ("show_output", json_schema!({ "type": "boolean" })),
+            ],
+            &Self::default().to_table(),
+        );
+        // The plugin's own options, validated by the plugin.
+        schema.insert(String::from("additionalProperties"), true.into());
+        schema
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -215,79 +247,106 @@ draft = { enabled = true, limit = 3, ratio = 0.5 }
     #[case::options_of_disabled_plugin(
         "[plugins.npm]\ntag = \"next\"",
         CONFIG_PLUGIN_NOT_ENABLED,
-        "plugins.npm"
+        "plugins.npm",
+        ParserOnly
     )]
     #[case::plugin_version(
         "[plugins.release-notes]\nversion = \"1.4\"",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.version"
+        "plugins.release-notes.version",
+        Rejects
+    )]
+    #[case::plugin_version_number_overflows(
+        "[plugins.release-notes]\nversion = \"1.18446744073709551616.0\"",
+        CONFIG_INVALID_VALUE,
+        "plugins.release-notes.version",
+        ParserOnly
     )]
     #[case::timeout_words(
         "[plugins.release-notes]\ntimeouts.publish = \"1 hour\"",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.timeouts.publish"
+        "plugins.release-notes.timeouts.publish",
+        Rejects
     )]
     #[case::timeout_zero(
         "[plugins.release-notes]\ntimeouts.publish = \"0s\"",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.timeouts.publish"
+        "plugins.release-notes.timeouts.publish",
+        Rejects
     )]
     #[case::timeout_no_unit(
         "[plugins.release-notes]\ntimeouts.publish = \"30\"",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.timeouts.publish"
+        "plugins.release-notes.timeouts.publish",
+        Rejects
     )]
     #[case::timeout_integer(
         "[plugins.release-notes]\ntimeouts.publish = 30",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.timeouts.publish"
+        "plugins.release-notes.timeouts.publish",
+        Rejects
     )]
     #[case::timeout_days(
         "[plugins.release-notes]\ntimeouts.publish = \"30d\"",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.timeouts.publish"
+        "plugins.release-notes.timeouts.publish",
+        Rejects
     )]
     #[case::timeout_fraction(
         "[plugins.release-notes]\ntimeouts.publish = \"1.5h\"",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.timeouts.publish"
+        "plugins.release-notes.timeouts.publish",
+        Rejects
     )]
     #[case::timeout_unknown_step(
         "[plugins.release-notes]\ntimeouts.deploy = \"1h\"",
         CONFIG_UNKNOWN_KEY,
-        "plugins.release-notes.timeouts.deploy"
+        "plugins.release-notes.timeouts.deploy",
+        Rejects
     )]
     #[case::show_output_not_bool(
         "[plugins.release-notes]\nshow_output = \"yes\"",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.show_output"
+        "plugins.release-notes.show_output",
+        Rejects
     )]
     #[case::option_datetime(
         "[plugins.release-notes]\nsince = 2026-01-01",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.since"
+        "plugins.release-notes.since",
+        ParserOnly
     )]
     #[case::option_datetime_in_array(
         "[plugins.release-notes]\nwindows = [{ start = 2026-01-01T00:00:00Z }]",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.windows[0].start"
+        "plugins.release-notes.windows[0].start",
+        ParserOnly
     )]
     #[case::option_datetime_in_table(
         "[plugins.release-notes]\nrange = { from = 08:00:00 }",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.range.from"
+        "plugins.release-notes.range.from",
+        ParserOnly
     )]
     #[case::option_nan(
         "[plugins.release-notes]\nratio = nan",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.ratio"
+        "plugins.release-notes.ratio",
+        ParserOnly
     )]
     #[case::option_inf_in_array(
         "[plugins.release-notes]\nlimits = [1.0, inf]",
         CONFIG_INVALID_VALUE,
-        "plugins.release-notes.limits[1]"
+        "plugins.release-notes.limits[1]",
+        ParserOnly
     )]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

@@ -1,8 +1,12 @@
 //! `[tags]`: the tag format and metadata.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::values::{TagFormat, Template, string};
+use super::schema::closed_table;
+use super::values::{TagFormat, Template, string, string_schema, tag_format_schema};
 use super::{ConfigError, Fields};
 
 /// `[tags]`
@@ -11,6 +15,9 @@ pub struct Tags {
     format: TagFormat,
     metadata: Option<Template>,
 }
+
+/// The keys of `[tags]`.
+pub(super) const KEYS: [&str; 2] = ["format", "metadata"];
 
 impl Tags {
     pub(super) fn defaults() -> Self {
@@ -42,7 +49,7 @@ impl Tags {
             .take("metadata")
             .map(|(path, value)| string(&path, &value).map(Template::unchecked))
             .transpose()?;
-        fields.finish(&["format", "metadata"])?;
+        fields.finish(&KEYS)?;
         Ok(Self { format, metadata })
     }
 
@@ -61,8 +68,26 @@ impl Tags {
     }
 }
 
+impl JsonSchema for Tags {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Tags")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [
+                ("format", tag_format_schema()),
+                ("metadata", string_schema()),
+            ],
+            &Self::defaults().to_table(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::test_support::Schema::{self, ParserOnly, Rejects};
+    use crate::config::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
 
@@ -91,16 +116,29 @@ metadata = "{{ commit.short_sha }}"
     #[case::tag_format_without_version(
         r#"tags.format = "release-tag""#,
         CONFIG_INVALID_VALUE,
-        "tags.format"
+        "tags.format",
+        Rejects
     )]
     #[case::tag_format_twice(
         r#"tags.format = "{version}-{version}""#,
         CONFIG_INVALID_VALUE,
-        "tags.format"
+        "tags.format",
+        ParserOnly
     )]
-    #[case::tags_unknown_key(r#"tags.prefix = "v{version}""#, CONFIG_UNKNOWN_KEY, "tags.prefix")]
-    #[case::domain_not_a_table(r#"tags = "v{version}""#, CONFIG_INVALID_VALUE, "tags")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::tags_unknown_key(
+        r#"tags.prefix = "v{version}""#,
+        CONFIG_UNKNOWN_KEY,
+        "tags.prefix",
+        Rejects
+    )]
+    #[case::domain_not_a_table(r#"tags = "v{version}""#, CONFIG_INVALID_VALUE, "tags", Rejects)]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 }

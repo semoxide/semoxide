@@ -5,6 +5,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::Duration;
 
+use schemars::{Schema, json_schema};
 use toml::Value;
 
 use super::{ConfigError, index, key};
@@ -364,6 +365,37 @@ pub(super) fn choice_name<T: Copy + PartialEq>(
         .iter()
         .find(|(_, known)| *known == variant)
         .map_or("", |(name, _)| name)
+}
+
+/// A [`TagFormat`]; "exactly once" needs a lookahead, so the parser checks the count.
+pub(super) fn tag_format_schema() -> Schema {
+    json_schema!({ "type": "string", "pattern": r"\{version\}" })
+}
+
+/// A [`PluginName`].
+pub(super) fn plugin_name_schema() -> Schema {
+    json_schema!({ "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" })
+}
+
+/// An [`EnvName`].
+pub(super) fn env_name_schema() -> Schema {
+    json_schema!({ "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" })
+}
+
+/// A string.
+pub(super) fn string_schema() -> Schema {
+    json_schema!({ "type": "string" })
+}
+
+/// One of the names in `variants`.
+pub(super) fn choice_schema<T>(variants: &[(&str, T)]) -> Schema {
+    let names: Vec<&str> = variants.iter().map(|(name, _)| *name).collect();
+    json_schema!({ "type": "string", "enum": names })
+}
+
+/// A timeout as [`parse_duration`] reads it; the parser also rejects one that overflows.
+pub(super) fn duration_schema() -> Schema {
+    json_schema!({ "type": "string", "pattern": "^0*[1-9][0-9]*[smh]$" })
 }
 
 #[cfg(test)]

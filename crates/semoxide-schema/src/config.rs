@@ -3,8 +3,10 @@
 //! [`Config::from_table`] reads a merged TOML table by hand, domain by domain, so every error
 //! carries its code and exact key path (`branches.rules[2].prerelease`).
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
 mod branches;
@@ -13,6 +15,7 @@ mod error;
 mod layering;
 mod plugins;
 mod reader;
+mod schema;
 mod secrets;
 mod steps;
 mod suggest;
@@ -27,6 +30,7 @@ pub use commits::{Commits, Preset};
 pub use error::ConfigError;
 pub use layering::{ConfigDomain, MergeMode};
 pub use plugins::PluginConfig;
+pub use schema::json_schema;
 pub use secrets::Secrets;
 pub use steps::{Steps, SuccessErrors};
 pub use tags::Tags;
@@ -35,6 +39,7 @@ pub use version::{Level, VersionDomain, ZeroLevels};
 
 use plugins::parse_plugins;
 use reader::{DOMAINS, Fields, index, key};
+use schema::closed_table;
 
 /// A validated configuration: the merged layers with every default applied.
 #[derive(Debug, Clone, PartialEq)]
@@ -62,7 +67,7 @@ impl Config {
         let version = VersionDomain::parse(fields.domain("version")?)?;
         let mut branch_fields = fields.domain("branches")?;
         let branches = Branches::parse(&mut branch_fields)?;
-        branch_fields.finish(&["rules"])?;
+        branch_fields.finish(&branches::KEYS)?;
         let tags = Tags::parse(fields.domain("tags")?)?;
         let steps = Steps::parse(fields.domain("steps")?)?;
         let plugins = parse_plugins(fields.domain("plugins")?, &steps)?;
@@ -192,6 +197,37 @@ impl Default for Config {
     }
 }
 
+impl JsonSchema for Config {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("semoxide.toml")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        let plugin_name = values::plugin_name_schema();
+        let plugin = generator.subschema_for::<PluginConfig>();
+        closed_table(
+            [
+                ("config", generator.subschema_for::<ConfigDomain>()),
+                ("commits", generator.subschema_for::<Commits>()),
+                ("version", generator.subschema_for::<VersionDomain>()),
+                ("branches", generator.subschema_for::<Branches>()),
+                ("tags", generator.subschema_for::<Tags>()),
+                ("steps", generator.subschema_for::<Steps>()),
+                (
+                    "plugins",
+                    json_schema!({
+                        "type": "object",
+                        "propertyNames": plugin_name,
+                        "additionalProperties": plugin,
+                    }),
+                ),
+                ("secrets", generator.subschema_for::<Secrets>()),
+            ],
+            &Table::new(),
+        )
+    }
+}
+
 /// Helpers shared by the config modules' unit tests.
 #[cfg(test)]
 mod test_support {
@@ -203,11 +239,52 @@ mod test_support {
         Config::from_table(text.parse::<toml::Table>().unwrap())
     }
 
-    /// The config, failing the test with an assertion if it doesn't load.
+    /// The config, failing the test with an assertion if it doesn't load or the JSON Schema
+    /// rejects it.
     pub(super) fn loaded(text: &str) -> Config {
         let result = parse(text);
         assert!(result.is_ok(), "the config should load: {result:?}");
+        assert_eq!(
+            schema_errors(&text.parse().unwrap()),
+            Vec::<String>::new(),
+            "the schema should accept what the parser accepts"
+        );
         result.unwrap()
+    }
+
+    pub(super) const DRAFT_07: &str = "http://json-schema.org/draft-07/schema#";
+
+    /// The JSON Schema's errors for `table`, validated as draft-07, the draft it must declare.
+    pub(super) fn schema_errors(table: &toml::Table) -> Vec<String> {
+        let schema = super::json_schema();
+        assert_eq!(
+            schema.get("$schema").and_then(serde_json::Value::as_str),
+            Some(DRAFT_07),
+            "the schema should declare draft-07"
+        );
+        let validator = jsonschema::draft7::new(&schema).unwrap();
+        let instance = serde_json::to_value(table).unwrap();
+        validator
+            .iter_errors(&instance)
+            .map(|error| format!("{}: {error}", error.instance_path()))
+            .collect()
+    }
+
+    /// What the JSON Schema does with a config the parser rejects.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) enum Schema {
+        /// The schema rejects it too.
+        Rejects,
+        /// Only the parser can tell, e.g. a check across keys or a TOML type JSON lacks.
+        ParserOnly,
+    }
+
+    pub(super) fn schema_verdict(text: &str) -> Schema {
+        if schema_errors(&text.parse().unwrap()).is_empty() {
+            Schema::ParserOnly
+        } else {
+            Schema::Rejects
+        }
     }
 
     /// The code and key path of the error, or `Ok` if the config loaded.
@@ -269,6 +346,8 @@ mod test_support {
 mod tests {
     use std::path::Path;
 
+    use super::test_support::Schema::{self, Rejects};
+    use super::test_support::schema_verdict;
     use rstest::rstest;
     use semoxide_error::ErrorCode;
     use semver::Version;
@@ -308,12 +387,19 @@ mod tests {
     #[case::packages(
         "[packages.web]\npath = \"web\"",
         CONFIG_UNSUPPORTED_SECTION,
-        "packages"
+        "packages",
+        Rejects
     )]
     // top level
-    #[case::unknown_domain("[colour]\nname = \"red\"", CONFIG_UNKNOWN_KEY, "colour")]
-    fn invalid_config_is_rejected(#[case] text: &str, #[case] code: ErrorCode, #[case] path: &str) {
+    #[case::unknown_domain("[colour]\nname = \"red\"", CONFIG_UNKNOWN_KEY, "colour", Rejects)]
+    fn invalid_config_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
     }
 
     // --- Examples and round trip ---
