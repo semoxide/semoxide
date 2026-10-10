@@ -1,10 +1,12 @@
 //! Value types shared by several domains, each valid by construction, and the conversion of a
 //! plugin's options to JSON.
 
+use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 use std::time::Duration;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::Value;
 
 use super::{ConfigError, index, key};
@@ -364,6 +366,65 @@ pub(super) fn choice_name<T: Copy + PartialEq>(
         .iter()
         .find(|(_, known)| *known == variant)
         .map_or("", |(name, _)| name)
+}
+
+impl JsonSchema for TagFormat {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("TagFormat")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        // "Exactly once" needs a lookahead; the parser checks the count.
+        json_schema!({ "type": "string", "pattern": r"\{version\}" })
+    }
+}
+
+impl JsonSchema for PluginName {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("PluginName")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({ "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" })
+    }
+}
+
+impl JsonSchema for EnvName {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("EnvName")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({ "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" })
+    }
+}
+
+/// A string.
+pub(super) fn string_schema() -> Schema {
+    json_schema!({ "type": "string" })
+}
+
+/// One of the names in `variants`.
+pub(super) fn choice_schema<T>(variants: &[(&str, T)]) -> Schema {
+    let names: Vec<&str> = variants.iter().map(|(name, _)| *name).collect();
+    json_schema!({ "type": "string", "enum": names })
+}
+
+/// A timeout as [`parse_duration`] reads it; the parser also rejects one that overflows.
+pub(super) fn duration_schema() -> Schema {
+    json_schema!({ "type": "string", "pattern": "^0*[1-9][0-9]*[smh]$" })
 }
 
 #[cfg(test)]

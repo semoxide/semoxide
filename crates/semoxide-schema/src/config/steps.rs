@@ -1,10 +1,13 @@
 //! `[steps]`: the enabled plugins, their order per step and how `success` errors end a run.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::values::{PluginName, Step, array, choice, choice_name};
+use super::schema::closed_table;
+use super::values::{PluginName, Step, array, choice, choice_name, choice_schema};
 use super::{ConfigError, Fields, index};
 
 /// `[steps]`
@@ -162,6 +165,48 @@ pub enum SuccessErrors {
     Warn,
     /// The partial-failure exit code, still without rollback.
     Fail,
+}
+
+impl JsonSchema for Steps {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Steps")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        let defaults = Self::defaults().to_table();
+        let name = generator.subschema_for::<PluginName>();
+        let mut properties = vec![(
+            "plugins",
+            json_schema!({ "type": "array", "items": name, "uniqueItems": true }),
+        )];
+        for step in Step::NAMES {
+            let mut keys = vec![("order", json_schema!({ "type": "array", "items": name }))];
+            if step == Step::Success.as_str() {
+                keys.push(("errors", generator.subschema_for::<SuccessErrors>()));
+            }
+            let step_defaults = defaults
+                .get(step)
+                .and_then(Value::as_table)
+                .cloned()
+                .unwrap_or_default();
+            properties.push((step, closed_table(keys, &step_defaults)));
+        }
+        closed_table(properties, &defaults)
+    }
+}
+
+impl JsonSchema for SuccessErrors {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("SuccessErrors")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        choice_schema(&SUCCESS_ERRORS)
+    }
 }
 
 #[cfg(test)]

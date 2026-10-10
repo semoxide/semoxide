@@ -1,9 +1,13 @@
 //! `[version]`: the first release version and the 0.x release levels.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use semver::Version;
 use toml::{Table, Value};
 
-use super::values::{choice, choice_name, string};
+use super::schema::closed_table;
+use super::values::{choice, choice_name, choice_schema, string};
 use super::{ConfigError, Fields};
 
 /// `[version]`
@@ -161,6 +165,58 @@ pub enum Level {
     Minor,
     /// `patch`
     Patch,
+}
+
+/// A version as `semver` parses it, build metadata included (the regex from semver.org).
+pub(super) const VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$";
+
+/// A version as `semver` parses it, without build metadata.
+const INITIAL_VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$";
+
+impl JsonSchema for VersionDomain {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("VersionDomain")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [
+                (
+                    "initial",
+                    json_schema!({ "type": "string", "pattern": INITIAL_VERSION_PATTERN }),
+                ),
+                ("zero", generator.subschema_for::<ZeroLevels>()),
+            ],
+            &Self::defaults().to_table(),
+        )
+    }
+}
+
+impl JsonSchema for ZeroLevels {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("ZeroLevels")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            ZERO_KEYS.map(|name| (name, generator.subschema_for::<Level>())),
+            &Self::DEFAULT.to_table(),
+        )
+    }
+}
+
+impl JsonSchema for Level {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Level")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        choice_schema(&LEVELS)
+    }
 }
 
 #[cfg(test)]

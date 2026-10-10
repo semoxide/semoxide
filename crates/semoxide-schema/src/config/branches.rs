@@ -1,8 +1,12 @@
 //! `branches.rules`: release, prerelease and maintenance rules (CONFIG §3).
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
-use super::values::{Template, string};
+use super::schema::closed_table;
+use super::values::{Template, string, string_schema};
 use super::{ConfigError, Fields, index, key};
 
 /// `[branches]`
@@ -476,6 +480,92 @@ fn is_prerelease_id(id: &str) -> bool {
 
 fn is_glob(name: &str) -> bool {
     name.contains(['*', '?', '[', '{'])
+}
+
+/// What [`is_range_shaped`] accepts.
+const RANGE_PATTERN: &str = r"^[0-9]+(\.([0-9]+|[xX]))?\.[xX]$";
+
+/// What [`pattern_prefix`] finds.
+const RANGE_ENDING_PATTERN: &str = r"(N\.x|N\.x\.x|N\.N\.x)$";
+
+/// A prerelease identifier as [`is_prerelease_id`] checks it, `{name}` counting as a letter.
+const PRERELEASE_PATTERN: &str = r"^(0|[1-9][0-9]*|([0-9A-Za-z-]|\{name\})*([A-Za-z-]|\{name\})([0-9A-Za-z-]|\{name\})*)(\.(0|[1-9][0-9]*|([0-9A-Za-z-]|\{name\})*([A-Za-z-]|\{name\})([0-9A-Za-z-]|\{name\})*))*$";
+
+/// Text whose only placeholder is `{name}`.
+const NAME_PLACEHOLDER_PATTERN: &str = r"^([^{}]|\{name\})*$";
+
+impl JsonSchema for Branches {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Branches")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        let rule = generator.subschema_for::<BranchRule>();
+        closed_table(
+            [(
+                "rules",
+                json_schema!({ "type": "array", "minItems": 1, "items": rule }),
+            )],
+            &Table::from_iter([(String::from("rules"), Self::default_rules().to_value())]),
+        )
+    }
+}
+
+impl JsonSchema for BranchRule {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("BranchRule")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let name = json_schema!({ "type": "string", "not": { "pattern": RANGE_PATTERN } });
+        let channel = json_schema!({
+            "anyOf": [
+                { "const": false },
+                { "type": "string", "minLength": 1, "pattern": NAME_PLACEHOLDER_PATTERN },
+            ],
+        });
+        let prerelease = json_schema!({
+            "anyOf": [
+                { "const": true },
+                { "type": "string", "pattern": PRERELEASE_PATTERN },
+            ],
+        });
+        let mut rule = closed_table(
+            [
+                ("name", name.clone()),
+                ("prerelease", prerelease),
+                ("channel", channel.clone()),
+            ],
+            &Table::new(),
+        );
+        rule.insert(String::from("required"), serde_json::json!(["name"]));
+        let mut maintenance = closed_table(
+            [
+                ("maintenance", string_schema()),
+                (
+                    "range",
+                    json_schema!({ "type": "string", "pattern": RANGE_PATTERN }),
+                ),
+                ("channel", channel),
+            ],
+            &Table::new(),
+        );
+        maintenance.insert(String::from("required"), serde_json::json!(["maintenance"]));
+        // A pattern ending in `N.x` takes its range from the branch name; any other needs one.
+        maintenance.insert(
+            String::from("if"),
+            serde_json::json!({ "properties": { "maintenance": { "pattern": RANGE_ENDING_PATTERN } } }),
+        );
+        maintenance.insert(
+            String::from("then"),
+            serde_json::json!({ "not": { "required": ["range"] } }),
+        );
+        maintenance.insert(
+            String::from("else"),
+            serde_json::json!({ "required": ["range"] }),
+        );
+        json_schema!({ "anyOf": [name, rule, maintenance] })
+    }
 }
 
 #[cfg(test)]

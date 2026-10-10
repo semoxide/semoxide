@@ -1,8 +1,12 @@
 //! `[config]`: how the configuration itself is assembled.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::values::{choice, choice_name};
+use super::schema::closed_table;
+use super::values::{choice, choice_name, choice_schema};
 use super::{ConfigError, Fields};
 
 /// `[config]`: how the configuration itself is assembled.
@@ -56,6 +60,33 @@ pub enum MergeMode {
     Deep,
     /// A domain from a later layer replaces the whole earlier domain.
     Shallow,
+}
+
+impl JsonSchema for ConfigDomain {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("ConfigDomain")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [("merge", generator.subschema_for::<MergeMode>())],
+            &Self::DEFAULT.to_table(),
+        )
+    }
+}
+
+impl JsonSchema for MergeMode {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("MergeMode")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        choice_schema(&MERGE_MODES)
+    }
 }
 
 #[cfg(test)]

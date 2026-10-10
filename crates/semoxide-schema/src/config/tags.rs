@@ -1,8 +1,12 @@
 //! `[tags]`: the tag format and metadata.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::values::{TagFormat, Template, string};
+use super::schema::closed_table;
+use super::values::{TagFormat, Template, string, string_schema};
 use super::{ConfigError, Fields};
 
 /// `[tags]`
@@ -61,6 +65,22 @@ impl Tags {
             );
         }
         table
+    }
+}
+
+impl JsonSchema for Tags {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Tags")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [
+                ("format", generator.subschema_for::<TagFormat>()),
+                ("metadata", string_schema()),
+            ],
+            &Self::defaults().to_table(),
+        )
     }
 }
 

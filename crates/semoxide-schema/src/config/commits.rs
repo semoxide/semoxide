@@ -1,8 +1,12 @@
 //! `[commits]`: how commits are read.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use toml::{Table, Value};
 
-use super::values::{choice, choice_name};
+use super::schema::closed_table;
+use super::values::{choice, choice_name, choice_schema};
 use super::{ConfigError, Fields};
 
 /// `[commits]`: how commits are read.
@@ -55,6 +59,33 @@ pub enum Preset {
     ConventionalCommits,
     /// `angular`
     Angular,
+}
+
+impl JsonSchema for Commits {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Commits")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        closed_table(
+            [("preset", generator.subschema_for::<Preset>())],
+            &Self::DEFAULT.to_table(),
+        )
+    }
+}
+
+impl JsonSchema for Preset {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Preset")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        choice_schema(&PRESETS)
+    }
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+schemars.workspace = true
 semoxide-error.workspace = true
 semver.workspace = true
 serde_json.workspace = true

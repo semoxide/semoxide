@@ -1,14 +1,17 @@
 //! `[plugins.<name>]`: per-plugin settings and the plugin's own options.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use semver::Version;
 use toml::{Table, Value};
 
+use super::schema::closed_table;
 use super::steps::Steps;
 use super::values::{self, PluginName, Step};
-use super::version::parse_version;
+use super::version::{VERSION_PATTERN, parse_version};
 use super::{ConfigError, Fields};
 
 /// `[plugins.<name>]`
@@ -136,6 +139,33 @@ pub(super) fn parse_plugins(
         plugins.entry(name.clone()).or_default();
     }
     Ok(plugins)
+}
+
+impl JsonSchema for PluginConfig {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("PluginConfig")
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        let timeouts = closed_table(
+            Step::NAMES.map(|step| (step, values::duration_schema())),
+            &Table::new(),
+        );
+        let mut schema = closed_table(
+            [
+                (
+                    "version",
+                    json_schema!({ "type": "string", "pattern": VERSION_PATTERN }),
+                ),
+                ("timeouts", timeouts),
+                ("show_output", json_schema!({ "type": "boolean" })),
+            ],
+            &Self::default().to_table(),
+        );
+        // The plugin's own options, validated by the plugin.
+        schema.insert(String::from("additionalProperties"), true.into());
+        schema
+    }
 }
 
 #[cfg(test)]

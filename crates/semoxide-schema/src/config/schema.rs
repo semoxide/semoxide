@@ -1,10 +1,46 @@
 //! The JSON Schema of `semoxide.toml` (CONFIG.md §12), assembled from each table's schema next to
 //! its parser.
 
+use schemars::Schema;
+use schemars::generate::SchemaSettings;
+use toml::Table;
+
+use super::Config;
+use super::values::to_json;
+
 /// The JSON Schema (draft-07) of `semoxide.toml`.
 #[must_use]
 pub fn json_schema() -> serde_json::Value {
-    serde_json::Value::Object(serde_json::Map::new())
+    SchemaSettings::draft07()
+        .into_generator()
+        .into_root_schema_for::<Config>()
+        .to_value()
+}
+
+/// A table that rejects keys it doesn't list; a key with a value in `defaults` that isn't a
+/// table gets it as its `default`.
+pub(super) fn closed_table<'a>(
+    properties: impl IntoIterator<Item = (&'a str, Schema)>,
+    defaults: &Table,
+) -> Schema {
+    let properties: serde_json::Map<String, serde_json::Value> = properties
+        .into_iter()
+        .map(|(name, mut schema)| {
+            if let Some(default) = defaults
+                .get(name)
+                .filter(|value| !value.is_table())
+                .and_then(|value| to_json(name, value).ok())
+            {
+                schema.insert(String::from("default"), default);
+            }
+            (name.to_owned(), schema.to_value())
+        })
+        .collect();
+    schemars::json_schema!({
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": false,
+    })
 }
 
 #[cfg(test)]

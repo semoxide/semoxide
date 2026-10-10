@@ -3,8 +3,10 @@
 //! [`Config::from_table`] reads a merged TOML table by hand, domain by domain, so every error
 //! carries its code and exact key path (`branches.rules[2].prerelease`).
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
 mod branches;
@@ -37,6 +39,7 @@ pub use version::{Level, VersionDomain, ZeroLevels};
 
 use plugins::parse_plugins;
 use reader::{DOMAINS, Fields, index, key};
+use schema::closed_table;
 
 /// A validated configuration: the merged layers with every default applied.
 #[derive(Debug, Clone, PartialEq)]
@@ -191,6 +194,37 @@ impl Default for Config {
             plugins,
             secrets: Secrets::DEFAULT,
         }
+    }
+}
+
+impl JsonSchema for Config {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("semoxide.toml")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        let plugin_name = generator.subschema_for::<PluginName>();
+        let plugin = generator.subschema_for::<PluginConfig>();
+        closed_table(
+            [
+                ("config", generator.subschema_for::<ConfigDomain>()),
+                ("commits", generator.subschema_for::<Commits>()),
+                ("version", generator.subschema_for::<VersionDomain>()),
+                ("branches", generator.subschema_for::<Branches>()),
+                ("tags", generator.subschema_for::<Tags>()),
+                ("steps", generator.subschema_for::<Steps>()),
+                (
+                    "plugins",
+                    json_schema!({
+                        "type": "object",
+                        "propertyNames": plugin_name,
+                        "additionalProperties": plugin,
+                    }),
+                ),
+                ("secrets", generator.subschema_for::<Secrets>()),
+            ],
+            &Table::new(),
+        )
     }
 }
 

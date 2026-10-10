@@ -1,7 +1,11 @@
 //! `[secrets]`: extra environment variables whose values are masked.
 
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
+use super::schema::closed_table;
 use super::values::{EnvName, array};
 use super::{ConfigError, Fields, index};
 
@@ -48,6 +52,23 @@ impl Secrets {
                     .collect(),
             ),
         )])
+    }
+}
+
+impl JsonSchema for Secrets {
+    fn schema_name() -> Cow<'static, str> {
+        Cow::Borrowed("Secrets")
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        let names = generator.subschema_for::<EnvName>();
+        closed_table(
+            [(
+                "mask_env",
+                json_schema!({ "type": "array", "items": names }),
+            )],
+            &Self::DEFAULT.to_table(),
+        )
     }
 }
 
