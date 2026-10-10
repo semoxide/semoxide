@@ -132,7 +132,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 
 ## 8. Errors
 
-- Library errors are `thiserror` enums implementing `ErrorInfo` ([CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md)): code, message, help line, docs URL, and for config errors a label pointing at the line in `semoxide.toml`. `miette` is used only by the CLI for rendering.
+- Library errors are `thiserror` enums implementing `ErrorInfo` ([CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md)): code, message, help line, docs URL, and a location when known: the spot in a file (config errors point at the value for `config::invalid_value`, at the key otherwise) or the `--set` flag the key came from. The CLI shows it as a code snippet in a terminal, a `--> semoxide.toml:2:10` line in plain text and `location` in JSON ([CLI.md](CLI.md)). `miette` is used only by the CLI for rendering.
 - Codes are namespaced names: `core::no_git_repo`, `git::push_rejected`, `github::release_exists`; a plugin's name is its namespace. The docs map upstream mnemonics (`ENOGITREPO` → `core::no_git_repo`).
 - Message wording, help lines and the page template: [docs/errors/README.md](errors/README.md).
 - Every code has a page `docs/errors/<slug>.md` (until the docs site exists); each crate lists its codes in `codes::ALL`, and a test fails on a missing page, an orphan page, a duplicate code or a code used in the source but missing from `ALL`.
