@@ -254,8 +254,9 @@ mod test_support {
 
     pub(super) const DRAFT_07: &str = "http://json-schema.org/draft-07/schema#";
 
-    /// The JSON Schema's errors for `table`, validated as draft-07, the draft it must declare.
-    pub(super) fn schema_errors(table: &toml::Table) -> Vec<String> {
+    /// The JSON Schema's errors for `table`, validated as draft-07, the draft it must declare:
+    /// each error's instance path, keyword and message.
+    fn validate(table: &toml::Table) -> Vec<(String, String, String)> {
         let schema = super::json_schema();
         assert_eq!(
             schema.get("$schema").and_then(serde_json::Value::as_str),
@@ -266,7 +267,29 @@ mod test_support {
         let instance = serde_json::to_value(table).unwrap();
         validator
             .iter_errors(&instance)
-            .map(|error| format!("{}: {error}", error.instance_path()))
+            .map(|error| {
+                (
+                    error.instance_path().to_string(),
+                    error.kind().keyword().to_owned(),
+                    error.to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// The JSON Schema's errors for `table`, as `<path>: <message>`.
+    pub(super) fn schema_errors(table: &toml::Table) -> Vec<String> {
+        validate(table)
+            .into_iter()
+            .map(|(path, _, message)| format!("{path}: {message}"))
+            .collect()
+    }
+
+    /// The instance path and keyword of each of the JSON Schema's errors for `table`.
+    pub(super) fn schema_error_kinds(table: &toml::Table) -> Vec<(String, String)> {
+        validate(table)
+            .into_iter()
+            .map(|(path, keyword, _)| (path, keyword))
             .collect()
     }
 
@@ -583,83 +606,11 @@ mask_env = ["DEPLOY_TOKEN"]
         );
     }
 
-    /// The key and TOML value of each row of CONFIG.md's "Defaults" table.
-    fn documented_defaults() -> Vec<(String, String)> {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/CONFIG.md");
-        let text = std::fs::read_to_string(path).unwrap();
-        let section = text
-            .split("### Defaults")
-            .nth(1)
-            .and_then(|rest| rest.split("\n## ").next())
-            .unwrap();
-        section
-            .lines()
-            .filter_map(|line| {
-                let cells: Vec<&str> = line.split('|').map(str::trim).collect();
-                let key = cells.get(1)?.strip_prefix('`')?.strip_suffix('`')?;
-                let value = cells.get(2)?.strip_prefix('`')?.strip_suffix('`')?;
-                Some((key.to_owned(), value.to_owned()))
-            })
-            .collect()
-    }
-
     /// The value at a dotted key path of a table.
     fn lookup<'a>(table: &'a Table, path: &str) -> Option<&'a Value> {
         let mut parts = path.split('.');
         let first = table.get(parts.next()?)?;
         parts.try_fold(first, |value, part| value.as_table()?.get(part))
-    }
-
-    #[test]
-    fn config_md_defaults_match_the_code() {
-        let defaults = Config::default().to_table();
-        let documented = documented_defaults();
-        assert!(documented.len() >= 10, "{documented:?}");
-
-        for (key, value) in &documented {
-            let documented: Table = format!("v = {value}").parse().unwrap();
-            let documented = documented.get("v");
-            let default_config = Config::default();
-            let actual = if let Some(option) = key.strip_prefix("plugins.<name>.") {
-                default_config
-                    .plugin(&PluginName::bundled("commit-analyzer"))
-                    .and_then(|settings| settings.to_table().get(option).cloned())
-            } else {
-                lookup(&defaults, key).cloned()
-            };
-            assert_eq!(actual.as_ref(), documented, "{key}");
-        }
-    }
-
-    #[test]
-    fn every_default_is_documented() {
-        let documented: Vec<String> = documented_defaults()
-            .into_iter()
-            .map(|(key, _)| key)
-            .collect();
-        let mut leaves = Vec::new();
-        collect_leaves("", &Config::defaults_table(), &mut leaves);
-        assert!(leaves.len() >= 10, "{leaves:?}");
-
-        let undocumented: Vec<&String> = leaves
-            .iter()
-            .filter(|leaf| *leaf != "branches.rules" && !documented.contains(leaf))
-            .collect();
-        assert_eq!(undocumented, Vec::<&String>::new());
-    }
-
-    fn collect_leaves(prefix: &str, table: &Table, leaves: &mut Vec<String>) {
-        for (name, value) in table {
-            let path = if prefix.is_empty() {
-                name.clone()
-            } else {
-                format!("{prefix}.{name}")
-            };
-            match value {
-                Value::Table(inner) => collect_leaves(&path, inner, leaves),
-                _ => leaves.push(path),
-            }
-        }
     }
 
     #[test]

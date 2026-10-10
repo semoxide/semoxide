@@ -579,7 +579,7 @@ mod tests {
     use super::*;
     use crate::codes::{CONFIG_CONFLICTING_KEYS, CONFIG_INVALID_VALUE, CONFIG_UNKNOWN_KEY};
     use crate::config::Config;
-    use crate::config::test_support::{describe_rules, loaded, rejection};
+    use crate::config::test_support::{describe_rules, loaded, rejection, schema_error_kinds};
 
     #[test]
     fn default_branch_rules_are_upstreams_set() {
@@ -885,6 +885,40 @@ rules = [
     ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
         assert_eq!(schema_verdict(text), schema, "{text}");
+    }
+
+    #[rstest]
+    #[case::bad_prerelease(
+        r#"branches.rules = [{ name = "beta", prerelease = "rc!" }]"#,
+        &[("/branches/rules/0/prerelease", "anyOf")]
+    )]
+    #[case::empty_channel(
+        r#"branches.rules = [{ name = "next", channel = "" }]"#,
+        &[("/branches/rules/0/channel", "anyOf")]
+    )]
+    #[case::maintenance_without_range(
+        r#"branches.rules = [{ maintenance = "legacy" }]"#,
+        &[("/branches/rules/0", "required")]
+    )]
+    #[case::range_with_range_pattern(
+        r#"branches.rules = [{ maintenance = "N.x", range = "1.x" }]"#,
+        &[("/branches/rules/0", "not")]
+    )]
+    #[case::range_shaped_string(r#"branches.rules = ["1.x"]"#, &[("/branches/rules/0", "not")])]
+    #[case::rule_unknown_key(
+        r#"branches.rules = [{ name = "main", colour = "red" }]"#,
+        &[("/branches/rules/0", "additionalProperties")]
+    )]
+    fn a_mistake_in_a_branch_rule_is_reported_at_its_key(
+        #[case] text: &str,
+        #[case] errors: &[(&str, &str)],
+    ) {
+        let expected: Vec<(String, String)> = errors
+            .iter()
+            .map(|(path, keyword)| ((*path).to_owned(), (*keyword).to_owned()))
+            .collect();
+
+        assert_eq!(schema_error_kinds(&text.parse().unwrap()), expected);
     }
 
     #[test]
