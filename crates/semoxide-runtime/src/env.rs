@@ -22,6 +22,9 @@ pub(crate) enum Case {
 /// A snapshot of environment variables, built by the caller (the CLI from
 /// `std::env::vars_os()`, tests from a map).
 ///
+/// On Windows names compare ignoring ASCII case; the names semoxide reads are ASCII, so other
+/// letters are left unspecified. Of names that differ only in case, the first in byte order wins.
+///
 /// ```
 /// let env: semoxide_runtime::Env = [("SEMOXIDE_LOG", "debug")].into_iter().collect();
 /// assert_eq!(env.get_str("SEMOXIDE_LOG"), Ok(Some("debug")));
@@ -223,13 +226,60 @@ mod tests {
 
     #[test]
     fn the_error_says_to_set_utf_8_text() {
-        let error = EnvError {
-            name: String::from("SEMOXIDE_CI_BRANCH"),
-        };
+        let env = Env::with_case(
+            Case::Sensitive,
+            [(OsString::from("SEMOXIDE_CI_BRANCH"), not_unicode())],
+        );
+
+        let error = env.get_str("SEMOXIDE_CI_BRANCH").err();
 
         assert_eq!(
-            error.help(),
+            error.and_then(|error| error.help()),
             Some(String::from("Set `SEMOXIDE_CI_BRANCH` to UTF-8 text."))
+        );
+    }
+
+    #[test]
+    fn a_name_that_only_starts_with_the_query_is_not_a_match() {
+        let env = env(Case::Sensitive, &[("SEMOXIDE_LOG_X", "1")]);
+
+        assert_eq!(
+            (env.get("SEMOXIDE_LOG"), env.get("SEMOXIDE_LOG_X")),
+            (None, os("1"))
+        );
+    }
+
+    #[test]
+    fn a_case_insensitive_name_that_only_starts_with_the_query_is_not_a_match() {
+        let env = env(Case::Insensitive, &[("PATHS", "/bin")]);
+
+        assert_eq!((env.get("path"), env.get("paths")), (None, os("/bin")));
+    }
+
+    #[test]
+    fn the_error_names_the_variable_as_set() {
+        let env = Env::with_case(
+            Case::Insensitive,
+            [(OsString::from("Semoxide_Ci_Branch"), not_unicode())],
+        );
+
+        let error = env.get_str("SEMOXIDE_CI_BRANCH").err();
+
+        assert_eq!(
+            error.map(|error| error.to_string()),
+            Some(String::from(
+                "the value of `Semoxide_Ci_Branch` isn't valid UTF-8"
+            ))
+        );
+    }
+
+    #[test]
+    fn of_names_differing_only_in_case_the_first_in_byte_order_wins() {
+        let env = env(Case::Insensitive, &[("Path", "b"), ("PATH", "a")]);
+
+        assert_eq!(
+            (env.get("path"), env.get_str("path")),
+            (os("a"), Ok(Some("a")))
         );
     }
 
@@ -277,6 +327,73 @@ mod tests {
         assert_eq!(
             unknown(&env),
             [(String::from("Semoxide_Lgo"), Some("SEMOXIDE_LOG"))]
+        );
+    }
+
+    #[test]
+    fn case_sensitive_known_names_match_exactly_and_whole() {
+        let env = env(
+            Case::Sensitive,
+            &[("SEMOXIDE_log", "debug"), ("SEMOXIDE_LOGS", "debug")],
+        );
+
+        assert_eq!(
+            unknown(&env),
+            [
+                (String::from("SEMOXIDE_LOGS"), Some("SEMOXIDE_LOG")),
+                (String::from("SEMOXIDE_log"), Some("SEMOXIDE_LOG")),
+            ]
+        );
+    }
+
+    #[test]
+    fn only_the_full_prefix_counts_and_an_empty_suffix_is_unknown() {
+        let env = env(
+            Case::Sensitive,
+            &[("SEMOXIDEX", "1"), ("SEMOXIDE", "1"), ("SEMOXIDE_", "1")],
+        );
+
+        assert_eq!(unknown(&env), [(String::from("SEMOXIDE_"), None)]);
+    }
+
+    #[test]
+    fn names_that_arent_utf_8_are_skipped() {
+        let mut name = OsString::from("SEMOXIDE_");
+        name.push(not_unicode());
+        let env = Env::with_case(
+            Case::Sensitive,
+            [
+                (name, OsString::from("1")),
+                (OsString::from("SEMOXIDE_LGO"), OsString::from("1")),
+            ],
+        );
+
+        assert_eq!(
+            unknown(&env),
+            [(String::from("SEMOXIDE_LGO"), Some("SEMOXIDE_LOG"))]
+        );
+    }
+
+    #[test]
+    fn case_insensitive_names_are_reported_in_byte_order_each_as_set() {
+        let env = env(
+            Case::Insensitive,
+            &[
+                ("SEMOXIDE_a", "1"),
+                ("SEMOXIDE_B", "1"),
+                ("Semoxide_Lgo", "1"),
+                ("SEMOXIDE_LGO", "1"),
+            ],
+        );
+
+        assert_eq!(
+            unknown(&env),
+            [
+                (String::from("SEMOXIDE_B"), None),
+                (String::from("SEMOXIDE_LGO"), Some("SEMOXIDE_LOG")),
+                (String::from("SEMOXIDE_a"), None),
+                (String::from("Semoxide_Lgo"), Some("SEMOXIDE_LOG")),
+            ]
         );
     }
 
