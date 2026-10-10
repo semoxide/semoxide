@@ -78,14 +78,52 @@ impl CiContext {
 /// # Errors
 ///
 /// Returns [`EnvError`] if a variable it reads isn't valid UTF-8.
-pub fn detect(_env: &Env) -> Result<CiContext, EnvError> {
+pub fn detect(env: &Env) -> Result<CiContext, EnvError> {
+    // In env-ci's order; the first match wins and the others' variables are never read.
+    for (vendor, variable, read) in VENDORS {
+        if value(env, variable)?.is_some() {
+            let (branch, commit, pull_request) = read(env)?;
+            return Ok(CiContext {
+                vendor: Some(vendor),
+                ci_variable: false,
+                branch,
+                commit,
+                pull_request,
+            });
+        }
+    }
     Ok(CiContext {
         vendor: None,
-        ci_variable: false,
+        ci_variable: value(env, "CI")?.is_some(),
         branch: None,
         commit: None,
         pull_request: PullRequest::No,
     })
+}
+
+/// What a vendor reads about a run: the branch, the commit and the pull request state.
+type Run = (Option<String>, Option<String>, PullRequest);
+
+/// How a vendor reads a run it detected.
+type Read = fn(&Env) -> Result<Run, EnvError>;
+
+/// Each vendor, the variable that detects it and how its runs are read.
+const VENDORS: [(Vendor, &str, Read); 2] = [
+    (Vendor::GitHubActions, "GITHUB_ACTIONS", github::read),
+    (Vendor::GitLabCi, "GITLAB_CI", gitlab::read),
+];
+
+/// The value of `name`, an empty one counting as unset.
+fn value<'a>(env: &'a Env, name: &str) -> Result<Option<&'a str>, EnvError> {
+    Ok(env.var(name)?.filter(|text| !text.is_empty()))
+}
+
+/// A pull request number: plain ASCII digits.
+fn number(text: &str) -> Option<u64> {
+    if !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
 }
 
 /// Test helpers shared by the vendor modules.

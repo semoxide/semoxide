@@ -42,7 +42,7 @@ flowchart TD
 | Component | Responsibility |
 | --- | --- |
 | Config | load and merge layers (defaults → extends → file → flags), validate against core and plugin schemas ([CONFIG](CONFIG.md)) |
-| CI context | detect CI, branch, PR and commit; env snapshot. Table-driven, derived from env-ci's detection table. v1: GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, Bitbucket Pipelines; elsewhere branch/commit come from git2 |
+| CI context | detect CI, branch, PR and commit from the env snapshot only (no event files). Table-driven, derived from env-ci's detection table; differences in [DIFFERENCES](DIFFERENCES.md#ci-and-environment). v1: GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines, Bitbucket Pipelines; elsewhere branch/commit come from git2 |
 | Git | all repo access via git2: tags, notes, log ranges, fetch/unshallow, guarded push, SSH transports, credentials ([§6](#6-git-and-credentials)) |
 | Version engine | **pure, no I/O**: branch model, ranges, last and next version, bump rules, skip marker |
 | Plugin host | start, connect, sync and lock plugins (via `semoxide-plugin-host`); host services; in-process plugins ([§5](#5-plugins)) |

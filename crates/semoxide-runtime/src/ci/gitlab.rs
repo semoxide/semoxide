@@ -1,6 +1,53 @@
 //! GitLab CI/CD: detected by `GITLAB_CI`; merge request and external pull request pipelines
 //! release nothing.
 
+use super::{PullRequest, Run, number, value};
+use crate::{Env, EnvError};
+
+/// The variables of one kind of pull request pipeline.
+struct Request {
+    source: &'static str,
+    iid: &'static str,
+    target_branch: &'static str,
+}
+
+const MERGE_REQUEST: Request = Request {
+    source: "merge_request_event",
+    iid: "CI_MERGE_REQUEST_IID",
+    target_branch: "CI_MERGE_REQUEST_TARGET_BRANCH_NAME",
+};
+
+/// A GitHub pull request built by GitLab CI.
+const EXTERNAL_PULL_REQUEST: Request = Request {
+    source: "external_pull_request_event",
+    iid: "CI_EXTERNAL_PULL_REQUEST_IID",
+    target_branch: "CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME",
+};
+
+pub(super) fn read(env: &Env) -> Result<Run, EnvError> {
+    let commit = value(env, "CI_COMMIT_SHA")?.map(str::to_owned);
+    let Some(request) = request(env)? else {
+        let branch = value(env, "CI_COMMIT_BRANCH")?.map(str::to_owned);
+        return Ok((branch, commit, PullRequest::No));
+    };
+    let number = value(env, request.iid)?.and_then(number);
+    let branch = value(env, request.target_branch)?.map(str::to_owned);
+    Ok((branch, commit, PullRequest::Yes { number }))
+}
+
+/// The kind of pull request pipeline: an external one by its source, otherwise a merge request
+/// by its source or IID, otherwise an external one by its IID.
+fn request(env: &Env) -> Result<Option<Request>, EnvError> {
+    let source = value(env, "CI_PIPELINE_SOURCE")?;
+    if source == Some(EXTERNAL_PULL_REQUEST.source) {
+        return Ok(Some(EXTERNAL_PULL_REQUEST));
+    }
+    if source == Some(MERGE_REQUEST.source) || value(env, MERGE_REQUEST.iid)?.is_some() {
+        return Ok(Some(MERGE_REQUEST));
+    }
+    Ok(value(env, EXTERNAL_PULL_REQUEST.iid)?.map(|_| EXTERNAL_PULL_REQUEST))
+}
+
 #[cfg(test)]
 mod tests {
     use rstest::rstest;

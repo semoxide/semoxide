@@ -1,5 +1,63 @@
 //! GitHub Actions: detected by `GITHUB_ACTIONS`; the event name tells pull request runs apart.
 
+use super::{PullRequest, Run, number, value};
+use crate::{Env, EnvError};
+
+/// The events whose runs build a pull request before it merges.
+const PULL_REQUEST_EVENTS: [&str; 5] = [
+    "pull_request",
+    "pull_request_target",
+    "pull_request_review",
+    "pull_request_review_comment",
+    "merge_group",
+];
+
+/// The temporary branches a merge queue builds: `<prefix><base>/pr-<n>-<sha>`.
+const MERGE_QUEUE_PREFIX: &str = "refs/heads/gh-readonly-queue/";
+
+pub(super) fn read(env: &Env) -> Result<Run, EnvError> {
+    let commit = value(env, "GITHUB_SHA")?.map(str::to_owned);
+    let event = value(env, "GITHUB_EVENT_NAME")?;
+    let git_ref = value(env, "GITHUB_REF")?;
+    let Some(event) = event.filter(|event| PULL_REQUEST_EVENTS.contains(event)) else {
+        let branch = git_ref.and_then(branch_name).map(str::to_owned);
+        return Ok((branch, commit, PullRequest::No));
+    };
+    // `GITHUB_BASE_REF` is set for these two events only; review runs have no branch.
+    let branch = match event {
+        "pull_request" | "pull_request_target" => value(env, "GITHUB_BASE_REF")?,
+        "merge_group" => git_ref.and_then(merge_queue_base),
+        _ => None,
+    };
+    let number = git_ref.and_then(pull_request_number);
+    Ok((
+        branch.map(str::to_owned),
+        commit,
+        PullRequest::Yes { number },
+    ))
+}
+
+/// The branch of `refs/heads/<name>` or of a bare name; no other ref is a branch.
+fn branch_name(git_ref: &str) -> Option<&str> {
+    match git_ref.strip_prefix("refs/heads/") {
+        Some(name) => Some(name).filter(|name| !name.is_empty()),
+        None => Some(git_ref).filter(|name| !name.starts_with("refs/")),
+    }
+}
+
+/// The base branch of a merge queue ref, which ends at the last `/pr-`.
+fn merge_queue_base(git_ref: &str) -> Option<&str> {
+    let (base, _) = git_ref
+        .strip_prefix(MERGE_QUEUE_PREFIX)?
+        .rsplit_once("/pr-")?;
+    Some(base).filter(|base| !base.is_empty())
+}
+
+/// The number of `refs/pull/<n>/merge`.
+fn pull_request_number(git_ref: &str) -> Option<u64> {
+    number(git_ref.strip_prefix("refs/pull/")?.strip_suffix("/merge")?)
+}
+
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
