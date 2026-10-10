@@ -1,9 +1,10 @@
-//! "Did you mean" hints for unknown keys: the closest valid key by edit distance, as rustc and
-//! cargo suggest names.
+//! "Did you mean" hints for unknown names (config keys, env vars): the closest valid name by edit
+//! distance, as rustc and cargo suggest names.
 
 /// The edit distance between `a` and `b`, ignoring case, where swapping two neighbouring
 /// characters counts as one edit; `None` when it exceeds `limit`.
-pub(super) fn edit_distance(a: &str, b: &str, limit: usize) -> Option<usize> {
+#[must_use]
+pub fn edit_distance(a: &str, b: &str, limit: usize) -> Option<usize> {
     let a: Vec<char> = a.to_lowercase().chars().collect();
     let b: Vec<char> = b.to_lowercase().chars().collect();
     let (mut a, mut b) = (a.as_slice(), b.as_slice());
@@ -67,7 +68,8 @@ fn optimal_string_alignment(a: &[char], b: &[char]) -> usize {
 
 /// The candidate closest to `typo`, within `max(len, 3) / 3` edits (rustc's limit); on a tie, the
 /// first one.
-pub(super) fn closest<'a>(typo: &str, candidates: &[&'a str]) -> Option<&'a str> {
+#[must_use]
+pub fn closest<'a>(typo: &str, candidates: &[&'a str]) -> Option<&'a str> {
     let limit = typo.chars().count().max(3) / 3;
     candidates
         .iter()
@@ -94,6 +96,7 @@ mod tests {
     #[case::empty_candidate("abc", "", Some(3))]
     #[case::classic("kitten", "sitting", Some(3))]
     #[case::over_the_limit("kitten", "sitting", None)]
+    #[case::match_at_the_candidates_start_is_no_swap("zab", "a", Some(2))]
     fn edit_distance_cases(#[case] a: &str, #[case] b: &str, #[case] expected: Option<usize>) {
         let limit = if expected.is_none() { 2 } else { 10 };
 

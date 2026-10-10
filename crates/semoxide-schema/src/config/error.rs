@@ -2,10 +2,10 @@
 
 use std::fmt;
 
-use semoxide_error::{ErrorCode, ErrorInfo, Location};
+use semoxide_error::{ErrorCode, ErrorInfo, Location, suggest};
 use toml::Value;
 
-use super::{PluginName, key, suggest};
+use super::{PluginName, key};
 use crate::codes::{
     CONFIG_CONFLICTING_KEYS, CONFIG_INVALID_VALUE, CONFIG_PLUGIN_NOT_ENABLED, CONFIG_UNKNOWN_KEY,
     CONFIG_UNSUPPORTED_SECTION,

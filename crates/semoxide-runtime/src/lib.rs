@@ -4,5 +4,7 @@
 
 pub mod codes;
 pub mod config;
+mod env;
 
+pub use env::{Env, EnvError, UnknownVar};
 pub use semoxide_error::{ErrorCode, ErrorInfo, FileLocation, FlagLocation, Location};

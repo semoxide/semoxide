@@ -18,7 +18,6 @@ mod reader;
 mod schema;
 mod secrets;
 mod steps;
-mod suggest;
 mod tags;
 mod values;
 mod version;

@@ -6,6 +6,8 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
+#[expect(dead_code, reason = "used once commands run (#81)")]
+mod env;
 #[cfg_attr(
     not(test),
     expect(dead_code, reason = "used once commands report errors (#52, #81)")

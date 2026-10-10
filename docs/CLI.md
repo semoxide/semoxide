@@ -54,7 +54,7 @@ Config is never read from env ([CONFIG.md](CONFIG.md)). Env carries only secrets
 | `SEMOXIDE_CI_IS_PR` | overrides the detected PR state on any CI |
 | `SEMOXIDE_SSH_BACKEND` | `exec` selects the system `ssh` ([ARCHITECTURE.md](ARCHITECTURE.md#6-git-and-credentials)) |
 
-Any other `SEMOXIDE_*` var produces a warning (likely a typo).
+Any other `SEMOXIDE_*` var produces a warning (likely a typo), naming the closest known one.
 
 ## Dry-run
 
