@@ -140,7 +140,7 @@ mod test_support {
 mod tests {
     use std::ffi::OsString;
 
-    use semoxide_error::ErrorInfo;
+    use semoxide_error::{ErrorCode, ErrorInfo};
 
     use super::test_support::{detected, not_unicode};
     use super::*;
@@ -201,6 +201,113 @@ mod tests {
                 (github.vendor(), github.commit(), github.branch())
             ),
             ((None, false), (Some(Vendor::GitHubActions), None, None))
+        );
+    }
+
+    #[test]
+    fn without_a_vendor_its_variables_are_ignored() {
+        let context = detected(&[
+            ("CI", "true"),
+            ("GITHUB_SHA", "1234"),
+            ("GITHUB_REF", "refs/heads/main"),
+            ("CI_COMMIT_SHA", "5678"),
+            ("CI_COMMIT_BRANCH", "main"),
+        ]);
+
+        assert_eq!(
+            (
+                context.is_ci(),
+                context.vendor(),
+                context.branch(),
+                context.commit()
+            ),
+            (true, None, None, None)
+        );
+    }
+
+    fn env_os(vars: &[(&str, OsString)]) -> Env {
+        Env::with_case(
+            Case::Sensitive,
+            vars.iter()
+                .map(|(name, value)| (OsString::from(name), value.clone())),
+        )
+    }
+
+    /// The code and message of the error detection fails with, if it does.
+    fn failure(env: &Env) -> Option<(ErrorCode, String)> {
+        detect(env)
+            .err()
+            .map(|error| (error.code(), error.to_string()))
+    }
+
+    #[test]
+    fn variables_that_arent_read_may_be_anything() {
+        let env = env_os(&[
+            ("GITHUB_ACTIONS", OsString::from("true")),
+            ("GITHUB_REF", OsString::from("refs/heads/main")),
+            ("GITHUB_BASE_REF", not_unicode()),
+            ("CI", not_unicode()),
+            ("GITLAB_CI", not_unicode()),
+            ("CI_COMMIT_BRANCH", not_unicode()),
+            ("HOME", not_unicode()),
+        ]);
+
+        let result = detect(&env);
+
+        assert_eq!(
+            result.map(|context| (context.vendor(), context.branch().map(str::to_owned))),
+            Ok((Some(Vendor::GitHubActions), Some(String::from("main"))))
+        );
+    }
+
+    #[test]
+    fn the_merge_request_iid_isnt_read_on_an_external_pull_request() {
+        let env = env_os(&[
+            ("GITLAB_CI", OsString::from("true")),
+            (
+                "CI_PIPELINE_SOURCE",
+                OsString::from("external_pull_request_event"),
+            ),
+            ("CI_EXTERNAL_PULL_REQUEST_IID", OsString::from("7")),
+            (
+                "CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME",
+                OsString::from("main"),
+            ),
+            ("CI_MERGE_REQUEST_IID", not_unicode()),
+        ]);
+
+        let result = detect(&env);
+
+        assert_eq!(
+            result.map(|context| (context.branch().map(str::to_owned), context.pull_request())),
+            Ok((
+                Some(String::from("main")),
+                PullRequest::Yes { number: Some(7) }
+            ))
+        );
+    }
+
+    #[test]
+    fn a_variable_that_isnt_utf_8_is_an_error_when_read() {
+        let no_vendor = env_os(&[("CI", not_unicode())]);
+        let gitlab = env_os(&[
+            ("GITLAB_CI", OsString::from("true")),
+            ("CI_PIPELINE_SOURCE", OsString::from("merge_request_event")),
+            ("CI_MERGE_REQUEST_IID", not_unicode()),
+        ]);
+
+        assert_eq!(
+            (failure(&no_vendor), failure(&gitlab)),
+            (
+                Some((
+                    ENV_NOT_UNICODE,
+                    String::from("the value of `CI` isn't valid UTF-8")
+                )),
+                Some((
+                    ENV_NOT_UNICODE,
+                    String::from("the value of `CI_MERGE_REQUEST_IID` isn't valid UTF-8")
+                ))
+            )
         );
     }
 

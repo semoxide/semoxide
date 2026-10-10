@@ -9,7 +9,7 @@ mod tests {
     use super::super::test_support::fields;
 
     /// env-ci's test environment for GitLab, as a branch pipeline (env-ci also sets a tag,
-    /// which a branch pipeline never has).
+    /// which a branch pipeline never has), plus `CI_DEFAULT_BRANCH`, which GitLab always sets.
     const BASE: &[(&str, &str)] = &[
         ("GITLAB_CI", "true"),
         ("CI_COMMIT_SHA", "5678"),
@@ -20,6 +20,7 @@ mod tests {
         ("CI_PROJECT_PATH", "owner/repo"),
         ("CI_PROJECT_DIR", "/"),
         ("CI_PIPELINE_SOURCE", "push"),
+        ("CI_DEFAULT_BRANCH", "main"),
     ];
 
     const fn mr(number: u64) -> PullRequest {
@@ -86,6 +87,79 @@ mod tests {
         &[("CI_COMMIT_TAG", "v1.0.0"), ("CI_COMMIT_REF_NAME", "v1.0.0")],
         None,
         No
+    )]
+    // The ref name isn't a branch without `CI_COMMIT_BRANCH`.
+    #[case::differs_ref_name_is_not_the_branch(&[], None, No)]
+    // Merge request variables make a merge request run whatever the pipeline source, e.g. a
+    // child pipeline.
+    #[case::differs_mr_variables_in_a_child_pipeline(
+        &[
+            ("CI_PIPELINE_SOURCE", "parent_pipeline"),
+            ("CI_MERGE_REQUEST_IID", "10"),
+            ("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main"),
+        ],
+        Some("main"),
+        mr(10)
+    )]
+    #[case::differs_external_pr_variables_without_its_source(
+        &[
+            ("CI_EXTERNAL_PULL_REQUEST_IID", "7"),
+            ("CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME", "main"),
+        ],
+        Some("main"),
+        mr(7)
+    )]
+    // A pull request's branch is its target branch or unknown, never the commit's branch.
+    #[case::differs_external_pr_without_target(
+        &[
+            ("CI_PIPELINE_SOURCE", "external_pull_request_event"),
+            ("CI_EXTERNAL_PULL_REQUEST_IID", "7"),
+            ("CI_COMMIT_BRANCH", "feature"),
+        ],
+        None,
+        mr(7)
+    )]
+    // On an external pull request pipeline its own variables win over stray merge request ones.
+    #[case::differs_external_pr_source_wins(
+        &[
+            ("CI_PIPELINE_SOURCE", "external_pull_request_event"),
+            ("CI_MERGE_REQUEST_IID", "10"),
+            ("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "dev"),
+            ("CI_EXTERNAL_PULL_REQUEST_IID", "7"),
+            ("CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME", "main"),
+        ],
+        Some("main"),
+        mr(7)
+    )]
+    // Otherwise the merge request's variables come first.
+    #[case::differs_mr_variables_win_unless_the_source_is_external(
+        &[
+            ("CI_MERGE_REQUEST_IID", "10"),
+            ("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "dev"),
+            ("CI_EXTERNAL_PULL_REQUEST_IID", "7"),
+            ("CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME", "main"),
+        ],
+        Some("dev"),
+        mr(10)
+    )]
+    #[case::differs_iid_with_a_leading_zero(
+        &[
+            ("CI_PIPELINE_SOURCE", "merge_request_event"),
+            ("CI_MERGE_REQUEST_IID", "010"),
+            ("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main"),
+        ],
+        Some("main"),
+        mr(10)
+    )]
+    // The IID is plain digits or no number.
+    #[case::differs_iid_not_digits(
+        &[
+            ("CI_PIPELINE_SOURCE", "merge_request_event"),
+            ("CI_MERGE_REQUEST_IID", "+10"),
+            ("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main"),
+        ],
+        Some("main"),
+        Yes { number: None }
     )]
     fn gitlab_ci(
         #[case] extra: &[(&str, &str)],
