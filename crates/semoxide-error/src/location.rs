@@ -170,4 +170,14 @@ mod tests {
     ) {
         assert_eq!(at(text, span).span(), Some(fitted));
     }
+
+    #[test]
+    fn a_flag_location_keeps_its_position_and_text() {
+        let location = FlagLocation::new(2, String::from("--set tags.format=release"));
+
+        assert_eq!(
+            (location.position(), location.flag()),
+            (2, "--set tags.format=release")
+        );
+    }
 }

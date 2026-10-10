@@ -553,6 +553,10 @@ mod tests {
         "[[branches.rules]]\nname = \"main\"\n\n[[branches.rules]]\nchannel = \"next\"",
         "semoxide.toml:4:1"
     )]
+    #[case::a_longer_sibling_is_not_picked(
+        "[version]\ninitial = \"0.1.0\"\n\n[tags]\nformat = \"release\"",
+        "semoxide.toml:5:10"
+    )]
     #[case::invalid_toml("tags.format = \"v{version}", "semoxide.toml:1:26")]
     #[case::invalid_toml_on_a_later_line("a = 1\nb = = 2", "semoxide.toml:2:5")]
     fn a_file_error_points_at_the_line_and_column(#[case] text: &str, #[case] expected: &str) {
