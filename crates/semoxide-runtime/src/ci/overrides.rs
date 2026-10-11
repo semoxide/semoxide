@@ -1,12 +1,33 @@
 //! `SEMOXIDE_CI_BRANCH` and `SEMOXIDE_CI_IS_PR`: override what the vendor variables say, on any
 //! CI or none (CLI.md).
 
-use super::CiContext;
+use super::{CiContext, PullRequest};
 use crate::{Env, EnvError};
 
-/// `context` with the overrides set in `env` applied.
-pub(super) fn apply(_env: &Env, context: CiContext) -> Result<CiContext, EnvError> {
+/// `context` with the overrides set in `env` applied; empty ones count as unset.
+pub(super) fn apply(env: &Env, mut context: CiContext) -> Result<CiContext, EnvError> {
+    if let Some((_, branch)) = set(env, "SEMOXIDE_CI_BRANCH")? {
+        context.branch = Some(branch.to_owned());
+    }
+    let Some((name, is_pr)) = set(env, "SEMOXIDE_CI_IS_PR")? else {
+        return Ok(context);
+    };
+    context.pull_request = if is_pr.eq_ignore_ascii_case("true") {
+        match context.pull_request {
+            PullRequest::No => PullRequest::Yes { number: None },
+            detected => detected,
+        }
+    } else if is_pr.eq_ignore_ascii_case("false") {
+        PullRequest::No
+    } else {
+        return Err(EnvError::invalid(name, is_pr, "`true` or `false`"));
+    };
     Ok(context)
+}
+
+/// The name as set and the value of `name`, if it is set and not empty.
+fn set<'a>(env: &'a Env, name: &str) -> Result<Option<(&'a str, &'a str)>, EnvError> {
+    Ok(env.var_named(name)?.filter(|(_, value)| !value.is_empty()))
 }
 
 #[cfg(test)]
