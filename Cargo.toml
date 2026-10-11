@@ -36,6 +36,9 @@ insta = "=1.49.0"
 # Only the validator: no remote `$ref` resolution.
 jsonschema = { version = "=0.58.6", default-features = false }
 toml = "=1.1.6"
+tracing = "=0.1.44"
+# Only the `Layer` trait and `Registry`, for capturing events in tests.
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["registry", "std"] }
 
 [workspace.lints.rust]
 # `deny`, not `forbid`: semoxide-git's transport registration needs a scoped `#[expect(unsafe_code)]`.
