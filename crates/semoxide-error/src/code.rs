@@ -1,4 +1,4 @@
-//! Namespaced error codes such as `core::no_git_repo` (OBSERVABILITY §8).
+//! Namespaced error codes such as `git::no_repository` (OBSERVABILITY §8).
 
 use std::borrow::Cow;
 use std::fmt;
@@ -18,8 +18,8 @@ const SEPARATOR: &str = "::";
 /// ```
 /// use semoxide_error::ErrorCode;
 ///
-/// const CORE_NO_GIT_REPO: ErrorCode = ErrorCode::from_static("core::no_git_repo");
-/// assert_eq!(CORE_NO_GIT_REPO.slug(), "core/no-git-repo");
+/// const GIT_NO_REPOSITORY: ErrorCode = ErrorCode::from_static("git::no_repository");
+/// assert_eq!(GIT_NO_REPOSITORY.slug(), "git/no-repository");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ErrorCode {
@@ -50,13 +50,13 @@ impl ErrorCode {
         }
     }
 
-    /// The code as written, e.g. `core::no_git_repo`.
+    /// The code as written, e.g. `git::no_repository`.
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.code
     }
 
-    /// The docs path, e.g. `core/no-git-repo`: `<namespace>/<name with _ replaced by ->`.
+    /// The docs path, e.g. `git/no-repository`: `<namespace>/<name with _ replaced by ->`.
     #[must_use]
     pub fn slug(&self) -> String {
         let (namespace, name) = self.parts();
@@ -76,7 +76,7 @@ impl ErrorCode {
         let code: Self = format!("{namespace}{SEPARATOR}{}", name.replace('-', "_"))
             .parse()
             .map_err(|_| invalid())?;
-        // One code, one slug: `core/no_git_repo` must not also mean `core::no_git_repo`.
+        // One code, one slug: `git/no_repository` must not also mean `git::no_repository`.
         if code.slug() != slug {
             return Err(invalid());
         }
@@ -184,7 +184,7 @@ mod tests {
     use super::*;
 
     #[rstest]
-    #[case::core("core::no_git_repo", "core/no-git-repo")]
+    #[case::no_repository("git::no_repository", "git/no-repository")]
     #[case::git("git::push_rejected", "git/push-rejected")]
     #[case::plugin_namespace_with_dash(
         "commit-analyzer::invalid_rule",
@@ -201,13 +201,13 @@ mod tests {
     }
 
     #[rstest]
-    #[case::single_colon("core:no_git_repo")]
+    #[case::single_colon("git:no_repository")]
     #[case::two_separators("core::no::git")]
-    #[case::empty_namespace("::no_git_repo")]
+    #[case::empty_namespace("::no_repository")]
     #[case::empty_name("core::")]
-    #[case::uppercase_namespace("Core::no_git_repo")]
-    #[case::uppercase_name("core::NoGitRepo")]
-    #[case::dash_in_name("core::no-git-repo")]
+    #[case::uppercase_namespace("Git::no_repository")]
+    #[case::uppercase_name("git::NoRepository")]
+    #[case::dash_in_name("git::no-repository")]
     #[case::namespace_starts_with_digit("2core::x")]
     #[case::name_starts_with_underscore("core::_x")]
     #[case::upstream_mnemonic("ENOGITREPO")]
@@ -235,7 +235,7 @@ mod tests {
     #[case::no_separator("core")]
     #[case::uppercase("Core/x")]
     #[case::empty_name("core/")]
-    #[case::not_the_canonical_slug("core/no_git_repo")]
+    #[case::not_the_canonical_slug("git/no_repository")]
     fn invalid_slug_is_rejected(#[case] slug: &str) {
         assert!(ErrorCode::from_slug(slug).is_err());
     }

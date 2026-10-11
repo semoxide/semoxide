@@ -95,7 +95,7 @@ pub fn registry_problems(
     problems
 }
 
-/// The constant name for a code: `core::no_git_repo` → `CORE_NO_GIT_REPO`.
+/// The constant name for a code: `git::no_repository` → `GIT_NO_REPOSITORY`.
 #[must_use]
 pub fn constant_name(code: &ErrorCode) -> String {
     code.as_str()
@@ -122,7 +122,7 @@ pub fn codes_in_source(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The slugs of all pages under `docs_dir` (`core/no-git-repo` for `core/no-git-repo.md`),
+/// The slugs of all pages under `docs_dir` (`git/no-repository` for `git/no-repository.md`),
 /// except a top-level `README.md`. A missing directory has no pages.
 ///
 /// # Errors
@@ -199,7 +199,7 @@ mod tests {
 
     use super::*;
 
-    const CORE_NO_GIT_REPO: ErrorCode = ErrorCode::from_static("core::no_git_repo");
+    const GIT_NO_REPOSITORY: ErrorCode = ErrorCode::from_static("git::no_repository");
     const GIT_PUSH_REJECTED: ErrorCode = ErrorCode::from_static("git::push_rejected");
 
     fn strings(items: &[&str]) -> Vec<String> {
@@ -209,9 +209,9 @@ mod tests {
     #[test]
     fn consistent_registry_has_no_problems() {
         let problems = registry_problems(
-            &[CORE_NO_GIT_REPO, GIT_PUSH_REJECTED],
-            &strings(&["core/no-git-repo", "git/push-rejected"]),
-            &strings(&["core::no_git_repo", "git::push_rejected"]),
+            &[GIT_NO_REPOSITORY, GIT_PUSH_REJECTED],
+            &strings(&["git/no-repository", "git/push-rejected"]),
+            &strings(&["git::no_repository", "git::push_rejected"]),
         );
 
         assert_eq!(problems, []);
@@ -220,8 +220,8 @@ mod tests {
     #[test]
     fn removed_page_is_a_missing_page() {
         let problems = registry_problems(
-            &[CORE_NO_GIT_REPO, GIT_PUSH_REJECTED],
-            &strings(&["core/no-git-repo"]),
+            &[GIT_NO_REPOSITORY, GIT_PUSH_REJECTED],
+            &strings(&["git/no-repository"]),
             &[],
         );
 
@@ -231,8 +231,8 @@ mod tests {
     #[test]
     fn page_without_a_code_is_an_orphan() {
         let problems = registry_problems(
-            &[CORE_NO_GIT_REPO],
-            &strings(&["core/no-git-repo", "core/removed-error"]),
+            &[GIT_NO_REPOSITORY],
+            &strings(&["git/no-repository", "core/removed-error"]),
             &[],
         );
 
@@ -245,12 +245,12 @@ mod tests {
     #[test]
     fn code_listed_twice_is_a_duplicate() {
         let problems = registry_problems(
-            &[CORE_NO_GIT_REPO, CORE_NO_GIT_REPO],
-            &strings(&["core/no-git-repo"]),
+            &[GIT_NO_REPOSITORY, GIT_NO_REPOSITORY],
+            &strings(&["git/no-repository"]),
             &[],
         );
 
-        assert_eq!(problems, [Problem::Duplicate(CORE_NO_GIT_REPO)]);
+        assert_eq!(problems, [Problem::Duplicate(GIT_NO_REPOSITORY)]);
     }
 
     #[test]
@@ -270,9 +270,9 @@ mod tests {
     #[test]
     fn code_in_source_but_not_in_all_is_not_registered() {
         let problems = registry_problems(
-            &[CORE_NO_GIT_REPO],
-            &strings(&["core/no-git-repo"]),
-            &strings(&["core::no_git_repo", "git::auth_failed"]),
+            &[GIT_NO_REPOSITORY],
+            &strings(&["git/no-repository"]),
+            &strings(&["git::no_repository", "git::auth_failed"]),
         );
 
         assert_eq!(
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn constant_name_follows_the_code() {
-        assert_eq!(constant_name(&CORE_NO_GIT_REPO), "CORE_NO_GIT_REPO");
+        assert_eq!(constant_name(&GIT_NO_REPOSITORY), "GIT_NO_REPOSITORY");
         assert_eq!(
             constant_name(&ErrorCode::from_static("commit-analyzer::invalid_rule")),
             "COMMIT_ANALYZER_INVALID_RULE"
@@ -332,10 +332,10 @@ pub const GIT_PUSH_REJECTED: ErrorCode = ErrorCode::from_static("git::push_rejec
     #[test]
     fn several_problems_are_all_reported_in_a_fixed_order() {
         let problems = registry_problems(
-            &[CORE_NO_GIT_REPO, GIT_PUSH_REJECTED],
-            &strings(&["core/no-git-repo", "core/removed-error"]),
+            &[GIT_NO_REPOSITORY, GIT_PUSH_REJECTED],
+            &strings(&["git/no-repository", "core/removed-error"]),
             &strings(&[
-                "core::no_git_repo",
+                "git::no_repository",
                 "git::push_rejected",
                 "git::auth_failed",
             ]),
@@ -353,13 +353,14 @@ pub const GIT_PUSH_REJECTED: ErrorCode = ErrorCode::from_static("git::push_rejec
 
     #[test]
     fn page_named_with_underscores_is_an_orphan_and_the_code_misses_its_page() {
-        let problems = registry_problems(&[CORE_NO_GIT_REPO], &strings(&["core/no_git_repo"]), &[]);
+        let problems =
+            registry_problems(&[GIT_NO_REPOSITORY], &strings(&["git/no_repository"]), &[]);
 
         assert_eq!(
             problems,
             [
-                Problem::MissingPage(CORE_NO_GIT_REPO),
-                Problem::OrphanPage(String::from("core/no_git_repo")),
+                Problem::MissingPage(GIT_NO_REPOSITORY),
+                Problem::OrphanPage(String::from("git/no_repository")),
             ]
         );
     }
@@ -389,7 +390,7 @@ pub const GIT_PUSH_REJECTED: ErrorCode = ErrorCode::from_static("git::push_rejec
     fn pages_are_slugs_of_nested_markdown_files_except_the_top_level_readme() {
         let root = tempfile::tempdir().unwrap();
         write(root.path(), "README.md", "style guide");
-        write(root.path(), "core/no-git-repo.md", "");
+        write(root.path(), "git/no-repository.md", "");
         write(root.path(), "commit-analyzer/invalid-rule.md", "");
         write(root.path(), "core/README.md", "");
         write(root.path(), "core/notes.txt", "");
@@ -399,7 +400,7 @@ pub const GIT_PUSH_REJECTED: ErrorCode = ErrorCode::from_static("git::push_rejec
             [
                 "commit-analyzer/invalid-rule",
                 "core/README",
-                "core/no-git-repo"
+                "git/no-repository"
             ]
         );
     }

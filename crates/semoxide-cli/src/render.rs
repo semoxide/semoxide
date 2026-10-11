@@ -227,25 +227,25 @@ mod tests {
 
     use super::*;
 
-    const CORE_NO_GIT_REPO: ErrorCode = ErrorCode::from_static("core::no_git_repo");
+    const GIT_NO_REPOSITORY: ErrorCode = ErrorCode::from_static("git::no_repository");
     const GIT_PUSH_TIMED_OUT: ErrorCode = ErrorCode::from_static("git::push_timed_out");
     const CONFIG_INVALID_VALUE: ErrorCode = ErrorCode::from_static("config::invalid_value");
 
     /// An error with a help line, like most real ones.
     #[derive(Debug)]
-    struct NoGitRepo;
+    struct NoRepository;
 
-    impl fmt::Display for NoGitRepo {
+    impl fmt::Display for NoRepository {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.write_str("not a git repository")
         }
     }
 
-    impl std::error::Error for NoGitRepo {}
+    impl std::error::Error for NoRepository {}
 
-    impl ErrorInfo for NoGitRepo {
+    impl ErrorInfo for NoRepository {
         fn code(&self) -> ErrorCode {
-            CORE_NO_GIT_REPO
+            GIT_NO_REPOSITORY
         }
 
         fn help(&self) -> Option<String> {
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn plain_text_with_help() {
-        insta::assert_snapshot!(text(&NoGitRepo, TextStyle::Plain));
+        insta::assert_snapshot!(text(&NoRepository, TextStyle::Plain));
     }
 
     #[test]
@@ -369,7 +369,7 @@ mod tests {
     #[test]
     fn graphical_text_with_help() {
         insta::assert_snapshot!(text(
-            &NoGitRepo,
+            &NoRepository,
             TextStyle::Graphical {
                 colors: Colors::Off
             }
@@ -388,7 +388,7 @@ mod tests {
 
     #[test]
     fn json_with_help() {
-        insta::assert_snapshot!(serde_json::to_string_pretty(&json(&NoGitRepo)).unwrap());
+        insta::assert_snapshot!(serde_json::to_string_pretty(&json(&NoRepository)).unwrap());
     }
 
     #[test]
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn graphical_text_with_colors_contains_color_codes() {
-        let colored = text(&NoGitRepo, TextStyle::Graphical { colors: Colors::On });
+        let colored = text(&NoRepository, TextStyle::Graphical { colors: Colors::On });
 
         assert!(colored.contains('\u{1b}'), "{colored:?}");
     }
@@ -492,7 +492,7 @@ mod tests {
     #[test]
     fn json_without_a_location_omits_the_field() {
         let value = serde_json::to_value(json(&InvalidTagFormat)).unwrap();
-        let without = serde_json::to_value(json(&NoGitRepo)).unwrap();
+        let without = serde_json::to_value(json(&NoRepository)).unwrap();
 
         assert!(value["error"].get("location").is_some(), "{value}");
         assert!(without["error"].get("location").is_none(), "{without}");

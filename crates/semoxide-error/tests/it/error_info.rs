@@ -4,23 +4,23 @@ use std::fmt;
 
 use semoxide_error::{ErrorCode, ErrorInfo};
 
-const CORE_NO_GIT_REPO: ErrorCode = ErrorCode::from_static("core::no_git_repo");
+const GIT_NO_REPOSITORY: ErrorCode = ErrorCode::from_static("git::no_repository");
 const GIT_PUSH_TIMED_OUT: ErrorCode = ErrorCode::from_static("git::push_timed_out");
 
 #[derive(Debug)]
-struct NoGitRepo;
+struct NoRepository;
 
-impl fmt::Display for NoGitRepo {
+impl fmt::Display for NoRepository {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("not a git repository")
     }
 }
 
-impl std::error::Error for NoGitRepo {}
+impl std::error::Error for NoRepository {}
 
-impl ErrorInfo for NoGitRepo {
+impl ErrorInfo for NoRepository {
     fn code(&self) -> ErrorCode {
-        CORE_NO_GIT_REPO
+        GIT_NO_REPOSITORY
     }
 }
 
@@ -51,9 +51,9 @@ impl ErrorInfo for PushTimedOut {
 
 #[test]
 fn defaults_need_only_a_code() {
-    let error = NoGitRepo;
+    let error = NoRepository;
 
-    assert_eq!(error.code().as_str(), "core::no_git_repo");
+    assert_eq!(error.code().as_str(), "git::no_repository");
     assert_eq!(error.help(), None);
     assert!(!error.retryable());
     assert!(!error.remote_writes_happened());
@@ -62,8 +62,8 @@ fn defaults_need_only_a_code() {
 #[test]
 fn url_points_to_the_docs_page_named_by_the_slug() {
     assert_eq!(
-        NoGitRepo.url(),
-        "https://github.com/semoxide/semoxide/blob/main/docs/errors/core/no-git-repo.md"
+        NoRepository.url(),
+        "https://github.com/semoxide/semoxide/blob/main/docs/errors/git/no-repository.md"
     );
 }
 
@@ -81,9 +81,9 @@ fn overridden_methods_win() {
 
 #[test]
 fn static_code_equals_the_parsed_code() {
-    let parsed: ErrorCode = "core::no_git_repo".parse().unwrap();
+    let parsed: ErrorCode = "git::no_repository".parse().unwrap();
 
-    assert_eq!(CORE_NO_GIT_REPO, parsed);
+    assert_eq!(GIT_NO_REPOSITORY, parsed);
 }
 
 #[test]
