@@ -7,7 +7,7 @@ use std::fmt;
 
 use semoxide_error::{ErrorCode, ErrorInfo, suggest};
 
-use crate::codes::ENV_NOT_UNICODE;
+use crate::codes::{ENV_INVALID_VALUE, ENV_NOT_UNICODE};
 
 /// The `SEMOXIDE_*` variables semoxide reads (CLI.md).
 pub(crate) const KNOWN_VARS: [&str; 4] = [
@@ -74,12 +74,14 @@ impl Env {
         }
     }
 
-    /// The first variable, in byte order, whose name is `name`.
-    fn entry(&self, name: &str) -> Option<(&OsStr, &OsStr)> {
-        self.vars
-            .iter()
-            .find(|(set, _)| set.to_str().is_some_and(|set| self.case.same(set, name)))
-            .map(|(set, value)| (set.as_os_str(), value.as_os_str()))
+    /// The first variable, in byte order, whose name is `name`, with its name as set.
+    fn entry(&self, name: &str) -> Option<(&str, &OsStr)> {
+        self.vars.iter().find_map(|(set, value)| {
+            let set = set.to_str()?;
+            self.case
+                .same(set, name)
+                .then_some((set, value.as_os_str()))
+        })
     }
 
     /// The value of `name`, as set.
@@ -94,12 +96,19 @@ impl Env {
     ///
     /// Returns [`EnvError`] if the value isn't valid UTF-8.
     pub fn var(&self, name: &str) -> Result<Option<&str>, EnvError> {
+        Ok(self.var_named(name)?.map(|(_, value)| value))
+    }
+
+    /// The name of `name` as set and its value as text.
+    pub(crate) fn var_named(&self, name: &str) -> Result<Option<(&str, &str)>, EnvError> {
         let Some((set, value)) = self.entry(name) else {
             return Ok(None);
         };
-        value.to_str().map(Some).ok_or_else(|| EnvError {
-            name: set.to_string_lossy().into_owned(),
-        })
+        let value = value.to_str().ok_or_else(|| EnvError {
+            name: set.to_owned(),
+            kind: Kind::NotUnicode,
+        })?;
+        Ok(Some((set, value)))
     }
 
     /// The `SEMOXIDE_*` variables semoxide doesn't know, in name order (likely typos).
@@ -176,15 +185,48 @@ impl UnknownVar {
     }
 }
 
-/// A variable whose value isn't valid UTF-8.
+/// A variable whose value isn't valid UTF-8 or isn't one semoxide accepts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvError {
+    /// The name as set.
     name: String,
+    kind: Kind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Kind {
+    NotUnicode,
+    Invalid {
+        value: String,
+        /// The accepted values, as the message and help list them.
+        expected: &'static str,
+    },
+}
+
+impl EnvError {
+    /// `value` of the variable set as `name` isn't one of `expected`.
+    pub(crate) fn invalid(name: &str, value: &str, expected: &'static str) -> Self {
+        Self {
+            name: name.to_owned(),
+            kind: Kind::Invalid {
+                value: value.to_owned(),
+                expected,
+            },
+        }
+    }
 }
 
 impl fmt::Display for EnvError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "the value of `{}` isn't valid UTF-8", self.name)
+        let name = &self.name;
+        match &self.kind {
+            Kind::NotUnicode => write!(f, "the value of `{name}` isn't valid UTF-8"),
+            Kind::Invalid { value, expected } => write!(
+                f,
+                "the value of `{name}` is `{}`: expected {expected}",
+                value.escape_debug()
+            ),
+        }
     }
 }
 
@@ -192,11 +234,18 @@ impl std::error::Error for EnvError {}
 
 impl ErrorInfo for EnvError {
     fn code(&self) -> ErrorCode {
-        ENV_NOT_UNICODE
+        match self.kind {
+            Kind::NotUnicode => ENV_NOT_UNICODE,
+            Kind::Invalid { .. } => ENV_INVALID_VALUE,
+        }
     }
 
     fn help(&self) -> Option<String> {
-        Some(format!("Set `{}` to UTF-8 text.", self.name))
+        let name = &self.name;
+        Some(match &self.kind {
+            Kind::NotUnicode => format!("Set `{name}` to UTF-8 text."),
+            Kind::Invalid { expected, .. } => format!("Set `{name}` to {expected}."),
+        })
     }
 }
 

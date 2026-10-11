@@ -50,11 +50,11 @@ Config is never read from env ([CONFIG.md](CONFIG.md)). Env carries only secrets
 | Variable | Effect |
 | --- | --- |
 | `SEMOXIDE_LOG` | log filter ([OBSERVABILITY.md](OBSERVABILITY.md)) |
-| `SEMOXIDE_CI_BRANCH` | overrides the detected branch on any CI |
-| `SEMOXIDE_CI_IS_PR` | overrides the detected PR state on any CI |
+| `SEMOXIDE_CI_BRANCH` | the branch to release from, used as given; overrides the detected one, on CI or not |
+| `SEMOXIDE_CI_IS_PR` | `true` or `false` (any letter case): whether the run is for a PR, on CI or not; `true` keeps a detected PR number. Another value is [`env::invalid_value`](errors/env/invalid-value.md) |
 | `SEMOXIDE_SSH_BACKEND` | `exec` selects the system `ssh` ([ARCHITECTURE.md](ARCHITECTURE.md#6-git-and-credentials)) |
 
-Any other `SEMOXIDE_*` var produces a warning (likely a typo), naming the closest known one.
+An empty value counts as unset. Neither override makes a run count as CI. Any other `SEMOXIDE_*` var produces a warning (likely a typo), naming the closest known one.
 
 ## Dry-run
 
