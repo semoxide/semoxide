@@ -8,6 +8,7 @@ mod log;
 mod repo;
 mod tags;
 
+pub use diff::RepoPath;
 pub use error::GitError;
 pub use id::{CommitId, ObjectId};
 pub use log::{Commit, Signature, Time};

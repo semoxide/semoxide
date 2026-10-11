@@ -171,8 +171,7 @@ mod tests {
     use crate::codes::GIT_READ_FAILED;
 
     /// Tags, a commit whose first paragraph wraps, a body with a footer, a merged branch, a
-    /// pushed `origin/main`, and last a commit by another author with a message that isn't
-    /// UTF-8.
+    /// pushed `origin/main`, and last a commit by another author.
     fn fixture() -> GitFixture {
         let fixture = GitFixture::builder()
             .commit("feat: first")
@@ -188,15 +187,13 @@ mod tests {
             .push()
             .build()
             .unwrap();
-        let message = fixture.path().join("message.txt");
-        std::fs::write(&message, b"fix: price \xa3 5\n\nbody \xb5 \xe4\xef end\n").unwrap();
         fixture
             .git(&[
                 "commit",
                 "--allow-empty",
                 "--author=Ann Other <ann@example.invalid>",
-                "-F",
-                &message.to_string_lossy(),
+                "-m",
+                "fix: by another author",
             ])
             .unwrap();
         fixture
@@ -227,6 +224,40 @@ mod tests {
             .collect()
     }
 
+    /// Writes a commit object exactly as given: `git commit` re-encodes a message that isn't
+    /// UTF-8 (as Latin-1) and can't set the dates or offsets.
+    fn raw_commit(fixture: &GitFixture, object: &[u8]) -> String {
+        let path = fixture.path().join(".git").join("raw-commit");
+        std::fs::write(&path, object).unwrap();
+        fixture
+            .git(&["hash-object", "-t", "commit", "-w", &path.to_string_lossy()])
+            .unwrap()
+    }
+
+    /// A commit object on `parents` with the fixture's current tree.
+    fn object(
+        fixture: &GitFixture,
+        parents: &[&str],
+        author: &[u8],
+        committer: &[u8],
+        message: &[u8],
+    ) -> Vec<u8> {
+        let tree = fixture.rev_parse("HEAD^{tree}").unwrap();
+        let mut object = format!("tree {tree}\n").into_bytes();
+        for parent in parents {
+            object.extend(format!("parent {parent}\n").as_bytes());
+        }
+        object.extend(b"author ");
+        object.extend(author);
+        object.extend(b"\ncommitter ");
+        object.extend(committer);
+        object.extend(b"\n\n");
+        object.extend(message);
+        object
+    }
+
+    // --- Order ---
+
     #[test]
     fn the_order_matches_git_log_for_the_history_and_ranges() {
         let fixture = fixture();
@@ -254,6 +285,55 @@ mod tests {
             )
         );
     }
+
+    /// Committer dates that go back in time, and ties, as rebases and scripts make them.
+    #[test]
+    fn the_order_matches_git_log_with_clock_skew_and_equal_dates() {
+        let fixture = GitFixture::builder().commit("feat: first").build().unwrap();
+        let first = fixture.rev_parse("HEAD").unwrap();
+        let at = |seconds: u64| format!("T <t@example.invalid> {seconds} +0000").into_bytes();
+        let make = |parents: &[&str], seconds: u64, message: &str| {
+            let made = object(
+                &fixture,
+                parents,
+                &at(seconds),
+                &at(seconds),
+                message.as_bytes(),
+            );
+            raw_commit(&fixture, &made)
+        };
+        // `older` is dated before its parent `newer`, so git shows `newer` (through `side`)
+        // first.
+        let newer = make(&[&first], 1_900_000_100, "newer");
+        let older = make(&[&newer], 1_900_000_010, "older");
+        let side = make(&[&newer], 1_900_000_050, "side");
+        let merge = make(&[&older, &side], 1_900_000_200, "merge");
+        // Two branches whose commits all share one date, merged.
+        let left = make(&[&merge], 1_900_000_300, "left");
+        let right = make(&[&merge], 1_900_000_300, "right");
+        let left_tip = make(&[&left], 1_900_000_300, "left tip");
+        let right_tip = make(&[&right], 1_900_000_300, "right tip");
+        let tie = make(&[&left_tip, &right_tip], 1_900_000_300, "tie");
+        fixture
+            .git(&["update-ref", "refs/heads/main", &tie])
+            .unwrap();
+        let repo = repo(&fixture);
+
+        assert_eq!(
+            (
+                repo.log(None, &commit(&fixture, "HEAD"))
+                    .map(|commits| ids(&commits)),
+                repo.log(Some(&commit(&fixture, &older)), &commit(&fixture, "HEAD"))
+                    .map(|commits| ids(&commits))
+            ),
+            (
+                Ok(ids_by_git(&fixture, "HEAD")),
+                Ok(ids_by_git(&fixture, &format!("{older}..HEAD")))
+            )
+        );
+    }
+
+    // --- Fields ---
 
     /// Every field as one line, separated like the `git log` format below.
     fn describe(commit: &Commit) -> String {
@@ -286,9 +366,29 @@ mod tests {
         .join("\0")
     }
 
+    /// `%d` as git 2.38 and later show it by default: git 2.37 also lists other refs by their
+    /// full name (`refs/notes/…`, `refs/pull/…`), which are dropped here.
+    fn default_decorations(decorations: &str) -> String {
+        let Some(list) = decorations
+            .strip_prefix(" (")
+            .and_then(|rest| rest.strip_suffix(')'))
+        else {
+            return decorations.to_owned();
+        };
+        let kept: Vec<&str> = list
+            .split(", ")
+            .filter(|name| !name.starts_with("refs/") || *name == "refs/stash")
+            .collect();
+        if kept.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", kept.join(", "))
+        }
+    }
+
     /// The same fields from `git log -1 --format`, raw dates as `<seconds> <offset>`.
     fn described_by_git(fixture: &GitFixture, id: &str) -> String {
-        fixture
+        let fields = fixture
             .git(&[
                 "log",
                 "-1",
@@ -297,7 +397,26 @@ mod tests {
                  %x00%s%x00%b%x00%d%x00%ci",
                 id,
             ])
-            .unwrap()
+            .unwrap();
+        let mut fields: Vec<String> = fields.split('\0').map(str::to_owned).collect();
+        // `%d` is the second to last field.
+        let decorations = fields.len() - 2;
+        fields[decorations] = default_decorations(&fields[decorations]);
+        fields.join("\0")
+    }
+
+    /// Every commit's fields against git's, for the commits `rev` reaches.
+    fn fields_match_git(fixture: &GitFixture, rev: &str) {
+        let commits = repo(fixture).log(None, &commit(fixture, rev));
+        let ours: Result<Vec<String>, String> = commits
+            .map(|commits| commits.iter().map(describe).collect())
+            .map_err(|error| error.to_string());
+        let git: Vec<String> = ids_by_git(fixture, rev)
+            .iter()
+            .map(|id| described_by_git(fixture, id))
+            .collect();
+
+        assert_eq!(ours, Ok(git));
     }
 
     #[test]
@@ -317,64 +436,224 @@ mod tests {
                 "{expected} in {decorations}"
             );
         }
-        let commits = repo(&fixture).log(None, &commit(&fixture, "HEAD"));
-        let ours: Result<Vec<String>, String> = commits
-            .map(|commits| commits.iter().map(describe).collect())
-            .map_err(|error| error.to_string());
-        let git: Vec<String> = ids_by_git(&fixture, "HEAD")
+
+        fields_match_git(&fixture, "HEAD");
+    }
+
+    /// Messages shaped every way `%s` and `%b` split differently, and signatures with offsets
+    /// of both signs, in minutes and with a local date past midnight; on `main`.
+    fn messages_fixture() -> GitFixture {
+        let fixture = GitFixture::builder().commit("feat: first").build().unwrap();
+        let messages: [&[u8]; 11] = [
+            b"\n\n  leading blank lines\nwrapped line  \n \t \nbody after a blank-ish line\n",
+            b"crlf subject\r\nwraps\r\n\r\nbody\r\nline\r\n",
+            b"no newline at the end",
+            b"subject only\n\n\n\n",
+            b"subject\n\nbody with blank lines after\n\n\n",
+            b"form feed\x0c\n\x0c\nis not blank to git\n",
+            b"",
+            b"   \n\t\n",
+            b"\xc2\xa0nbsp subject \xc2\xa0\n\nbody\n",
+            b"tab\tsubject\n\n\n\nbody after blank lines\n\n",
+            b"fix: price \xa3 5\n\nbody \xb5 \xe4\xef end\n",
+        ];
+        let authors: [&[u8]; 4] = [
+            b"Ann Other <ann@example.invalid> 1835479800 +0130",
+            b"Ann \xe9 <ann\xe9@example.invalid> 1798760700 -0700",
+            b"A <a@example.invalid> 1772324100 -0030",
+            b"B <b@example.invalid> 1772324100 +0545",
+        ];
+        // Committer times a day apart around midnight UTC, with offsets moving the local date.
+        let committers = [
+            (
+                "Cee Committer <cee@example.invalid>",
+                1_798_760_700,
+                "+0130",
+            ),
+            ("Dee <dee@example.invalid>", 1_835_479_800, "-0030"),
+            ("Eve <eve@example.invalid>", 1_772_324_100, "+0545"),
+            ("Fay <fay@example.invalid>", 1_798_760_700, "-0700"),
+        ];
+        let mut parent = fixture.rev_parse("HEAD").unwrap();
+        for (index, message) in messages.iter().enumerate() {
+            let author = authors[index % authors.len()];
+            let (who, seconds, offset) = committers[index % committers.len()];
+            let committer = format!("{who} {} {offset}", seconds + 86_400 * index);
+            let made = object(&fixture, &[&parent], author, committer.as_bytes(), message);
+            parent = raw_commit(&fixture, &made);
+        }
+        fixture
+            .git(&["update-ref", "refs/heads/main", &parent])
+            .unwrap();
+        fixture
+    }
+
+    #[test]
+    fn every_field_matches_git_for_awkward_messages_and_signatures() {
+        fields_match_git(&messages_fixture(), "HEAD");
+    }
+
+    /// `message()` is `%B` trimmed and `raw_message()` is `%B` whole.
+    fn messages_match_git(fixture: &GitFixture) {
+        let commits = repo(fixture)
+            .log(None, &commit(fixture, "HEAD"))
+            .unwrap_or_default();
+        let ours: Vec<(String, String)> = commits
             .iter()
-            .map(|id| described_by_git(&fixture, id))
+            .map(|commit| (commit.message().to_owned(), commit.raw_message().to_owned()))
+            .collect();
+        let expected: Vec<(String, String)> = ids_by_git(fixture, "HEAD")
+            .iter()
+            .map(|id| {
+                // The `%x00` at the end keeps the fixture's newline trim off `%B`.
+                let raw = fixture.git(&["log", "-1", "--format=%B%x00", id]).unwrap();
+                let raw = raw.strip_suffix('\0').unwrap().to_owned();
+                (raw.trim().to_owned(), raw)
+            })
+            .collect();
+
+        assert_eq!(ours, expected);
+    }
+
+    #[test]
+    fn the_message_is_trimmed_and_the_raw_message_is_as_stored() {
+        messages_match_git(&fixture());
+    }
+
+    #[test]
+    fn messages_match_git_for_awkward_messages() {
+        messages_match_git(&messages_fixture());
+    }
+
+    #[test]
+    fn non_utf_8_text_is_decoded_with_replacement_characters() {
+        let fixture = messages_fixture();
+        let repo = repo(&fixture);
+        let only = |from: &str, to: &str| {
+            repo.log(Some(&commit(&fixture, from)), &commit(&fixture, to))
+                .unwrap_or_default()
+        };
+        let last = only("HEAD~1", "HEAD");
+        let second = only("HEAD~10", "HEAD~9");
+
+        assert_eq!(
+            (
+                last.first().map(|commit| (commit.subject(), commit.body())),
+                second.first().map(|commit| (
+                    commit.author().name().to_owned(),
+                    commit.author().email().to_owned()
+                ))
+            ),
+            (
+                Some((
+                    String::from("fix: price \u{fffd} 5"),
+                    String::from("body \u{fffd} \u{fffd}\u{fffd} end\n")
+                )),
+                Some((
+                    String::from("Ann \u{fffd}"),
+                    String::from("ann\u{fffd}@example.invalid")
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn short_ids_follow_core_abbrev() {
+        let fixture = fixture();
+        fixture.git(&["config", "core.abbrev", "12"]).unwrap();
+        let ours = repo(&fixture)
+            .log(None, &commit(&fixture, "HEAD"))
+            .map(|commits| {
+                commits
+                    .iter()
+                    .map(|commit| format!("{} {}", commit.short_id(), commit.short_tree_id()))
+                    .collect::<Vec<_>>()
+            });
+        let git: Vec<String> = fixture
+            .git(&["log", "--format=%h %t", "HEAD"])
+            .unwrap()
+            .lines()
+            .map(str::to_owned)
             .collect();
 
         assert_eq!(ours, Ok(git));
     }
 
-    #[test]
-    fn the_message_is_trimmed_and_the_raw_message_is_as_stored() {
-        let fixture = fixture();
-        let commits = repo(&fixture)
-            .log(None, &commit(&fixture, "HEAD"))
-            .unwrap_or_default();
-        let messages: Vec<(&str, &str)> = commits
-            .iter()
-            .map(|commit| (commit.message(), commit.raw_message()))
-            .collect();
-        let expected: Vec<(String, String)> = ids_by_git(&fixture, "HEAD")
-            .iter()
-            .map(|id| {
-                let message = fixture.git(&["log", "-1", "--format=%B", id]).unwrap();
-                let stored = fixture.git(&["cat-file", "commit", id]).unwrap();
-                // The fixture's output drops the final newline every stored message ends with.
-                let raw = format!("{}\n", stored.split_once("\n\n").unwrap().1);
-                (message.trim().to_owned(), raw)
-            })
-            .collect();
+    // --- Decorations ---
 
-        assert_eq!(
-            messages,
-            expected
-                .iter()
-                .map(|(message, raw)| (message.as_str(), raw.as_str()))
-                .collect::<Vec<_>>()
-        );
+    /// Tags created out of name order, a tag of a tag, a loose tag next to packed ones,
+    /// branches and remote branches on one commit, a symbolic `origin/HEAD`, and a notes and a
+    /// pull request ref that current git doesn't show.
+    fn decorations_fixture() -> GitFixture {
+        let fixture = GitFixture::builder()
+            .commit("feat: first")
+            .tag("v1.0.0")
+            .commit("fix: second")
+            .tag("v2.0.0")
+            .annotated_tag("v10.0.0", "ten")
+            .tag("V3.0.0")
+            .tag("a-tag")
+            .branch("zeta")
+            .checkout("main")
+            .branch("alpha")
+            .checkout("main")
+            .note("HEAD", "semoxide-v2.0.0", "{}")
+            .push()
+            .build()
+            .unwrap();
+        for args in [
+            &["tag", "-a", "nested", "-m", "nested", "v10.0.0"][..],
+            &["update-ref", "refs/remotes/upstream/main", "HEAD~1"],
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+            &["update-ref", "refs/pull/1/head", "HEAD"],
+            &["pack-refs", "--all"],
+            &["tag", "loose", "HEAD"],
+        ] {
+            fixture.git(args).unwrap();
+        }
+        fixture
+    }
+
+    /// `%d` of each commit on `main`, as current git shows it.
+    fn decorations_by_git(fixture: &GitFixture) -> Vec<String> {
+        fixture
+            .git(&["log", "--format=%d", "main"])
+            .unwrap()
+            .lines()
+            .map(default_decorations)
+            .collect()
     }
 
     #[test]
-    fn text_that_isnt_utf_8_is_decoded_with_replacement_characters() {
-        let fixture = fixture();
-        let head = repo(&fixture)
-            .log(Some(&commit(&fixture, "HEAD~1")), &commit(&fixture, "HEAD"))
-            .unwrap_or_default();
+    fn decorations_match_git_in_order_for_every_kind_of_ref() {
+        let fixture = decorations_fixture();
+        let ours = |fixture: &GitFixture| {
+            repo(fixture)
+                .log(None, &commit(fixture, "main"))
+                .map(|commits| {
+                    commits
+                        .iter()
+                        .map(|commit| commit.git_tags().to_owned())
+                        .collect::<Vec<_>>()
+                })
+        };
+        let attached = (ours(&fixture), decorations_by_git(&fixture));
+        fixture.git(&["checkout", "--detach", "HEAD~1"]).unwrap();
+        let detached_below = (ours(&fixture), decorations_by_git(&fixture));
+        fixture.git(&["checkout", "--detach", "main"]).unwrap();
+        let detached = (ours(&fixture), decorations_by_git(&fixture));
 
         assert_eq!(
-            head.first()
-                .map(|commit| (commit.subject(), commit.author().name().to_owned())),
-            Some((
-                String::from("fix: price \u{fffd} 5"),
-                String::from("Ann Other")
-            ))
+            (attached.0, detached_below.0, detached.0),
+            (Ok(attached.1), Ok(detached_below.1), Ok(detached.1))
         );
     }
+
+    // --- Errors ---
 
     #[test]
     fn an_unknown_commit_is_a_read_failure() {

@@ -1,18 +1,38 @@
 //! The files a commit changed, for path filters: read on demand, since a diff per commit is the
 //! slow part of a log walk.
 
-use std::path::PathBuf;
+use std::fmt;
 
 use crate::{CommitId, GitError, Repo};
 
+/// A path inside the repository, relative to its top and separated by `/` on every OS, as
+/// path filters match it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RepoPath(String);
+
+impl RepoPath {
+    /// The path, e.g. `crates/core/src/lib.rs`.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for RepoPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 impl Repo {
-    /// The paths `commit` changed against its first parent, sorted; a root commit lists every
-    /// file, and a rename lists both the old and the new path.
+    /// The paths `commit` changed against its first parent, in git's order (by their bytes); a
+    /// root commit lists every file, and a rename lists both the old and the new path. A path
+    /// that isn't UTF-8 is decoded with replacement characters.
     ///
     /// # Errors
     ///
     /// Returns [`GitError`] if `commit` doesn't exist or libgit2 fails to diff it.
-    pub fn changed_paths(&self, _commit: &CommitId) -> Result<Vec<PathBuf>, GitError> {
+    pub fn changed_paths(&self, _commit: &CommitId) -> Result<Vec<RepoPath>, GitError> {
         Ok(Vec::new())
     }
 }
@@ -119,7 +139,7 @@ mod tests {
             repo.changed_paths(&commit(&fixture, rev)).map(|paths| {
                 paths
                     .iter()
-                    .map(|path| path.to_string_lossy().into_owned())
+                    .map(|path| path.as_str().to_owned())
                     .collect::<Vec<_>>()
             })
         };
@@ -141,6 +161,54 @@ mod tests {
                 Ok(diff_tree("side")),
                 Ok(against_first_parent)
             )
+        );
+    }
+
+    /// Names that sort differently as strings and as paths, then a deletion and a change in a
+    /// folder.
+    #[test]
+    fn paths_sort_like_git_and_deletions_count() {
+        let fixture = GitFixture::builder().build().unwrap();
+        let root = fixture.path();
+        for path in ["a-b.txt", "a/b.txt", "a.b", "a0", "A.txt", "a/b/c.txt"] {
+            let path = root.join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "x\n").unwrap();
+        }
+        fixture.git(&["add", "--all"]).unwrap();
+        fixture.git(&["commit", "-m", "feat: root"]).unwrap();
+        fixture.git(&["rm", "-q", "a-b.txt"]).unwrap();
+        std::fs::write(root.join("a").join("b").join("c.txt"), "y\n").unwrap();
+        fixture
+            .git(&["commit", "-am", "fix: delete and change"])
+            .unwrap();
+        let diff_tree = |rev: &str| {
+            lines(
+                &fixture
+                    .git(&[
+                        "diff-tree",
+                        "--no-commit-id",
+                        "--name-only",
+                        "-r",
+                        "--root",
+                        rev,
+                    ])
+                    .unwrap(),
+            )
+        };
+        let repo = Repo::discover(&fixture.path()).unwrap();
+        let ours = |rev: &str| {
+            repo.changed_paths(&commit(&fixture, rev)).map(|paths| {
+                paths
+                    .iter()
+                    .map(|path| path.as_str().to_owned())
+                    .collect::<Vec<_>>()
+            })
+        };
+
+        assert_eq!(
+            (ours("HEAD~1"), ours("HEAD")),
+            (Ok(diff_tree("HEAD~1")), Ok(diff_tree("HEAD")))
         );
     }
 
