@@ -49,6 +49,7 @@ impl Repo {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use semoxide_error::ErrorInfo;
     use semoxide_test_support::git_fixture::GitFixture;
 
@@ -64,9 +65,13 @@ mod tests {
     ///
     /// - `v1.0.0`, lightweight: a note in each ref, all on one commit (upstream #4073).
     /// - `v1.1.0`, annotated: ours on the commit, upstream's two on the tag object.
-    /// - `v1.2.0`, annotated: upstream's note on the commit only, as a fixed upstream would.
-    /// - `v1.3.0`, annotated: upstream's note on both the tag object and the commit.
+    /// - `v1.2.0`, annotated: upstream's note on the commit only, as a fixed upstream would;
+    ///   ours on the tag object only, where semoxide never looks.
+    /// - `v1.3.0`, annotated: upstream's and the legacy note on both the tag object and the
+    ///   commit.
     /// - `v1.4.0`: no notes.
+    /// - `v1.5.0`, annotated: only a legacy note, on the commit.
+    /// - `v1.6.0`: only ours.
     fn fixture() -> GitFixture {
         GitFixture::builder()
             .commit("feat: first")
@@ -82,6 +87,7 @@ mod tests {
             .commit("fix: third")
             .annotated_tag("v1.2.0", "release 1.2.0")
             .note("v1.2.0^{commit}", "semantic-release-v1.2.0", UPSTREAM)
+            .note("v1.2.0", "semoxide-v1.2.0", OURS)
             .commit("fix: fourth")
             .annotated_tag("v1.3.0", "release 1.3.0")
             .note("v1.3.0", "semantic-release-v1.3.0", "on the tag object")
@@ -90,8 +96,20 @@ mod tests {
                 "semantic-release-v1.3.0",
                 "on the commit",
             )
+            .note("v1.3.0", "semantic-release", "legacy on the tag object")
+            .note(
+                "v1.3.0^{commit}",
+                "semantic-release",
+                "legacy on the commit",
+            )
             .commit("fix: fifth")
             .tag("v1.4.0")
+            .commit("fix: sixth")
+            .annotated_tag("v1.5.0", "release 1.5.0")
+            .note("v1.5.0^{commit}", "semantic-release", LEGACY)
+            .commit("fix: seventh")
+            .tag("v1.6.0")
+            .note("v1.6.0", "semoxide-v1.6.0", OURS)
             .build()
             .unwrap()
     }
@@ -175,6 +193,95 @@ mod tests {
         );
     }
 
+    /// Each ref's note stays its own and is looked up only where it belongs.
+    #[test]
+    fn each_ref_keeps_to_itself_and_its_place() {
+        let fixture = fixture();
+        let note = |text: &str| Some(format!("{text}\n"));
+
+        assert_eq!(
+            [
+                ours(&fixture, "v1.2.0"),
+                ours(&fixture, "v1.3.0"),
+                ours(&fixture, "v1.5.0"),
+                ours(&fixture, "v1.6.0"),
+            ],
+            [
+                Ok((None, note(UPSTREAM), None)),
+                Ok((
+                    None,
+                    note("on the tag object"),
+                    note("legacy on the tag object")
+                )),
+                Ok((None, None, note(LEGACY))),
+                Ok((note(OURS), None, None)),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_note_that_isnt_utf_8_is_decoded_with_replacement_characters() {
+        let fixture = GitFixture::builder()
+            .commit("feat: first")
+            .tag("v1.0.0")
+            .build()
+            .unwrap();
+        std::fs::write(fixture.path().join("note.bin"), b"a\xffb\n").unwrap();
+        let blob = fixture.git(&["hash-object", "-w", "note.bin"]).unwrap();
+        fixture
+            .git(&[
+                "notes",
+                "--ref",
+                "semoxide-v1.0.0",
+                "add",
+                "-C",
+                &blob,
+                "v1.0.0",
+            ])
+            .unwrap();
+
+        assert_eq!(
+            ours(&fixture, "v1.0.0"),
+            Ok((Some(String::from("a\u{fffd}b\n")), None, None))
+        );
+    }
+
+    /// `refs/tags/v1..0` can be listed from `packed-refs`, but `refs/notes/semoxide-v1..0`
+    /// isn't a valid ref name, so it has no notes rather than an error.
+    #[test]
+    fn a_tag_whose_notes_ref_would_be_invalid_has_no_notes() {
+        let fixture = GitFixture::builder()
+            .commit("feat: first")
+            .tag("v1.0.0")
+            .note("v1.0.0", "semoxide-v1.0.0", OURS)
+            .build()
+            .unwrap();
+        let head = fixture.rev_parse("HEAD").unwrap();
+        std::fs::write(
+            fixture.path().join(".git").join("packed-refs"),
+            format!("{head} refs/tags/v1..0\n"),
+        )
+        .unwrap();
+        let repo = Repo::discover(&fixture.path()).unwrap();
+        let notes = repo.head().and_then(|head| {
+            repo.merged_tags(head.commit())?
+                .iter()
+                .map(|tag| {
+                    repo.tag_notes(tag)
+                        .map(|notes| (tag.name().to_owned(), notes.semoxide().map(str::to_owned)))
+                })
+                .collect::<Result<Vec<_>, _>>()
+        });
+
+        assert_eq!(
+            notes.map_err(|error| error.to_string()),
+            Ok(vec![
+                (String::from("v1..0"), None),
+                (String::from("v1.0.0"), Some(format!("{OURS}\n")))
+            ])
+        );
+    }
+
     #[test]
     fn a_tag_without_notes_has_none_in_each_ref() {
         let fixture = fixture();
@@ -194,8 +301,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_broken_notes_ref_is_a_read_failure() {
+    #[rstest]
+    #[case::ours("semoxide-v1.0.0")]
+    #[case::upstream("semantic-release-v1.0.0")]
+    #[case::upstream_legacy("semantic-release")]
+    fn a_broken_notes_ref_is_a_read_failure(#[case] notes_ref: &str) {
         let fixture = fixture();
         std::fs::write(
             fixture
@@ -203,7 +313,7 @@ mod tests {
                 .join(".git")
                 .join("refs")
                 .join("notes")
-                .join("semoxide-v1.0.0"),
+                .join(notes_ref),
             "garbage\n",
         )
         .unwrap();
