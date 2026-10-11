@@ -55,7 +55,6 @@ mod tests {
 
     use semoxide_error::{ErrorCode, ErrorInfo};
     use semoxide_test_support::git_fixture::GitFixture;
-    use tempfile::TempDir;
 
     use super::*;
     use crate::codes::{
@@ -97,14 +96,16 @@ mod tests {
         );
     }
 
+    /// The walk stops at the ceiling, so the fixture's repository above it is never found.
     #[test]
     fn no_repository_at_or_above_is_an_error() {
-        let outside = TempDir::new().unwrap();
-        let cwd = outside.path().join("project");
+        let fixture = fixture();
+        let ceiling = fixture.path().join("outside");
+        let cwd = ceiling.join("project");
         std::fs::create_dir_all(&cwd).unwrap();
 
         assert_eq!(
-            failure(Repo::discover_below(&cwd, &[outside.path()])),
+            failure(Repo::discover_below(&cwd, &[&ceiling])),
             Some((
                 GIT_NO_REPOSITORY,
                 format!("no git repository at or above `{}`", cwd.display()),
@@ -112,6 +113,39 @@ mod tests {
                     "Run semoxide in a clone, or point `--cwd` at one."
                 ))
             ))
+        );
+    }
+
+    #[test]
+    fn a_linked_worktree_is_its_own_working_tree() {
+        let fixture = fixture();
+        fixture.git(&["worktree", "add", "../worktree"]).unwrap();
+        let worktree = fixture.path().with_file_name("worktree");
+
+        assert_eq!(
+            Repo::discover(&worktree).map(|repo| canonical(repo.workdir())),
+            Ok(canonical(&worktree))
+        );
+    }
+
+    #[test]
+    fn a_repository_libgit2_cannot_open_is_a_read_failure() {
+        let fixture = fixture();
+        let config = fixture.path().join(".git").join("config");
+        let text = std::fs::read_to_string(&config).unwrap();
+        std::fs::write(
+            &config,
+            text.replace(
+                "repositoryformatversion = 0",
+                "repositoryformatversion = 99",
+            ),
+        )
+        .unwrap();
+
+        // libgit2's wording isn't ours to pin.
+        assert_eq!(
+            failure(Repo::discover(&fixture.path())).map(|(code, _, help)| (code, help)),
+            Some((GIT_READ_FAILED, None))
         );
     }
 
@@ -158,6 +192,18 @@ mod tests {
     }
 
     #[test]
+    fn a_not_found_error_is_no_repository() {
+        let cwd = Path::new("/work/repo");
+        let missing = git2::Error::new(
+            git2::ErrorCode::NotFound,
+            git2::ErrorClass::Repository,
+            "could not find repository at '/work/repo'",
+        );
+
+        assert_eq!(open_error(&missing, cwd), GitError::no_repository(cwd));
+    }
+
+    #[test]
     fn other_open_errors_keep_libgit2s_message() {
         let broken = git2::Error::new(
             git2::ErrorCode::GenericError,
@@ -180,7 +226,7 @@ mod tests {
     // --- Remote URL ---
 
     #[test]
-    fn remote_urls_match_git_including_insteadof() {
+    fn remote_urls_match_git_including_insteadof_and_not_the_push_url() {
         let fixture = fixture();
         fixture
             .git(&[
@@ -195,6 +241,16 @@ mod tests {
             .unwrap();
         fixture
             .git(&["remote", "add", "short", "short:owner/repo.git"])
+            .unwrap();
+        // The push URL must not replace the URL.
+        fixture
+            .git(&[
+                "remote",
+                "set-url",
+                "--push",
+                "origin",
+                "https://example.invalid/push.git",
+            ])
             .unwrap();
         let repo = Repo::discover(&fixture.path());
 

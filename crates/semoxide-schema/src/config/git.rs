@@ -111,6 +111,14 @@ url = "https://github.com/owner/repo.git"
         );
     }
 
+    /// Values are used as given: git rejects a remote named `" "` when it is looked up.
+    #[rstest]
+    #[case::one_character_remote(r#"git.remote = "o""#, "o")]
+    #[case::blank_remote(r#"git.remote = " ""#, " ")]
+    fn any_non_empty_remote_loads_as_given(#[case] text: &str, #[case] remote: &str) {
+        assert_eq!(loaded(text).git().remote(), remote);
+    }
+
     #[rstest]
     #[case::remote_empty(r#"git.remote = """#, CONFIG_INVALID_VALUE, "git.remote", Rejects)]
     #[case::remote_not_a_string("git.remote = 1", CONFIG_INVALID_VALUE, "git.remote", Rejects)]

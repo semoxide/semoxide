@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use semoxide_error::{ErrorCode, ErrorInfo};
 
-use crate::codes::GIT_READ_FAILED;
+use crate::codes::GIT_NO_REPOSITORY;
 
 /// An error reading the repository.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,7 +82,7 @@ impl std::error::Error for GitError {}
 
 impl ErrorInfo for GitError {
     fn code(&self) -> ErrorCode {
-        GIT_READ_FAILED
+        GIT_NO_REPOSITORY
     }
 
     fn help(&self) -> Option<String> {
