@@ -28,6 +28,10 @@ impl ObjectId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub(crate) fn to_oid(&self) -> Result<git2::Oid, git2::Error> {
+        git2::Oid::from_str(&self.0)
+    }
 }
 
 impl From<git2::Oid> for CommitId {

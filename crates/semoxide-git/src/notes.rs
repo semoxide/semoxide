@@ -2,7 +2,13 @@
 //! own so notes from several refs never run together (upstream #4073). Parsing them and
 //! choosing between them is the runtime's job.
 
-use crate::{GitError, Repo, Tag};
+use tracing::debug;
+
+use crate::{GitError, ObjectId, Repo, Tag};
+
+const OURS_PREFIX: &str = "refs/notes/semoxide-";
+const UPSTREAM_PREFIX: &str = "refs/notes/semantic-release-";
+const UPSTREAM_LEGACY: &str = "refs/notes/semantic-release";
 
 /// The text of each notes ref for one tag, as stored; `None` where there is none.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -42,8 +48,53 @@ impl Repo {
     /// # Errors
     ///
     /// Returns [`GitError`] if libgit2 fails to read a notes ref.
-    pub fn tag_notes(&self, _tag: &Tag) -> Result<TagNotes, GitError> {
-        Ok(TagNotes::default())
+    pub fn tag_notes(&self, tag: &Tag) -> Result<TagNotes, GitError> {
+        let read = |error: git2::Error| GitError::read_failed(&error);
+        let name = tag.name();
+        let commit = tag.commit().to_oid().map_err(read)?;
+        let annotation = tag
+            .annotation()
+            .map(ObjectId::to_oid)
+            .transpose()
+            .map_err(read)?;
+        // Upstream's notes: the tag object first, where upstream writes them, then the commit.
+        let upstream_on: Vec<git2::Oid> = annotation.into_iter().chain([commit]).collect();
+        let notes = TagNotes {
+            semoxide: self.note(&format!("{OURS_PREFIX}{name}"), &[commit])?,
+            upstream: self.note(&format!("{UPSTREAM_PREFIX}{name}"), &upstream_on)?,
+            upstream_legacy: self.note(UPSTREAM_LEGACY, &upstream_on)?,
+        };
+        debug!(
+            target: "semoxide::git",
+            op = "G9",
+            tag = name,
+            semoxide = notes.semoxide.is_some(),
+            upstream = notes.upstream.is_some(),
+            upstream_legacy = notes.upstream_legacy.is_some(),
+            "tag notes read"
+        );
+        Ok(notes)
+    }
+
+    /// The first note in `notes_ref` on one of `objects`.
+    fn note(&self, notes_ref: &str, objects: &[git2::Oid]) -> Result<Option<String>, GitError> {
+        for &object in objects {
+            match self.git().find_note(Some(notes_ref), object) {
+                Ok(note) => {
+                    return Ok(Some(
+                        String::from_utf8_lossy(note.message_bytes()).into_owned(),
+                    ));
+                }
+                // No notes ref, no note, or a tag name that makes no valid ref name.
+                Err(error)
+                    if matches!(
+                        error.code(),
+                        git2::ErrorCode::NotFound | git2::ErrorCode::InvalidSpec
+                    ) => {}
+                Err(error) => return Err(GitError::read_failed(&error)),
+            }
+        }
+        Ok(None)
     }
 }
 
