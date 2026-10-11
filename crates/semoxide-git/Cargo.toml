@@ -13,9 +13,12 @@ workspace = true
 [dependencies]
 semoxide-error.workspace = true
 semoxide-version-engine.workspace = true
+git2.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+rstest.workspace = true
+tempfile.workspace = true
 semoxide-test-support.workspace = true
 
 [[bench]]

@@ -94,7 +94,7 @@ mod tests {
     use super::super::test_support::{DRAFT_07, schema_errors};
     use super::super::values::from_json;
     use super::super::{
-        Config, PluginName, Step, branches, commits, layering, secrets, steps, tags, version,
+        Config, PluginName, Step, branches, commits, git, layering, secrets, steps, tags, version,
     };
     use super::json_schema;
 
@@ -277,6 +277,7 @@ mod tests {
             ),
             table("plugins.<name>.timeouts", &Step::NAMES, Others::Rejected),
             table("secrets", &secrets::KEYS, Others::Rejected),
+            table("git", &git::KEYS, Others::Rejected),
         ];
         for step in Step::NAMES {
             let keys: &[&str] = if step == "success" {

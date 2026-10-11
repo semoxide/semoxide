@@ -54,6 +54,9 @@ version = "1.4.2"
 
 [secrets]
 mask_env = ["DEPLOY_TOKEN"]
+
+[git]
+remote = "origin"
 ```
 
 Layers, lowest to highest precedence:
