@@ -127,7 +127,7 @@ All calls go through `execa("git", args, {cwd, env})`. `URL` is `options.reposit
 | G4 | `git check-ref-format refs/tags/<tagFormat(version=0.0.0)>` | `git.js:263` verifyTagName | validate tagFormat | verify | pure ref-name check |
 | G5 | `git push --dry-run --no-verify -- URL HEAD:<branch>` | `git.js:209` verifyAuth | probe push auth | getGitAuthUrl: 1× raw URL, then N× in parallel per token candidate (if more than 1); `run`: 1× | real receive-pack negotiation, not just ls-remote |
 | G6 | `git ls-remote --heads -- URL` | `git.js:73` getBranches | list remote branches for glob expansion | getBranches, once | called with `{cwd}` only, no env |
-| G7 | `git rev-parse --abbrev-ref HEAD` | `git.js:110` fetch | detect detached HEAD (`== "HEAD"`) | per release branch | `reject:false` |
+| G7 | `git rev-parse --abbrev-ref HEAD` | `git.js:110` fetch | detect detached HEAD (`== "HEAD"`) | per release branch | `reject:false`. semoxide: `Repo::head().branch()`, `None` when detached or on a ref outside `refs/heads/` |
 | G8a | `git fetch --unshallow --tags -- URL` | `git.js:110` fetch | unshallow + tags for the CI branch (non-detached) | per branch, serial | does not touch HEAD |
 | G8b | `git fetch --unshallow --tags --update-head-ok -- URL +refs/heads/B:refs/heads/B` | `git.js:110` | force-update local branch B (non-CI branch or detached HEAD) | per branch | updates the ref even if checked out |
 | G8c | G8a/G8b without `--unshallow` | `git.js:110` | fallback when the repo is already complete (unshallow errors) | on G8a/b failure | |
@@ -137,7 +137,7 @@ All calls go through `execa("git", args, {cwd, env})`. `URL` is `options.reposit
 | G11 | `git tag --merged <branch>` | `git.js:34` getTags | tags reachable from branch | per branch | |
 | G12 | `git check-ref-format refs/heads/<branch>` | `git.js:279` verifyBranchName | validate branch names | per branch | called without cwd/env |
 | G13 | `git ls-remote --heads -- URL <branch>` | `git.js:296` isBranchUpToDate | remote head sha | only if G5 fails in `run` | |
-| G14 | `git rev-parse HEAD` | `git.js:166` getGitHead | HEAD sha | isBranchUpToDate; nextRelease.gitHead; after **each prepare plugin** | prepare call uses `{cwd}` only |
+| G14 | `git rev-parse HEAD` | `git.js:166` getGitHead | HEAD sha | isBranchUpToDate; nextRelease.gitHead; after **each prepare plugin** | prepare call uses `{cwd}` only. semoxide: `Repo::head().commit()`, always a commit (an annotated tag is followed) |
 | G15 | `git rev-list -1 <tag>` | `git.js:21` getTagHead | peel tag → commit sha | lastRelease, currentRelease, nextRelease (addChannel) | annotated or lightweight |
 | G16 | `git log --format=%H==FIELD==%h==FIELD==%T==FIELD==%t==FIELD==%an==FIELD==%ae==FIELD==%ai==FIELD==%cn==FIELD==%ce==FIELD==%ci==FIELD==%s==FIELD==%b==FIELD==%H==FIELD==%B==FIELD==%d==FIELD==%ci==END== [<from>..]<to>` | `git.js:49` getCommits, via git-log-parser (env = process.env + env) | commits since last release | normal and addChannel paths | default log order, no `--first-parent`, merges included. Output: `{commit{long,short}, tree{long,short}, author{name,email,date}, committer{…}, subject, body, hash, message (trimmed), gitTags (%d), committerDate}`. semoxide reads the same fields from git2 (`Repo::log`, libgit2's default walk, which matches `git log` order) plus the parents and the message as stored |
 | G17 | `git tag <tag> <sha>` | `git.js:227` tag | create **lightweight** tag | new release, non-dry | |

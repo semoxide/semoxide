@@ -1,5 +1,7 @@
 //! `HEAD`: the commit it points to (G14) and the local branch, unless detached (G7).
 
+use tracing::debug;
+
 use crate::{CommitId, GitError, Repo};
 
 /// Where `HEAD` is.
@@ -33,7 +35,33 @@ impl Repo {
     /// Returns [`GitError`] if `HEAD` points at a branch with no commits yet, or libgit2 fails
     /// to read it.
     pub fn head(&self) -> Result<Head, GitError> {
-        Err(GitError::no_remote("HEAD"))
+        let read = |error: git2::Error| GitError::read_failed(&error);
+        let reference = self.git().head().map_err(|error| {
+            if error.code() == git2::ErrorCode::UnbornBranch {
+                GitError::no_commits(self.workdir())
+            } else {
+                read(error)
+            }
+        })?;
+        // Through an annotated tag to its commit.
+        let commit = reference.peel_to_commit().map_err(read)?;
+        // Only a local branch counts; detached, the name is `HEAD`.
+        let branch = reference
+            .name_bytes()
+            .strip_prefix(b"refs/heads/")
+            .map(|name| String::from_utf8_lossy(name).into_owned());
+        let head = Head {
+            commit: CommitId::from(commit.id()),
+            branch,
+        };
+        debug!(
+            target: "semoxide::git",
+            op = "G7/G14",
+            commit = %head.commit,
+            branch = head.branch.as_deref(),
+            "HEAD read"
+        );
+        Ok(head)
     }
 }
 
