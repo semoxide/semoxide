@@ -37,6 +37,8 @@ insta = "=1.49.0"
 jsonschema = { version = "=0.58.6", default-features = false }
 toml = "=1.1.6"
 tracing = "=0.1.44"
+# Vendored libgit2, HTTPS only: SSH goes through semoxide's own transport (ARCHITECTURE §6).
+git2 = { version = "=0.21.0", default-features = false, features = ["vendored-libgit2", "https"] }
 
 [workspace.lints.rust]
 # `deny`, not `forbid`: semoxide-git's transport registration needs a scoped `#[expect(unsafe_code)]`.

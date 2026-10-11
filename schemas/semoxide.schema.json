@@ -179,6 +179,24 @@
       },
       "type": "object"
     },
+    "GitDomain": {
+      "additionalProperties": false,
+      "description": "The git remote semoxide fetches from and publishes to.",
+      "properties": {
+        "remote": {
+          "default": "origin",
+          "description": "The name of the remote to fetch from and push to.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "url": {
+          "description": "A URL that replaces the remote's URL for publishing.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "PluginConfig": {
       "additionalProperties": true,
       "description": "Settings of one plugin; any other keys are the plugin's own options.",
@@ -509,6 +527,9 @@
     },
     "config": {
       "$ref": "#/definitions/ConfigDomain"
+    },
+    "git": {
+      "$ref": "#/definitions/GitDomain"
     },
     "plugins": {
       "additionalProperties": {

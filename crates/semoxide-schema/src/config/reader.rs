@@ -58,8 +58,8 @@ impl Fields {
 }
 
 /// The domains, in the order CONFIG.md lists them.
-pub(super) const DOMAINS: [&str; 8] = [
-    "config", "commits", "version", "branches", "tags", "steps", "plugins", "secrets",
+pub(super) const DOMAINS: [&str; 9] = [
+    "config", "commits", "version", "branches", "tags", "steps", "plugins", "secrets", "git",
 ];
 
 /// `path.name`, or `name` at the top level.

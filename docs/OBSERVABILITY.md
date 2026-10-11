@@ -8,7 +8,7 @@ Logging, secret masking, CI output, errors and diagnostics. Exit codes, commands
 | --- | --- |
 | P1 | The library emits `tracing` spans/events only. It never installs a subscriber and never writes to stdout/stderr; the CLI or the embedder chooses the sink |
 | P2 | Secrets are masked **at the source** (core, plugin host) before an event exists; `MaskingWriter` masks again on output |
-| P3 | The library reads only the `Env` snapshot passed to its builder (the CLI builds it from `std::env::vars_os()`; names ignore ASCII case on Windows). It never reads or mutates the process env and builds child-process envs from that map |
+| P3 | The library reads only the `Env` snapshot passed to its builder (the CLI builds it from `std::env::vars_os()`; names ignore ASCII case on Windows). It never reads or mutates the process env and builds child-process envs from that map. One exception: libgit2 finds git's own config files (global config, `safe.directory`) from `HOME`, `XDG_CONFIG_HOME` and on Windows `USERPROFILE` in the process env, as git does |
 | P4 | Logs go to stderr. stdout carries data only (`--output=json`, the printed next version) |
 | P5 | No release is never silent: a typed reason is always reported ([§7](#7-no-release-reasons)) |
 
@@ -133,7 +133,7 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 ## 8. Errors
 
 - Library errors are `thiserror` enums implementing `ErrorInfo` ([CODE-ARCHITECTURE.md](CODE-ARCHITECTURE.md)): code, message, help line, docs URL, and a location when known: the spot in a file (config errors point at the value for `config::invalid_value`, at the key otherwise) or the `--set` flag the key came from. The CLI shows it as a code snippet in a terminal, a `--> semoxide.toml:2:10` line in plain text and `location` in JSON ([CLI.md](CLI.md)). `miette` is used only by the CLI for rendering.
-- Codes are namespaced names: `core::no_git_repo`, `git::push_rejected`, `github::release_exists`; a plugin's name is its namespace. The docs map upstream mnemonics (`ENOGITREPO` → `core::no_git_repo`).
+- Codes are namespaced names: `git::no_repository`, `git::push_rejected`, `github::release_exists`; a plugin's name is its namespace. The docs map upstream mnemonics (`ENOGITREPO` → `git::no_repository`).
 - Message wording, help lines and the page template: [docs/errors/README.md](errors/README.md).
 - Every code has a page `docs/errors/<slug>.md` (until the docs site exists); each crate lists its codes in `codes::ALL`, and a test fails on a missing page, an orphan page, a duplicate code or a code used in the source but missing from `ALL`.
 - All errors from a step are collected and reported together (`related`).

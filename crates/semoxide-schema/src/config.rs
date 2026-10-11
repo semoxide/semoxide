@@ -12,6 +12,7 @@ use toml::{Table, Value};
 mod branches;
 mod commits;
 mod error;
+mod git;
 mod layering;
 mod plugins;
 mod reader;
@@ -27,6 +28,7 @@ pub use branches::{
 };
 pub use commits::{Commits, Preset};
 pub use error::ConfigError;
+pub use git::GitDomain;
 pub use layering::{ConfigDomain, MergeMode};
 pub use plugins::PluginConfig;
 pub use schema::json_schema;
@@ -51,6 +53,7 @@ pub struct Config {
     steps: Steps,
     plugins: BTreeMap<PluginName, PluginConfig>,
     secrets: Secrets,
+    git: GitDomain,
 }
 
 impl Config {
@@ -71,6 +74,7 @@ impl Config {
         let steps = Steps::parse(fields.domain("steps")?)?;
         let plugins = parse_plugins(fields.domain("plugins")?, &steps)?;
         let secrets = Secrets::parse(fields.domain("secrets")?)?;
+        let git = GitDomain::parse(fields.domain("git")?)?;
         if let Some((path, _)) = fields.take("packages") {
             return Err(ConfigError::unsupported(&path));
         }
@@ -84,6 +88,7 @@ impl Config {
             steps,
             plugins,
             secrets,
+            git,
         })
     }
 
@@ -122,6 +127,7 @@ impl Config {
                 .collect(),
         );
         insert("secrets", self.secrets.to_table());
+        insert("git", self.git.to_table());
         table
     }
 
@@ -173,6 +179,12 @@ impl Config {
     pub fn secrets(&self) -> &Secrets {
         &self.secrets
     }
+
+    /// `[git]`
+    #[must_use]
+    pub fn git(&self) -> &GitDomain {
+        &self.git
+    }
 }
 
 impl Default for Config {
@@ -192,6 +204,7 @@ impl Default for Config {
             steps,
             plugins,
             secrets: Secrets::DEFAULT,
+            git: GitDomain::defaults(),
         }
     }
 }
@@ -222,6 +235,7 @@ impl JsonSchema for Config {
                     plugins,
                 ),
                 Property::table("secrets", generator.subschema_for::<Secrets>()),
+                Property::table("git", generator.subschema_for::<GitDomain>()),
             ],
             &Table::new(),
         )
@@ -456,6 +470,9 @@ version = "1.4.2"
 
 [secrets]
 mask_env = ["DEPLOY_TOKEN"]
+
+[git]
+remote = "origin"
 "#;
 
     #[test]
@@ -509,6 +526,7 @@ mask_env = ["DEPLOY_TOKEN"]
             .map(EnvName::as_str)
             .collect();
         assert_eq!(names, ["DEPLOY_TOKEN"]);
+        assert_eq!(config.git().remote(), "origin");
     }
 
     /// Every key set to a value that differs from its default.
@@ -549,6 +567,10 @@ assets = ["a", { path = "b", label = "B" }]
 
 [secrets]
 mask_env = ["DEPLOY_TOKEN"]
+
+[git]
+remote = "upstream"
+url = "https://github.com/owner/repo.git"
 "#;
 
     #[rstest]
@@ -572,6 +594,7 @@ mask_env = ["DEPLOY_TOKEN"]
         assert_ne!(config.tags(), defaults.tags());
         assert_ne!(config.steps(), defaults.steps());
         assert_ne!(config.secrets(), defaults.secrets());
+        assert_ne!(config.git(), defaults.git());
         assert_ne!(
             config.plugin(&plugin("github")),
             defaults.plugin(&plugin("github"))
@@ -602,7 +625,9 @@ mask_env = ["DEPLOY_TOKEN"]
 
         assert_eq!(
             domains,
-            ["branches", "commits", "secrets", "steps", "tags", "version"]
+            [
+                "branches", "commits", "git", "secrets", "steps", "tags", "version"
+            ]
         );
     }
 

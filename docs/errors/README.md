@@ -25,12 +25,12 @@ How to fix it:
 
 ## Page template
 
-One page per code at `docs/errors/<slug>.md`, e.g. `core/no-git-repo.md` for `core::no_git_repo`:
+One page per code at `docs/errors/<slug>.md`, e.g. `git/no-repository.md` for `git::no_repository`:
 
 ```markdown
-# `core::no_git_repo`
+# `git::no_repository`
 
-Not a git repository.
+There is no git repository at or above the directory semoxide runs in.
 
 ## When it happens
 

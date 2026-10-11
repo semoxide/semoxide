@@ -22,6 +22,7 @@ Reference for `semoxide.toml`. Commands that read or write it (`init`, `migrate`
 | `plugins.<name>` | `version`, `timeouts`, `show_output`, plugin options | [§9](#9-plugins-and-steps) |
 | `steps` | `plugins`, `<step>.order`, `success.errors` | [§9](#9-plugins-and-steps) |
 | `secrets` | `mask_env` | [§10](#10-secrets) |
+| `git` | `remote`, `url` | [§13](#13-git-remote) |
 | `packages.<name>` | monorepo units (not yet accepted) | [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 A config using every domain:
@@ -54,6 +55,9 @@ version = "1.4.2"
 
 [secrets]
 mask_env = ["DEPLOY_TOKEN"]
+
+[git]
+remote = "origin"
 ```
 
 Layers, lowest to highest precedence:
@@ -99,6 +103,8 @@ Every key, generated from the code ([§12](#12-json-schema)); a key without a de
 | `plugins.<name>.timeouts.<step>` | | The deadline for this step: a whole number and `s`, `m` or `h`, e.g. `30m`. |
 | `plugins.<name>.version` | | The pinned plugin version; `semoxide sync` downloads it. |
 | `secrets.mask_env` | `[]` | Names of environment variables whose values are masked. |
+| `git.remote` | `"origin"` | The name of the remote to fetch from and push to. |
+| `git.url` | | A URL that replaces the remote's URL for publishing. |
 
 <!-- end of key reference -->
 
@@ -238,3 +244,9 @@ The author of commits made by `[plugins.git]` ([ARCHITECTURE.md](ARCHITECTURE.md
 
 - Tests keep it in step with the parser: every table lists exactly the parser's keys and rejects others (except `[plugins.<name>]`, open for the plugin's options), the defaults match, every config the parser accepts validates, and each rejected config is marked as rejected by the schema too or only by the parser (checks across keys, numbers too large for their type). A change without regenerating the schema or the key reference fails the test suite; regenerate both with `SEMOXIDE_UPDATE_SCHEMA=1 cargo nextest run -p semoxide-schema` and review the diff.
 - The editor schema for `semoxide.toml` includes the configured plugins' option schemas.
+
+## 13. Git remote
+
+- `git.remote = "origin"` (default): the remote semoxide fetches from and publishes to. Its URL comes from git, with `url.<base>.insteadOf` applied; a missing remote is `git::no_remote`.
+- `git.url = "https://…"`: replaces that remote's URL wherever semoxide publishes (API owner and repository, push); fetching still goes through `git.remote`.
+- Both are used as given (no trimming); empty values are rejected. Upstream's `repositoryUrl` maps to `git.url` ([DIFFERENCES.md](DIFFERENCES.md)).

@@ -43,7 +43,7 @@ deny = [
   { crate = "miette", wrappers = ["semoxide-cli"], reason = "diagnostic rendering only in the CLI (OBSERVABILITY §8)" },
   # Decided exclusions.
   { crate = "libssh2-sys", reason = "no libssh2: SSH via russh or the system ssh (ARCHITECTURE §6)" },
-  { crate = "openssl-sys", reason = "no OpenSSL; revisit if git2's https needs it on Linux" },
+  { crate = "openssl-sys", wrappers = ["git2", "libgit2-sys"], reason = "OpenSSL only for libgit2's HTTPS on Linux (Windows and macOS use the system TLS)" },
 ]
 
 [sources]
