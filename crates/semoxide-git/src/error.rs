@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use semoxide_error::{ErrorCode, ErrorInfo};
 
 use crate::codes::{
-    GIT_BARE_REPOSITORY, GIT_NO_REMOTE, GIT_NO_REPOSITORY, GIT_READ_FAILED, GIT_UNSAFE_REPOSITORY,
+    GIT_BARE_REPOSITORY, GIT_NO_COMMITS, GIT_NO_REMOTE, GIT_NO_REPOSITORY, GIT_READ_FAILED,
+    GIT_UNSAFE_REPOSITORY,
 };
 
 /// An error reading the repository.
@@ -32,6 +33,10 @@ enum Kind {
     NoRemote {
         name: String,
     },
+    /// `HEAD` points at a branch with no commits yet.
+    NoCommits {
+        workdir: PathBuf,
+    },
     /// libgit2's message.
     ReadFailed {
         message: String,
@@ -54,6 +59,12 @@ impl GitError {
     pub(crate) fn bare_repository(cwd: &Path) -> Self {
         Self::new(Kind::BareRepository {
             cwd: cwd.to_owned(),
+        })
+    }
+
+    pub(crate) fn no_commits(workdir: &Path) -> Self {
+        Self::new(Kind::NoCommits {
+            workdir: workdir.to_owned(),
         })
     }
 
@@ -89,6 +100,11 @@ impl fmt::Display for GitError {
                 write!(f, "the repository at or above `{}` is bare", cwd.display())
             }
             Kind::NoRemote { name } => write!(f, "no remote `{name}`"),
+            Kind::NoCommits { workdir } => write!(
+                f,
+                "the repository at `{}` has no commits",
+                workdir.display()
+            ),
             Kind::ReadFailed { message } => write!(f, "reading the repository: {message}"),
         }
     }
@@ -103,6 +119,7 @@ impl ErrorInfo for GitError {
             Kind::UnsafeRepository { .. } => GIT_UNSAFE_REPOSITORY,
             Kind::BareRepository { .. } => GIT_BARE_REPOSITORY,
             Kind::NoRemote { .. } => GIT_NO_REMOTE,
+            Kind::NoCommits { .. } => GIT_NO_COMMITS,
             Kind::ReadFailed { .. } => GIT_READ_FAILED,
         }
     }
@@ -122,6 +139,7 @@ impl ErrorInfo for GitError {
             Kind::NoRemote { name } => format!(
                 "Add it with `git remote add {name} <url>`, or set `git.remote` or `git.url`."
             ),
+            Kind::NoCommits { .. } => String::from("Make a first commit, then run semoxide again."),
             Kind::ReadFailed { .. } => return None,
         };
         Some(help)
