@@ -194,7 +194,7 @@ Config keys: [CONFIG](CONFIG.md).
 
 - git2 `RemoteCallbacks` (credentials, `certificate_check`) are not called for a custom transport, so SSH auth and host-key policy live in semoxide's own SSH options.
 
-**Channel notes:** which channels a released version is on (needed for promotion via `add_channel`) is stored as a git note on the tagged commit, JSON `{"channels":[null,"next"]}` (`null` = default channel), one ref per tag: semoxide writes only `refs/notes/semoxide-<tag>`. It also reads upstream's `refs/notes/semantic-release-<tag>` and legacy `refs/notes/semantic-release`, so migrated repos keep their channel history; each ref is read separately (no concatenation, upstream #4073), and semoxide's note wins for the same tag. Notes refs are fetched explicitly and pushed right after the tag.
+**Channel notes:** which channels a released version is on (needed for promotion via `add_channel`) is stored as a git note on the tagged commit, JSON `{"channels":[null,"next"]}` (`null` = default channel), one ref per tag: semoxide writes only `refs/notes/semoxide-<tag>`. It also reads upstream's `refs/notes/semantic-release-<tag>` and legacy `refs/notes/semantic-release`, so migrated repos keep their channel history; each ref is read separately (no concatenation, upstream #4073), and semoxide's note wins for the same tag. Upstream's notes are read from the tagged commit and, for an annotated tag, from the tag object too, where upstream writes them for annotated tags (upstream #1708). Notes refs are fetched explicitly and pushed right after the tag.
 
 **Guards** (git2 behaviour proven in the [git2 PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-ops)):
 

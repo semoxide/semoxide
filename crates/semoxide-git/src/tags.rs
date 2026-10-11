@@ -1,7 +1,13 @@
 //! Tags: the ones merged into a commit (G11) and one by name (G15), each with the commit it
 //! points to.
 
+use std::collections::HashSet;
+
+use tracing::{debug, warn};
+
 use crate::{CommitId, GitError, ObjectId, Repo};
+
+const PREFIX: &str = "refs/tags/";
 
 /// A tag that points at a commit, directly or through an annotated tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,8 +47,41 @@ impl Repo {
     /// # Errors
     ///
     /// Returns [`GitError`] if `commit` doesn't exist or libgit2 fails to read the history.
-    pub fn merged_tags(&self, _commit: &CommitId) -> Result<Vec<Tag>, GitError> {
-        Ok(Vec::new())
+    pub fn merged_tags(&self, commit: &CommitId) -> Result<Vec<Tag>, GitError> {
+        let read = |error: git2::Error| GitError::read_failed(&error);
+        let repo = self.git();
+        // One walk, then a set lookup per tag: checking each tag's ancestry separately is slow
+        // with many tags.
+        let mut walk = repo.revwalk().map_err(read)?;
+        walk.push(commit.to_oid().map_err(read)?).map_err(read)?;
+        let reachable: HashSet<git2::Oid> = walk.collect::<Result<_, _>>().map_err(read)?;
+        let mut tags = Vec::new();
+        for reference in repo.references_glob(&format!("{PREFIX}*")).map_err(read)? {
+            // Like git, a broken ref is left out of the list.
+            let reference = match reference {
+                Ok(reference) => reference,
+                Err(error) => {
+                    warn!(target: "semoxide::git", op = "G11", error = error.message(), "skipping a broken tag");
+                    continue;
+                }
+            };
+            let tag = match to_tag(&reference) {
+                Ok(tag) => tag,
+                // A tag pointing at a missing object is broken too.
+                Err(error) => {
+                    warn!(target: "semoxide::git", op = "G11", %error, "skipping a broken tag");
+                    continue;
+                }
+            };
+            if let Some(tag) = tag
+                && reachable.contains(&tag.commit.to_oid().map_err(read)?)
+            {
+                tags.push(tag);
+            }
+        }
+        tags.sort_by(|a, b| a.name.cmp(&b.name));
+        debug!(target: "semoxide::git", op = "G11", %commit, count = tags.len(), "merged tags read");
+        Ok(tags)
     }
 
     /// The tag `name`; `None` if there is none or it doesn't point at a commit.
@@ -50,9 +89,60 @@ impl Repo {
     /// # Errors
     ///
     /// Returns [`GitError`] if libgit2 fails to read it.
-    pub fn tag_commit(&self, _name: &str) -> Result<Option<Tag>, GitError> {
-        Ok(None)
+    pub fn tag_commit(&self, name: &str) -> Result<Option<Tag>, GitError> {
+        let reference = match self.git().find_reference(&format!("{PREFIX}{name}")) {
+            Ok(reference) => reference,
+            // An invalid name can't be a tag, so it is missing like any other.
+            Err(error)
+                if matches!(
+                    error.code(),
+                    git2::ErrorCode::NotFound | git2::ErrorCode::InvalidSpec
+                ) =>
+            {
+                return Ok(None);
+            }
+            Err(error) => return Err(GitError::read_failed(&error)),
+        };
+        let tag = to_tag(&reference)?;
+        debug!(target: "semoxide::git", op = "G15", tag = name, found = tag.is_some(), "tag read");
+        Ok(tag)
     }
+}
+
+/// The tag `reference` names; `None`, logged, if its name isn't UTF-8 or it doesn't point at a
+/// commit.
+fn to_tag(reference: &git2::Reference<'_>) -> Result<Option<Tag>, GitError> {
+    let Some(name) = reference
+        .name()
+        .ok()
+        .and_then(|full| full.strip_prefix(PREFIX))
+    else {
+        debug!(target: "semoxide::git", "skipping a tag whose name isn't UTF-8");
+        return Ok(None);
+    };
+    let commit = match reference.peel_to_commit() {
+        Ok(commit) => commit.id(),
+        Err(error)
+            if matches!(
+                error.code(),
+                git2::ErrorCode::Peel | git2::ErrorCode::InvalidSpec
+            ) =>
+        {
+            debug!(target: "semoxide::git", tag = name, "skipping a tag that doesn't point at a commit");
+            return Ok(None);
+        }
+        Err(error) => return Err(GitError::read_failed(&error)),
+    };
+    // An annotated tag's ref points at its tag object; a lightweight one at the commit.
+    let annotation = reference
+        .target()
+        .filter(|&target| target != commit)
+        .map(ObjectId::from);
+    Ok(Some(Tag {
+        name: name.to_owned(),
+        commit: CommitId::from(commit),
+        annotation,
+    }))
 }
 
 #[cfg(test)]
@@ -262,6 +352,34 @@ mod tests {
                 repo.merged_tags(&commit(&fixture, "main"))
                     .map(|tags| tags.iter().map(|tag| tag.name().to_owned()).collect()),
                 repo.tag_commit("broken").map_err(|error| error.code())
+            ),
+            (Ok(merged_names()), Err(GIT_READ_FAILED))
+        );
+    }
+
+    /// Like git, a tag pointing at a missing object is left out of the list; asked for by name,
+    /// it is an error.
+    #[test]
+    fn a_dangling_tag_is_skipped_in_the_list_and_an_error_by_name() {
+        let fixture = fixture();
+        std::fs::write(
+            fixture
+                .path()
+                .join(".git")
+                .join("refs")
+                .join("tags")
+                .join("dangling"),
+            "1111111111111111111111111111111111111111
+",
+        )
+        .unwrap();
+        let repo = repo(&fixture);
+
+        assert_eq!(
+            (
+                repo.merged_tags(&commit(&fixture, "main"))
+                    .map(|tags| tags.iter().map(|tag| tag.name().to_owned()).collect()),
+                repo.tag_commit("dangling").map_err(|error| error.code())
             ),
             (Ok(merged_names()), Err(GIT_READ_FAILED))
         );

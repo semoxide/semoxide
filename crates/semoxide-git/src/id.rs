@@ -31,14 +31,14 @@ impl ObjectId {
 }
 
 impl From<git2::Oid> for CommitId {
-    fn from(_oid: git2::Oid) -> Self {
-        Self(String::new())
+    fn from(oid: git2::Oid) -> Self {
+        Self(oid.to_string())
     }
 }
 
 impl From<git2::Oid> for ObjectId {
-    fn from(_oid: git2::Oid) -> Self {
-        Self(String::new())
+    fn from(oid: git2::Oid) -> Self {
+        Self(oid.to_string())
     }
 }
 

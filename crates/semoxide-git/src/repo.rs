@@ -43,6 +43,10 @@ impl Repo {
         Ok(repo)
     }
 
+    pub(crate) fn git(&self) -> &git2::Repository {
+        &self.repo
+    }
+
     /// The working tree's top directory.
     #[must_use]
     pub fn workdir(&self) -> &Path {
