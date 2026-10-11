@@ -43,7 +43,7 @@ mod tests {
     use semoxide_test_support::git_fixture::GitFixture;
 
     use super::*;
-    use crate::codes::GIT_NO_COMMITS;
+    use crate::codes::{GIT_NO_COMMITS, GIT_READ_FAILED};
 
     fn fixture() -> GitFixture {
         GitFixture::builder()
@@ -117,6 +117,103 @@ mod tests {
                 Some(String::from(
                     "Make a first commit, then run semoxide again."
                 ))
+            ))
+        );
+    }
+
+    #[test]
+    fn an_orphan_branch_has_no_commits() {
+        let fixture = fixture();
+        fixture.git(&["checkout", "--orphan", "fresh"]).unwrap();
+        let repo = Repo::discover(&fixture.path()).unwrap();
+
+        assert_eq!(
+            repo.head().map_err(|error| error.code()),
+            Err(GIT_NO_COMMITS)
+        );
+    }
+
+    #[test]
+    fn a_broken_head_is_a_read_failure() {
+        let fixture = fixture();
+        let repo = Repo::discover(&fixture.path()).unwrap();
+        let branch = fixture
+            .path()
+            .join(".git")
+            .join("refs")
+            .join("heads")
+            .join("main");
+        let code = || repo.head().map_err(|error| error.code());
+        std::fs::write(&branch, "garbage\n").unwrap();
+        let unreadable = code();
+        std::fs::write(&branch, "1111111111111111111111111111111111111111\n").unwrap();
+        let missing = code();
+
+        assert_eq!(
+            (unreadable, missing),
+            (Err(GIT_READ_FAILED), Err(GIT_READ_FAILED))
+        );
+    }
+
+    /// Only a local branch counts: git's `--abbrev-ref` would say `origin/x`.
+    #[test]
+    fn head_on_a_remote_branch_has_no_branch() {
+        let fixture = fixture();
+        fixture
+            .git(&["update-ref", "refs/remotes/origin/x", "feature/x"])
+            .unwrap();
+        fixture
+            .git(&["symbolic-ref", "HEAD", "refs/remotes/origin/x"])
+            .unwrap();
+
+        assert_eq!(
+            ours(&fixture),
+            Ok((fixture.rev_parse("feature/x").unwrap(), None))
+        );
+    }
+
+    /// The commit, not the tag object `git rev-parse HEAD` would give.
+    #[test]
+    fn head_on_an_annotated_tag_gives_its_commit() {
+        let fixture = fixture();
+        fixture
+            .git(&["tag", "-a", "v2.0.0", "-m", "annotated", "main"])
+            .unwrap();
+        fixture
+            .git(&["symbolic-ref", "HEAD", "refs/tags/v2.0.0"])
+            .unwrap();
+
+        assert_eq!(
+            ours(&fixture),
+            Ok((fixture.rev_parse("main").unwrap(), None))
+        );
+    }
+
+    /// Windows can't hold such a branch name: libgit2 fails to map it to a file name before
+    /// decoding it, so this runs on Unix only.
+    #[cfg(unix)]
+    #[test]
+    fn a_branch_name_that_isnt_utf_8_is_decoded_lossily() {
+        let fixture = fixture();
+        fixture.git(&["pack-refs", "--all"]).unwrap();
+        let git_dir = fixture.path().join(".git");
+        let packed = git_dir.join("packed-refs");
+        // The appended ref breaks the sort order the header promises.
+        let text = std::fs::read(&packed).unwrap();
+        let mut text = String::from_utf8(text)
+            .unwrap()
+            .replace(" sorted", "")
+            .into_bytes();
+        text.extend(fixture.rev_parse("feature/x").unwrap().as_bytes());
+        text.extend(b" refs/heads/f\xff\n");
+        std::fs::write(&packed, text).unwrap();
+        std::fs::write(git_dir.join("HEAD"), b"ref: refs/heads/f\xff\n").unwrap();
+
+        assert_eq!(
+            ours(&fixture),
+            Ok((
+                fixture.rev_parse("feature/x").unwrap(),
+                Some(String::from("f\u{fffd}"))
             ))
         );
     }
