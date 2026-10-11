@@ -142,6 +142,7 @@ Each tool runs directly: pinned in `mise.toml`, run locally by lefthook (`leftho
 | version / bump / branch / channel logic | `semoxide-version-engine` | pure (P1), newtypes (P8), strict TDD (A2) |
 | a git operation | `semoxide-git` | guards and credential rules ([ARCHITECTURE](ARCHITECTURE.md)); characterization test against a real repo |
 | CI vendor detection | `semoxide-runtime` (CI module) | env snapshot only, never `std::env` |
+| a no-release reason | `NoReleaseReason` in `semoxide-runtime` (orchestrator); the engine returns typed results the orchestrator maps to reasons | listed in [OBSERVABILITY](OBSERVABILITY.md#7-no-release-reasons) |
 | lifecycle / step behaviour | `semoxide-runtime` (orchestrator) | A1 failure table first; rollback and idempotency |
 | plugin protocol changes | the `semoxide-plugin-protocol` repo | additive within a major version ([ARCHITECTURE](ARCHITECTURE.md)) |
 | plugin host behaviour (spawn, services, lock) | `semoxide-runtime` (plugin host module) + `semoxide-plugin-host` | async stays inside it (§3) |

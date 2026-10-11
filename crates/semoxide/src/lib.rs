@@ -8,6 +8,7 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use semoxide_runtime::ci::{CiContext, PullRequest, Vendor};
+pub use semoxide_runtime::orchestrator::NoReleaseReason;
 pub use semoxide_runtime::{
     Env, EnvError, ErrorCode, ErrorInfo, FileLocation, FlagLocation, Location, UnknownVar,
 };

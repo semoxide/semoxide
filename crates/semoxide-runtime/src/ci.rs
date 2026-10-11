@@ -6,6 +6,8 @@ mod github;
 mod gitlab;
 mod overrides;
 
+use tracing::debug;
+
 use crate::{Env, EnvError};
 
 /// The CI service a run is on.
@@ -80,7 +82,11 @@ impl CiContext {
 ///
 /// Returns [`EnvError`] if a variable it reads isn't valid UTF-8.
 pub fn detect(env: &Env) -> Result<CiContext, EnvError> {
-    overrides::apply(env, detect_vendor(env)?)
+    let detected = detect_vendor(env)?;
+    debug!(target: "semoxide::core", ?detected, "CI context from the vendor variables");
+    let context = overrides::apply(env, detected)?;
+    debug!(target: "semoxide::core", ?context, "CI context");
+    Ok(context)
 }
 
 /// The context the vendor variables give, before the `SEMOXIDE_CI_*` overrides.

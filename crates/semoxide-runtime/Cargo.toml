@@ -16,6 +16,7 @@ semoxide-schema.workspace = true
 semoxide-version-engine.workspace = true
 semoxide-git.workspace = true
 toml.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true
