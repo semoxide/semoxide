@@ -1608,6 +1608,7 @@ dependencies = [
  "semoxide-test-support",
  "semoxide-version-engine",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]

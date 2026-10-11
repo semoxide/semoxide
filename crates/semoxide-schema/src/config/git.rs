@@ -6,6 +6,7 @@ use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use toml::{Table, Value};
 
 use super::schema::{Property, closed_table};
+use super::values::string;
 use super::{ConfigError, Fields};
 
 /// `[git]`
@@ -38,9 +39,18 @@ impl GitDomain {
         self.url.as_deref()
     }
 
-    pub(super) fn parse(fields: Fields) -> Result<Self, ConfigError> {
+    pub(super) fn parse(mut fields: Fields) -> Result<Self, ConfigError> {
+        let remote = fields
+            .take("remote")
+            .map(|(path, value)| non_empty(&path, &value))
+            .transpose()?
+            .unwrap_or_else(|| Self::defaults().remote);
+        let url = fields
+            .take("url")
+            .map(|(path, value)| non_empty(&path, &value))
+            .transpose()?;
         fields.finish(&KEYS)?;
-        Ok(Self::defaults())
+        Ok(Self { remote, url })
     }
 
     pub(super) fn to_table(&self) -> Table {
@@ -51,6 +61,19 @@ impl GitDomain {
         }
         table
     }
+}
+
+/// The value as a non-empty string, used as given.
+fn non_empty(path: &str, value: &Value) -> Result<String, ConfigError> {
+    let text = string(path, value)?;
+    if text.is_empty() {
+        return Err(ConfigError::invalid(
+            path,
+            value,
+            "expected a non-empty string",
+        ));
+    }
+    Ok(text)
 }
 
 impl JsonSchema for GitDomain {
@@ -65,12 +88,12 @@ impl JsonSchema for GitDomain {
                 Property::new(
                     "remote",
                     "The name of the remote to fetch from and push to.",
-                    json_schema!({ "type": "string" }),
+                    json_schema!({ "type": "string", "minLength": 1 }),
                 ),
                 Property::new(
                     "url",
                     "A URL that replaces the remote's URL for publishing.",
-                    json_schema!({ "type": "string" }),
+                    json_schema!({ "type": "string", "minLength": 1 }),
                 ),
             ],
             &Self::defaults().to_table(),

@@ -71,6 +71,8 @@ Every row is intentional. The linked doc owns the full rule.
 | Area | semantic-release | semoxide | Details |
 | --- | --- | --- | --- |
 | Git backend | git CLI | git2 (libgit2) only; no git CLI needed | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Finding the repository | `git rev-parse --git-dir` from `cwd`, honouring `GIT_DIR`, `GIT_WORK_TREE` and the other `GIT_*` variables | walks up from `--cwd`; the `GIT_*` variables are ignored (point `--cwd` at the clone instead); a bare repository is rejected (`git::bare_repository`) | [ARCHITECTURE.md](ARCHITECTURE.md#6-git-and-credentials) |
+| Repository URL | `repositoryUrl`, else `package.json#repository`, else `remote.origin.url` | `git.url`, else the URL of `git.remote` (default `origin`) | [CONFIG.md](CONFIG.md#13-git-remote) |
 | SSH | System `ssh` via the git CLI | Built-in pure-Rust SSH (no libssh2, no external binary); system `ssh` transport opt-in | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Credential choice | Credentials already on the remote URL can win over the token | A configured token (`GITHUB_TOKEN`, `GITLAB_TOKEN`, …) always wins; `git@host:` pushed over HTTPS when a token exists | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Credential logging | Logged only at debug level, only when several token vars exist | The credential used is logged by name; a warning when the token won't trigger downstream CI | [ARCHITECTURE.md](ARCHITECTURE.md) |
@@ -101,7 +103,7 @@ Every row is intentional. The linked doc owns the full rule.
 | CI outputs | none in core; wrapper actions (e.g. cycjimmy) write step outputs | the core writes `$GITHUB_OUTPUT` with the cycjimmy action's names, plus a step summary | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | `success` step fails | `fail` runs (opens a "release failed" issue), exit 1, though published ([github#738](https://github.com/semantic-release/github/issues/738)) | release stands, warnings, exit 0 by default; `steps.success.errors = "fail"` → exit 5; never rollback | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Exit codes | 0 or 1 | Distinct codes per failure class (usage, config, verify, partial failure, …) | [CLI.md](CLI.md) |
-| Error codes | Mnemonics like `ENOGITREPO` | Namespaced names like `core::no_git_repo`, `github::release_exists`; each with a docs page | [OBSERVABILITY.md](OBSERVABILITY.md) |
+| Error codes | Mnemonics like `ENOGITREPO` | Namespaced names like `git::no_repository`, `github::release_exists`; each with a docs page | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | Masking | Patches global stdout/stderr; raw and URL-encoded forms | Masking at source plus an output pass; also base64 forms, runtime-registered secrets and a `secrets.mask_env` list | [OBSERVABILITY.md](OBSERVABILITY.md) |
 | Debug logging | `--debug` flag (CLI only) or `DEBUG=semantic-release:*` via the `debug` module | `SEMOXIDE_LOG` (fallback `RUST_LOG`), `-v`/`--debug`, `--log-file` | [OBSERVABILITY.md](OBSERVABILITY.md) |
 

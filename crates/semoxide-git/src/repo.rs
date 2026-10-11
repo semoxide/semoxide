@@ -3,6 +3,8 @@
 
 use std::path::Path;
 
+use tracing::debug;
+
 use crate::GitError;
 
 /// An open repository with a working tree.
@@ -24,14 +26,28 @@ impl Repo {
     }
 
     /// [`Self::discover`], stopping the walk at `ceilings`.
-    pub(crate) fn discover_below(cwd: &Path, _ceilings: &[&Path]) -> Result<Self, GitError> {
-        Err(GitError::no_repository(cwd))
+    pub(crate) fn discover_below(cwd: &Path, ceilings: &[&Path]) -> Result<Self, GitError> {
+        // No `FROM_ENV`: libgit2 would read `GIT_DIR` and the like from the process env.
+        let repo = git2::Repository::open_ext(cwd, git2::RepositoryOpenFlags::empty(), ceilings)
+            .map_err(|error| open_error(&error, cwd))?;
+        if repo.is_bare() {
+            return Err(GitError::bare_repository(cwd));
+        }
+        let repo = Self { repo };
+        debug!(
+            target: "semoxide::git",
+            op = "G3",
+            workdir = %repo.workdir().display(),
+            "repository found"
+        );
+        Ok(repo)
     }
 
     /// The working tree's top directory.
     #[must_use]
     pub fn workdir(&self) -> &Path {
-        self.repo.path()
+        // Bare repositories are rejected when opened, so there is always a working tree.
+        self.repo.workdir().unwrap_or_else(|| self.repo.path())
     }
 
     /// The URL of the remote `name`, with `url.<base>.insteadOf` applied.
@@ -40,13 +56,31 @@ impl Repo {
     ///
     /// Returns [`GitError`] if there is no such remote or libgit2 fails to read it.
     pub fn remote_url(&self, name: &str) -> Result<String, GitError> {
-        Err(GitError::no_remote(name))
+        let remote = self
+            .repo
+            .find_remote(name)
+            .map_err(|error| match error.code() {
+                git2::ErrorCode::NotFound | git2::ErrorCode::InvalidSpec => {
+                    GitError::no_remote(name)
+                }
+                _ => GitError::read_failed(&error),
+            })?;
+        let url = remote
+            .url()
+            .map_err(|error| GitError::read_failed(&error))?;
+        // The URL may carry credentials, so only the remote's name is logged.
+        debug!(target: "semoxide::git", op = "G2", remote = name, "remote URL read");
+        Ok(url.to_owned())
     }
 }
 
 /// The error for libgit2 failing to open the repository found from `cwd`.
-fn open_error(error: &git2::Error, _cwd: &Path) -> GitError {
-    GitError::read_failed(error)
+fn open_error(error: &git2::Error, cwd: &Path) -> GitError {
+    match error.code() {
+        git2::ErrorCode::NotFound => GitError::no_repository(cwd),
+        git2::ErrorCode::Owner => GitError::unsafe_repository(cwd),
+        _ => GitError::read_failed(error),
+    }
 }
 
 #[cfg(test)]

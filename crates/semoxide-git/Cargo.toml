@@ -14,6 +14,7 @@ workspace = true
 semoxide-error.workspace = true
 semoxide-version-engine.workspace = true
 git2.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true

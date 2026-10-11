@@ -81,7 +81,7 @@ Enforced in CI by:
 ## 4. Error and result types
 
 - Each crate has its own `thiserror` enum, `#[non_exhaustive]`.
-- Every error implements `ErrorInfo` (in `semoxide-error`): `code()` (namespaced), `help()`, `url()`, `retryable()`, `remote_writes_happened()`. Codes are compile-time constants named after the full code (`CORE_NO_GIT_REPO` for `core::no_git_repo`), validated by `ErrorCode::from_static`. Known vs unexpected is not a trait method (every `ErrorInfo` error is known): the orchestrator flags each error it hands to `fail` and puts in the `RunReport`; unexpected means a panic, a plugin crash or an error without a code. Code catalog: [OBSERVABILITY](OBSERVABILITY.md); JSON error contract: [CLI](CLI.md).
+- Every error implements `ErrorInfo` (in `semoxide-error`): `code()` (namespaced), `help()`, `url()`, `retryable()`, `remote_writes_happened()`. Codes are compile-time constants named after the full code (`GIT_NO_REPOSITORY` for `git::no_repository`), validated by `ErrorCode::from_static`. Known vs unexpected is not a trait method (every `ErrorInfo` error is known): the orchestrator flags each error it hands to `fail` and puts in the `RunReport`; unexpected means a panic, a plugin crash or an error without a code. Code catalog: [OBSERVABILITY](OBSERVABILITY.md); JSON error contract: [CLI](CLI.md).
 - The façade exposes a single `semoxide::Error` wrapping the crate errors; a step's collected errors stay a list.
 - **No miette in the libraries:** the CLI converts `ErrorInfo` into miette diagnostics for display.
 
