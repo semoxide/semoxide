@@ -35,7 +35,7 @@ Bare `semoxide` prints help; it never starts a release.
 | `--output=text\|json` | data format on stdout ([JSON contract](#json-contract)); no separate `--json` |
 | `--set <key>=<value>` | overrides one config key (repeatable), validated like the file. The key is a dotted TOML key without array indexes (arrays replace whole). The value is TOML, or a plain string when it isn't valid TOML and doesn't start with `"`, `'`, `[` or `{`: `--set tags.format=v{version}`, `--set plugins.github.draft=true`, `--set 'steps.plugins=["git"]'`; quote to force a string (`--set 'plugins.npm.tag="1"'`). A malformed flag is `config::invalid_flag`. The only way to set config from the CLI ([CONFIG.md](CONFIG.md)) |
 | `--dry-run` | [dry-run](#dry-run) |
-| `--no-ci` | outside CI, semoxide forces dry-run unless this is passed; the outcome is then `NoRelease(NotCi)` plus the would-be result ([OBSERVABILITY.md](OBSERVABILITY.md#7-no-release-reasons)). An explicit `--dry-run` reports only the dry-run result |
+| `--no-ci` | outside CI, semoxide forces dry-run unless this is passed; the outcome is then `NoRelease(NotCi)` plus the would-be result ([OBSERVABILITY.md](OBSERVABILITY.md#7-no-release-reasons)). An explicit `--dry-run` reports only the dry-run result. A pull request run never releases, with or without this flag: the outcome is `NoRelease(PullRequest)` |
 | `--no-input` | [non-interactive rule](#non-interactive-rule) even with a TTY |
 | `--limit N` | caps list-like output (`explain` verdicts, `doctor` details) |
 | `--notes-preview-lines <N>` | caps the notes preview shown in dry-run/`explain` output (a preview is always shown); notes in the release itself are never cut |

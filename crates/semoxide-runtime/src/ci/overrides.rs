@@ -1,17 +1,21 @@
 //! `SEMOXIDE_CI_BRANCH` and `SEMOXIDE_CI_IS_PR`: override what the vendor variables say, on any
 //! CI or none (CLI.md).
 
+use tracing::debug;
+
 use super::{CiContext, PullRequest};
 use crate::{Env, EnvError};
 
 /// `context` with the overrides set in `env` applied; empty ones count as unset.
 pub(super) fn apply(env: &Env, mut context: CiContext) -> Result<CiContext, EnvError> {
-    if let Some((_, branch)) = set(env, "SEMOXIDE_CI_BRANCH")? {
+    if let Some((name, branch)) = set(env, "SEMOXIDE_CI_BRANCH")? {
+        debug!(target: "semoxide::core", variable = name, branch, "branch overridden");
         context.branch = Some(branch.to_owned());
     }
     let Some((name, is_pr)) = set(env, "SEMOXIDE_CI_IS_PR")? else {
         return Ok(context);
     };
+    debug!(target: "semoxide::core", variable = name, value = is_pr, "pull request state overridden");
     context.pull_request = if is_pr.eq_ignore_ascii_case("true") {
         match context.pull_request {
             PullRequest::No => PullRequest::Yes { number: None },

@@ -116,6 +116,8 @@ Every row is intentional. The linked doc owns the full rule.
 | GitHub tags and refs | a tag push reports `refs/tags/<tag>` as the branch | only `refs/heads/<name>` or a bare name is a branch; a tag push has none | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | GitLab pull request runs | `CI_MERGE_REQUEST_ID` set; its instance-wide ID as the number; external pull request pipelines run as their source branch | merge request pipelines by source or IID, external pull request pipelines (`CI_EXTERNAL_PULL_REQUEST_*`), merge trains; the number is the IID users see (`!12`) ([GitLab variables](https://docs.gitlab.com/ci/variables/predefined_variables/)) | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | GitLab branch | `CI_COMMIT_REF_NAME`, so a tag pipeline reports the tag | `CI_COMMIT_BRANCH`; a tag pipeline has none | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| `--no-ci` on a pull request | `--no-ci` also lets a pull request run release | a pull request run never releases; `SEMOXIDE_CI_IS_PR=false` overrides a wrong detection | [CLI.md](CLI.md) |
+| Pull request outside CI | the pull request check runs only on CI | it runs everywhere: outside CI the would-be outcome of the forced dry run is `NoRelease(PullRequest)` | [CLI.md](CLI.md) |
 
 ## Library
 

@@ -1,8 +1,10 @@
 //! The gate at the start of a run: whether it runs for real, as a dry run or stops (CLI.md,
 //! `--dry-run` and `--no-ci`).
 
+use tracing::{debug, info, warn};
+
 use super::NoReleaseReason;
-use crate::ci::CiContext;
+use crate::ci::{CiContext, PullRequest};
 
 /// What the caller asked for: `--dry-run` or not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,11 +48,32 @@ impl Gate {
 }
 
 /// The gate for a run in `ci` with what the caller asked for.
-pub(crate) fn gate(_ci: &CiContext, _requested: Requested, _ci_rule: CiRule) -> Gate {
-    Gate {
-        dry_run: DryRun::No,
-        stop: None,
+pub(crate) fn gate(ci: &CiContext, requested: Requested, ci_rule: CiRule) -> Gate {
+    let dry_run = match (requested, ci_rule) {
+        (Requested::DryRun, _) => DryRun::Requested,
+        (Requested::Release, CiRule::Enforced) if !ci.is_ci() => {
+            warn!(target: "semoxide::core", "not on CI, so this is a dry run");
+            DryRun::Forced
+        }
+        (Requested::Release, _) => DryRun::No,
+    };
+    // `--no-ci` never lets a pull request release; `SEMOXIDE_CI_IS_PR=false` is the way out.
+    let stop = matches!(ci.pull_request(), PullRequest::Yes { .. })
+        .then_some(NoReleaseReason::PullRequest);
+    debug!(
+        target: "semoxide::core",
+        is_ci = ci.is_ci(),
+        pull_request = ?ci.pull_request(),
+        ?requested,
+        ?ci_rule,
+        ?dry_run,
+        ?stop,
+        "run gate"
+    );
+    if stop.is_some() {
+        info!(target: "semoxide::core", "pull request run, so nothing is released");
     }
+    Gate { dry_run, stop }
 }
 
 #[cfg(test)]
