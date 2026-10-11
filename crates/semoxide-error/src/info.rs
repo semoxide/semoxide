@@ -9,7 +9,7 @@ pub const DOCS_BASE_URL: &str = "https://github.com/semoxide/semoxide/blob/main/
 ///
 /// Only [`code`](ErrorInfo::code) is required; the other methods have defaults.
 pub trait ErrorInfo: std::error::Error {
-    /// The namespaced code, e.g. `core::no_git_repo`.
+    /// The namespaced code, e.g. `git::no_repository`.
     fn code(&self) -> ErrorCode;
 
     /// A one-line hint on how to fix it.

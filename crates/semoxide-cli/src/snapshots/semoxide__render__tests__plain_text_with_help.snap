@@ -1,7 +1,7 @@
 ---
 source: crates/semoxide-cli/src/render.rs
-expression: "text(&NoGitRepo, TextStyle::Plain)"
+expression: "text(&NoRepository, TextStyle::Plain)"
 ---
-error[core::no_git_repo]: not a git repository
+error[git::no_repository]: not a git repository
   help: Run semoxide inside a git repository, or pass `--cwd`.
-  docs: https://github.com/semoxide/semoxide/blob/main/docs/errors/core/no-git-repo.md
+  docs: https://github.com/semoxide/semoxide/blob/main/docs/errors/git/no-repository.md
