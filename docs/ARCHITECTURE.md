@@ -183,7 +183,7 @@ Config keys: [CONFIG](CONFIG.md).
 
 ## 6. Git and credentials
 
-- **git2** (vendored libgit2, `https` feature) is the only git library: no git CLI, no gix.
+- **git2** (vendored libgit2, `https` feature) is the only git library: no git CLI, no gix. HTTPS uses WinHTTP on Windows, the system TLS on macOS and the system OpenSSL on Linux.
 - **Opening:** the repository is found by walking up from `--cwd`, without libgit2's `FROM_ENV`, so `GIT_DIR` and the other `GIT_*` variables are ignored. libgit2's ownership check stays on (`safe.directory`, as in git), and a bare repository is rejected. The remote is `git.remote`, its URL overridden by `git.url` ([CONFIG](CONFIG.md#13-git-remote)).
 - **SSH:** git2 is built without its `ssh` feature (no libssh2). A custom transport is registered for `ssh://` and `git@host:` URLs ([git2-russh PoC](https://github.com/semoxide/semoxide-poc/tree/main/git2-russh)). Why not libssh2: [DECISIONS](DECISIONS.md).
 
