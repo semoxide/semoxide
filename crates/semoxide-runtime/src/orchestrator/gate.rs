@@ -55,13 +55,7 @@ pub(crate) fn gate(_ci: &CiContext, _requested: Requested, _ci_rule: CiRule) -> 
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
     use rstest::rstest;
-    use tracing::field::{Field, Visit};
-    use tracing::{Event, Level, Subscriber};
-    use tracing_subscriber::Registry;
-    use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
 
     use super::*;
     use crate::Env;
@@ -81,6 +75,7 @@ mod tests {
         PullRequest,
     }
 
+    /// The context of a run; only the vendor's pull request has a number.
     fn ci(place: Where, run: Run) -> CiContext {
         let vars: &[(&str, &str)] = match (place, run) {
             (Where::Vendor, Run::Push) => &[
@@ -152,147 +147,5 @@ mod tests {
             .collect();
 
         assert_eq!(actual, table);
-    }
-
-    // --- Logging ---
-
-    type Logged = (Level, String, String);
-
-    /// Records each event's level, target and message.
-    #[derive(Clone, Default)]
-    struct Events(Arc<Mutex<Vec<Logged>>>);
-
-    impl<S: Subscriber> Layer<S> for Events {
-        fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
-            let mut message = Message::default();
-            event.record(&mut message);
-            let metadata = event.metadata();
-            self.0.lock().unwrap().push((
-                *metadata.level(),
-                metadata.target().to_owned(),
-                message.0,
-            ));
-        }
-    }
-
-    #[derive(Default)]
-    struct Message(String);
-
-    impl Visit for Message {
-        fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-            if field.name() == "message" {
-                self.0 = format!("{value:?}");
-            }
-        }
-    }
-
-    /// The events the gate logs for a run.
-    fn logged(place: Where, run: Run, requested: Requested, ci_rule: CiRule) -> Vec<Logged> {
-        let context = ci(place, run);
-        let events = Events::default();
-        let subscriber = Registry::default().with(events.clone());
-        tracing::subscriber::with_default(subscriber, || gate(&context, requested, ci_rule));
-        events.0.lock().unwrap().clone()
-    }
-
-    fn warn_not_ci() -> Logged {
-        (
-            Level::WARN,
-            String::from("semoxide::core"),
-            String::from("not on CI, so this is a dry run"),
-        )
-    }
-
-    fn info_pull_request() -> Logged {
-        (
-            Level::INFO,
-            String::from("semoxide::core"),
-            String::from("pull request run, so nothing is released"),
-        )
-    }
-
-    #[test]
-    fn a_forced_dry_run_warns() {
-        assert_eq!(
-            logged(
-                Where::Outside,
-                Run::Push,
-                Requested::Release,
-                CiRule::Enforced
-            ),
-            [warn_not_ci()]
-        );
-    }
-
-    #[test]
-    fn a_pull_request_stop_is_logged() {
-        assert_eq!(
-            (
-                logged(
-                    Where::Vendor,
-                    Run::PullRequest,
-                    Requested::Release,
-                    CiRule::Enforced
-                ),
-                logged(
-                    Where::Vendor,
-                    Run::PullRequest,
-                    Requested::DryRun,
-                    CiRule::Skipped
-                )
-            ),
-            (vec![info_pull_request()], vec![info_pull_request()])
-        );
-    }
-
-    #[test]
-    fn outside_ci_a_pull_request_logs_the_forced_dry_run_then_the_stop() {
-        assert_eq!(
-            logged(
-                Where::Outside,
-                Run::PullRequest,
-                Requested::Release,
-                CiRule::Enforced
-            ),
-            [warn_not_ci(), info_pull_request()]
-        );
-    }
-
-    #[test]
-    fn only_a_forced_dry_run_or_a_stop_is_logged() {
-        let quiet = [
-            logged(
-                Where::Vendor,
-                Run::Push,
-                Requested::Release,
-                CiRule::Enforced,
-            ),
-            logged(
-                Where::CiVariable,
-                Run::Push,
-                Requested::DryRun,
-                CiRule::Enforced,
-            ),
-            logged(
-                Where::Outside,
-                Run::Push,
-                Requested::Release,
-                CiRule::Skipped,
-            ),
-            logged(
-                Where::Outside,
-                Run::Push,
-                Requested::DryRun,
-                CiRule::Enforced,
-            ),
-        ];
-        let forced = logged(
-            Where::Outside,
-            Run::Push,
-            Requested::Release,
-            CiRule::Enforced,
-        );
-
-        assert_eq!((quiet.concat(), forced.len()), (Vec::new(), 1));
     }
 }

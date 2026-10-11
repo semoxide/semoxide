@@ -1,6 +1,9 @@
 //! The release run: its rules, steps and outcome (ARCHITECTURE, Orchestrator).
 
-#[expect(dead_code, reason = "used by the run pipeline (#76)")]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by the run pipeline (#76)")
+)]
 mod gate;
 
 /// Why a run ends without a release (OBSERVABILITY, no-release reasons).
