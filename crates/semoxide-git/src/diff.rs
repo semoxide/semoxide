@@ -1,7 +1,10 @@
 //! The files a commit changed, for path filters: read on demand, since a diff per commit is the
 //! slow part of a log walk.
 
+use std::collections::BTreeSet;
 use std::fmt;
+
+use tracing::debug;
 
 use crate::{CommitId, GitError, Repo};
 
@@ -32,8 +35,33 @@ impl Repo {
     /// # Errors
     ///
     /// Returns [`GitError`] if `commit` doesn't exist or libgit2 fails to diff it.
-    pub fn changed_paths(&self, _commit: &CommitId) -> Result<Vec<RepoPath>, GitError> {
-        Ok(Vec::new())
+    pub fn changed_paths(&self, commit: &CommitId) -> Result<Vec<RepoPath>, GitError> {
+        let read = |error: git2::Error| GitError::read_failed(&error);
+        let repo = self.git();
+        let found = repo
+            .find_commit(commit.to_oid().map_err(read)?)
+            .map_err(read)?;
+        let tree = found.tree().map_err(read)?;
+        let parent = if found.parent_count() == 0 {
+            None
+        } else {
+            Some(found.parent(0).map_err(read)?.tree().map_err(read)?)
+        };
+        // No rename detection: a rename is a deletion and an addition, so both paths count.
+        let diff = repo
+            .diff_tree_to_tree(parent.as_ref(), Some(&tree), None)
+            .map_err(read)?;
+        // Strings sort by their bytes, as git's paths do.
+        let mut paths = BTreeSet::new();
+        for delta in diff.deltas() {
+            for file in [delta.old_file(), delta.new_file()] {
+                if let Some(path) = file.path_bytes() {
+                    paths.insert(String::from_utf8_lossy(path).into_owned());
+                }
+            }
+        }
+        debug!(target: "semoxide::git", op = "G16", %commit, count = paths.len(), "changed paths read");
+        Ok(paths.into_iter().map(RepoPath).collect())
     }
 }
 
@@ -209,6 +237,19 @@ mod tests {
         assert_eq!(
             (ours("HEAD~1"), ours("HEAD")),
             (Ok(diff_tree("HEAD~1")), Ok(diff_tree("HEAD")))
+        );
+    }
+
+    #[test]
+    fn a_repo_path_displays_as_its_text() {
+        let path = RepoPath(String::from("crates/core/src/lib.rs"));
+
+        assert_eq!(
+            (path.to_string(), path.as_str()),
+            (
+                String::from("crates/core/src/lib.rs"),
+                "crates/core/src/lib.rs"
+            )
         );
     }
 

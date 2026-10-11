@@ -1,6 +1,10 @@
 //! The commits of a range, `[from..]to`, in `git log` order (G16), with every field upstream
 //! gives plugins.
 
+use std::collections::HashMap;
+
+use tracing::debug;
+
 use crate::{CommitId, GitError, ObjectId, Repo};
 
 /// A commit as `git log --format` shows it.
@@ -81,19 +85,19 @@ impl Commit {
     /// `%s`: the first paragraph, its lines joined with spaces.
     #[must_use]
     pub fn subject(&self) -> String {
-        String::new()
+        split_subject(&self.raw_message).0
     }
 
     /// `%b`: everything after the first paragraph.
     #[must_use]
     pub fn body(&self) -> String {
-        String::new()
+        split_subject(&self.raw_message).1.to_owned()
     }
 
     /// `%B` trimmed at both ends, as upstream gives plugins.
     #[must_use]
     pub fn message(&self) -> &str {
-        &self.raw_message
+        self.raw_message.trim()
     }
 
     /// The message exactly as stored.
@@ -111,8 +115,73 @@ impl Commit {
     /// `%ci`, e.g. `2026-01-01 00:00:00 +0000`.
     #[must_use]
     pub fn committer_date(&self) -> String {
-        String::new()
+        iso_date(self.committer.time)
     }
+}
+
+/// git's `isspace`: no vertical tab or form feed.
+fn is_git_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\r')
+}
+
+/// The first line of `text` with its newline, and the rest.
+fn first_line(text: &str) -> (&str, &str) {
+    text.find('\n')
+        .map_or((text, ""), |end| text.split_at(end + 1))
+}
+
+/// `text` from its first line that isn't blank.
+fn skip_blank_lines(mut text: &str) -> &str {
+    while !text.is_empty() {
+        let (line, rest) = first_line(text);
+        if !line.trim_end_matches(is_git_space).is_empty() {
+            break;
+        }
+        text = rest;
+    }
+    text
+}
+
+/// `%s` and `%b`, as git's `pretty.c` splits them.
+fn split_subject(message: &str) -> (String, &str) {
+    let mut rest = skip_blank_lines(message);
+    let mut lines = Vec::new();
+    while !rest.is_empty() {
+        let (line, after) = first_line(rest);
+        rest = after;
+        let line = line.trim_end_matches(is_git_space);
+        if line.is_empty() {
+            break;
+        }
+        lines.push(line);
+    }
+    (lines.join(" "), skip_blank_lines(rest))
+}
+
+/// `%ci`: `YYYY-MM-DD HH:MM:SS +ZZZZ` in the time's own offset.
+fn iso_date(time: Time) -> String {
+    let local = time.seconds + i64::from(time.offset_minutes) * 60;
+    let (days, seconds) = (local.div_euclid(86_400), local.rem_euclid(86_400));
+    // Howard Hinnant's civil_from_days.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    let offset = time.offset_minutes;
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02} {}{:02}{:02}",
+        seconds / 3600,
+        seconds % 3600 / 60,
+        seconds % 60,
+        if offset < 0 { '-' } else { '+' },
+        offset.abs() / 60,
+        offset.abs() % 60
+    )
 }
 
 impl Signature {
@@ -157,9 +226,189 @@ impl Repo {
     /// # Errors
     ///
     /// Returns [`GitError`] if a commit doesn't exist or libgit2 fails to read the history.
-    pub fn log(&self, _from: Option<&CommitId>, _to: &CommitId) -> Result<Vec<Commit>, GitError> {
-        Ok(Vec::new())
+    pub fn log(&self, from: Option<&CommitId>, to: &CommitId) -> Result<Vec<Commit>, GitError> {
+        let read = |error: git2::Error| GitError::read_failed(&error);
+        let repo = self.git();
+        let mut walk = repo.revwalk().map_err(read)?;
+        walk.set_sorting(git2::Sort::NONE).map_err(read)?;
+        walk.push(to.to_oid().map_err(read)?).map_err(read)?;
+        if let Some(from) = from {
+            walk.hide(from.to_oid().map_err(read)?).map_err(read)?;
+        }
+        let decorations = decorations(repo).map_err(read)?;
+        let mut commits = Vec::new();
+        for oid in walk {
+            let commit = repo.find_commit(oid.map_err(read)?).map_err(read)?;
+            commits.push(to_commit(&commit, &decorations).map_err(read)?);
+        }
+        debug!(target: "semoxide::git", op = "G16", ?from, %to, count = commits.len(), "log read");
+        Ok(commits)
     }
+}
+
+fn lossy(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+fn to_signature(signature: &git2::Signature<'_>) -> Signature {
+    let when = signature.when();
+    Signature {
+        name: lossy(signature.name_bytes()),
+        email: lossy(signature.email_bytes()),
+        time: Time {
+            seconds: when.seconds(),
+            offset_minutes: when.offset_minutes(),
+        },
+    }
+}
+
+fn short(object: &git2::Object<'_>) -> Result<String, git2::Error> {
+    Ok(lossy(&object.short_id()?))
+}
+
+fn to_commit(
+    commit: &git2::Commit<'_>,
+    decorations: &HashMap<git2::Oid, Vec<Decoration>>,
+) -> Result<Commit, git2::Error> {
+    let tree = commit.tree()?;
+    Ok(Commit {
+        id: CommitId::from(commit.id()),
+        short_id: short(commit.as_object())?,
+        tree_id: ObjectId::from(tree.id()),
+        short_tree_id: short(tree.as_object())?,
+        parents: commit.parent_ids().map(CommitId::from).collect(),
+        author: to_signature(&commit.author()),
+        committer: to_signature(&commit.committer()),
+        raw_message: lossy(commit.message_raw_bytes()),
+        git_tags: format_decorations(decorations.get(&commit.id()).map(Vec::as_slice)),
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Head,
+    Local,
+    Remote,
+    Tag,
+    Stash,
+}
+
+/// One ref decorating a commit, under its full name.
+#[derive(Debug, Clone)]
+struct Decoration {
+    kind: Kind,
+    name: String,
+    /// For `HEAD`: the branch it points to.
+    symbolic: Option<String>,
+}
+
+/// Every commit's decorations, in git's order: `HEAD`, then refs by name descending (git's
+/// `log-tree.c` prepends each ref it reads in ascending order). Only the refs git shows by
+/// default: `HEAD`, branches, remote branches, tags and `refs/stash`.
+fn decorations(
+    repo: &git2::Repository,
+) -> Result<HashMap<git2::Oid, Vec<Decoration>>, git2::Error> {
+    let mut refs: Vec<(String, git2::Oid)> = Vec::new();
+    for reference in repo.references()? {
+        let Ok(reference) = reference else { continue };
+        let Ok(resolved) = reference.resolve() else {
+            continue;
+        };
+        if let Some(oid) = resolved.target() {
+            refs.push((lossy(reference.name_bytes()), oid));
+        }
+    }
+    refs.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut map: HashMap<git2::Oid, Vec<Decoration>> = HashMap::new();
+    for (name, oid) in refs {
+        // git's default decoration filter (git 2.38 and later).
+        let kind = if name.starts_with("refs/heads/") {
+            Kind::Local
+        } else if name.starts_with("refs/remotes/") {
+            Kind::Remote
+        } else if name.starts_with("refs/tags/") {
+            Kind::Tag
+        } else if name == "refs/stash" {
+            Kind::Stash
+        } else {
+            continue;
+        };
+        let Some(commit) = peeled_commit(repo, oid) else {
+            continue;
+        };
+        // Tags of tags decorate the commit as a tag whatever their prefix.
+        let kind = if commit == oid { kind } else { Kind::Tag };
+        map.entry(commit).or_default().insert(
+            0,
+            Decoration {
+                kind,
+                name,
+                symbolic: None,
+            },
+        );
+    }
+    if let Ok(head) = repo.find_reference("HEAD")
+        && let Ok(resolved) = head.resolve()
+        && let Some(oid) = resolved.target()
+        && let Some(commit) = peeled_commit(repo, oid)
+    {
+        map.entry(commit).or_default().insert(
+            0,
+            Decoration {
+                kind: Kind::Head,
+                name: String::from("HEAD"),
+                symbolic: head.symbolic_target_bytes().map(lossy),
+            },
+        );
+    }
+    Ok(map)
+}
+
+/// The commit `oid` is or peels to through tags.
+fn peeled_commit(repo: &git2::Repository, oid: git2::Oid) -> Option<git2::Oid> {
+    let object = repo.find_object(oid, None).ok()?;
+    object.peel_to_commit().ok().map(|commit| commit.id())
+}
+
+fn short_name(name: &str) -> &str {
+    ["refs/heads/", "refs/tags/", "refs/remotes/"]
+        .iter()
+        .find_map(|prefix| name.strip_prefix(prefix))
+        .unwrap_or(name)
+}
+
+/// `%d`: ` (HEAD -> main, tag: v1.0.0, origin/main)`.
+fn format_decorations(list: Option<&[Decoration]>) -> String {
+    let Some(list) = list else {
+        return String::new();
+    };
+    let current = list
+        .iter()
+        .find(|decoration| decoration.kind == Kind::Head)
+        .and_then(|head| head.symbolic.as_deref())
+        .and_then(|branch| {
+            list.iter()
+                .position(|decoration| decoration.kind == Kind::Local && decoration.name == branch)
+        });
+    let mut names = Vec::new();
+    for (index, decoration) in list.iter().enumerate() {
+        if Some(index) == current {
+            continue;
+        }
+        let mut name = String::new();
+        if decoration.kind == Kind::Tag {
+            name.push_str("tag: ");
+        }
+        name.push_str(short_name(&decoration.name));
+        if decoration.kind == Kind::Head
+            && let Some(current) = current.and_then(|index| list.get(index))
+        {
+            name.push_str(" -> ");
+            name.push_str(short_name(&current.name));
+        }
+        names.push(name);
+    }
+    format!(" ({})", names.join(", "))
 }
 
 #[cfg(test)]
@@ -555,6 +804,56 @@ mod tests {
                 ))
             )
         );
+    }
+
+    /// Dates around the leap days of century years, which follow their own rules: 2000 has a
+    /// February 29th, 2100 hasn't, 2400 has.
+    #[test]
+    fn committer_dates_match_git_across_century_leap_years() {
+        let fixture = GitFixture::builder().commit("feat: first").build().unwrap();
+        let mut parent = fixture.rev_parse("HEAD").unwrap();
+        for (seconds, offset) in [
+            (951_782_399_u64, "+0000"),
+            (951_782_400, "-0100"),
+            (951_786_000, "+0000"),
+            (951_868_800, "+0000"),
+            (4_107_456_000, "+0000"),
+            (4_107_542_399, "+0100"),
+            (4_107_542_400, "+0000"),
+            (13_574_476_800, "+0000"),
+            (13_574_563_200, "-0030"),
+            (13_574_566_800, "+0000"),
+            (13_574_649_600, "+0000"),
+        ] {
+            let at = format!("T <t@example.invalid> {seconds} {offset}");
+            let made = object(
+                &fixture,
+                &[&parent],
+                at.as_bytes(),
+                at.as_bytes(),
+                b"date\n",
+            );
+            parent = raw_commit(&fixture, &made);
+        }
+        fixture
+            .git(&["update-ref", "refs/heads/main", &parent])
+            .unwrap();
+        let ours = repo(&fixture)
+            .log(None, &commit(&fixture, "HEAD"))
+            .map(|commits| {
+                commits
+                    .iter()
+                    .map(Commit::committer_date)
+                    .collect::<Vec<_>>()
+            });
+        let git: Vec<String> = fixture
+            .git(&["log", "--format=%ci", "HEAD"])
+            .unwrap()
+            .lines()
+            .map(str::to_owned)
+            .collect();
+
+        assert_eq!(ours, Ok(git));
     }
 
     #[test]
