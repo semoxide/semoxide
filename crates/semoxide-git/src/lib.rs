@@ -3,6 +3,7 @@
 pub mod codes;
 mod diff;
 mod error;
+mod head;
 mod id;
 mod log;
 mod repo;
@@ -10,6 +11,7 @@ mod tags;
 
 pub use diff::RepoPath;
 pub use error::GitError;
+pub use head::Head;
 pub use id::{CommitId, ObjectId};
 pub use log::{Commit, Signature, Time};
 pub use repo::Repo;

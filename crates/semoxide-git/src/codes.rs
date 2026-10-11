@@ -10,6 +10,8 @@ pub const GIT_UNSAFE_REPOSITORY: ErrorCode = ErrorCode::from_static("git::unsafe
 pub const GIT_BARE_REPOSITORY: ErrorCode = ErrorCode::from_static("git::bare_repository");
 /// The configured remote doesn't exist.
 pub const GIT_NO_REMOTE: ErrorCode = ErrorCode::from_static("git::no_remote");
+/// `HEAD` points at a branch with no commits yet.
+pub const GIT_NO_COMMITS: ErrorCode = ErrorCode::from_static("git::no_commits");
 /// Any other error libgit2 reports while reading the repository.
 pub const GIT_READ_FAILED: ErrorCode = ErrorCode::from_static("git::read_failed");
 
@@ -19,5 +21,6 @@ pub const ALL: &[ErrorCode] = &[
     GIT_UNSAFE_REPOSITORY,
     GIT_BARE_REPOSITORY,
     GIT_NO_REMOTE,
+    GIT_NO_COMMITS,
     GIT_READ_FAILED,
 ];
