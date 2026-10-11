@@ -64,12 +64,16 @@ mod tests {
     fn ids_are_the_lowercase_hex_sha() {
         let oid = git2::Oid::from_str(&SHA.to_uppercase()).unwrap();
 
+        let (commit, object) = (CommitId::from(oid), ObjectId::from(oid));
+
         assert_eq!(
-            (
-                CommitId::from(oid).to_string(),
-                ObjectId::from(oid).as_str().to_owned()
-            ),
-            (String::from(SHA), String::from(SHA))
+            [
+                commit.as_str(),
+                &commit.to_string(),
+                object.as_str(),
+                &object.to_string()
+            ],
+            [SHA; 4]
         );
     }
 }

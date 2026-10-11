@@ -64,8 +64,8 @@ mod tests {
     use crate::codes::GIT_READ_FAILED;
 
     /// `main` with a lightweight and an annotated tag, a `feature` branch with its own tag
-    /// merged into `main` (`main^1` is before the merge), an annotated tag on the merge commit
-    /// and a tag that points at a tree.
+    /// merged into `main` with a merge commit (so `main^1`, its first parent, is before the
+    /// merge), an annotated tag on the merge commit and a tag that points at a tree.
     fn fixture() -> GitFixture {
         let fixture = GitFixture::builder()
             .commit("feat: a")
@@ -189,6 +189,101 @@ mod tests {
                 Ok(None),
                 Ok(None)
             )
+        );
+    }
+
+    /// Adds what the main fixture lacks: packed tags listed apart from loose ones, a tag
+    /// sharing a commit with another, an uppercase name (byte order puts it first) and a tag
+    /// of an annotated tag.
+    fn awkward_fixture() -> GitFixture {
+        let fixture = fixture();
+        fixture.git(&["pack-refs", "--all"]).unwrap();
+        fixture.git(&["tag", "v1.0.0-again", "v1.0.0"]).unwrap();
+        fixture.git(&["tag", "V2.0.0", "main"]).unwrap();
+        fixture
+            .git(&["tag", "-a", "v1.0.1-nested", "-m", "nested", "v1.0.1"])
+            .unwrap();
+        fixture
+    }
+
+    #[test]
+    fn merged_tags_match_git_for_packed_shared_uppercase_and_nested_tags() {
+        let fixture = awkward_fixture();
+
+        assert_eq!(
+            repo(&fixture)
+                .merged_tags(&commit(&fixture, "main"))
+                .map(|tags| tags.iter().map(describe).collect::<Vec<_>>()),
+            Ok(merged_by_git(&fixture, "main"))
+        );
+    }
+
+    #[test]
+    fn a_nested_tag_matches_git_and_a_branch_or_invalid_name_is_no_tag() {
+        let fixture = awkward_fixture();
+        let repo = repo(&fixture);
+        let tag = |name: &str| repo.tag_commit(name).map(|tag| tag.as_ref().map(describe));
+
+        assert_eq!(
+            (tag("v1.0.1-nested"), tag("feature"), tag("bad name")),
+            (
+                Ok(Some(described_by_git(&fixture, "v1.0.1-nested"))),
+                Ok(None),
+                Ok(None)
+            )
+        );
+    }
+
+    /// The names of the tags merged into `main`, as the main fixture has them.
+    fn merged_names() -> Vec<String> {
+        ["v1.0.0", "v1.0.1", "v1.0.2", "v1.1.0", "v1.1.0-feature.1"]
+            .map(String::from)
+            .to_vec()
+    }
+
+    /// Like git, a broken tag is left out of the list; asked for by name, it is an error.
+    #[test]
+    fn a_broken_tag_is_skipped_in_the_list_and_an_error_by_name() {
+        let fixture = fixture();
+        std::fs::write(
+            fixture
+                .path()
+                .join(".git")
+                .join("refs")
+                .join("tags")
+                .join("broken"),
+            "not a sha\n",
+        )
+        .unwrap();
+        let repo = repo(&fixture);
+
+        assert_eq!(
+            (
+                repo.merged_tags(&commit(&fixture, "main"))
+                    .map(|tags| tags.iter().map(|tag| tag.name().to_owned()).collect()),
+                repo.tag_commit("broken").map_err(|error| error.code())
+            ),
+            (Ok(merged_names()), Err(GIT_READ_FAILED))
+        );
+    }
+
+    /// A name that isn't UTF-8 can't be a loose ref on every platform, but `packed-refs`
+    /// holds raw bytes everywhere.
+    #[test]
+    fn a_tag_whose_name_isnt_utf_8_is_skipped() {
+        let fixture = fixture();
+        fixture.git(&["pack-refs", "--all"]).unwrap();
+        let packed = fixture.path().join(".git").join("packed-refs");
+        let mut text = std::fs::read(&packed).unwrap();
+        text.extend(fixture.rev_parse("main").unwrap().as_bytes());
+        text.extend(b" refs/tags/v\xff\n");
+        std::fs::write(&packed, text).unwrap();
+
+        assert_eq!(
+            repo(&fixture)
+                .merged_tags(&commit(&fixture, "main"))
+                .map(|tags| tags.iter().map(|tag| tag.name().to_owned()).collect()),
+            Ok(merged_names())
         );
     }
 
