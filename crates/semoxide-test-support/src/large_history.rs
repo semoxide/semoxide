@@ -171,21 +171,35 @@ mod tests {
         );
     }
 
+    /// Each tag's note is the only one in its own ref, on the tag's commit.
     #[test]
     fn every_tag_has_a_note() {
         let fixture = small().build().unwrap();
+        let annotated = |tag: &str| {
+            fixture
+                .git(&["notes", "--ref", &format!("semoxide-{tag}"), "list"])
+                .unwrap()
+                .split_once(' ')
+                .map(|(_, commit)| commit.to_owned())
+        };
+        let tags = ["v1.0.1", "v1.0.2", "v1.0.3"];
+
+        assert_eq!(
+            tags.map(annotated),
+            tags.map(|tag| Some(fixture.rev_parse(tag).unwrap()))
+        );
 
         assert_eq!(
             fixture
-                .git(&["notes", "--ref", "semoxide", "list"])
-                .unwrap()
-                .lines()
-                .count(),
-            3
+                .git(&["for-each-ref", "--format=%(refname)", "refs/notes/"])
+                .unwrap(),
+            "refs/notes/semoxide-v1.0.1\n\
+             refs/notes/semoxide-v1.0.2\n\
+             refs/notes/semoxide-v1.0.3"
         );
         assert_eq!(
             fixture
-                .git(&["notes", "--ref", "semoxide", "show", "v1.0.2"])
+                .git(&["notes", "--ref", "semoxide-v1.0.2", "show", "v1.0.2"])
                 .unwrap(),
             r#"{"channels":[null]}"#
         );
@@ -209,22 +223,27 @@ mod tests {
 
     #[test]
     fn same_history_twice_has_identical_shas() {
-        let first = small().build().unwrap();
-        let second = small().build().unwrap();
+        let refs = |fixture: &GitFixture| {
+            fixture
+                .git(&["for-each-ref", "--format=%(objectname) %(refname)"])
+                .unwrap()
+        };
+        let first = refs(&small().build().unwrap());
+        let second = refs(&small().build().unwrap());
 
-        for rev in ["main", "v1.0.3", "refs/notes/semoxide"] {
-            assert_eq!(
-                first.rev_parse(rev).unwrap(),
-                second.rev_parse(rev).unwrap(),
-                "{rev}"
-            );
-        }
+        // `main`, three tags and their three notes refs.
+        assert_eq!((first.lines().count(), &first), (7, &second));
     }
 
     #[test]
     fn without_notes_no_notes_ref_exists() {
         let fixture = LargeHistory::new(20).tag_every(10).build().unwrap();
 
-        assert!(fixture.rev_parse("refs/notes/semoxide").is_err());
+        assert_eq!(
+            fixture
+                .git(&["for-each-ref", "--format=%(refname)", "refs/notes/"])
+                .unwrap(),
+            ""
+        );
     }
 }
