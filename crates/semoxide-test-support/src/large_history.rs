@@ -6,14 +6,14 @@ use std::fmt::Write as _;
 use crate::git_fixture::{FixtureError, GitFixture};
 
 const IDENTITY: &str = "semoxide-test <test@example.invalid>";
-/// 2026-01-01T00:00:00Z; commit `n` is `n` minutes later.
+/// 2026-01-01T00:00:00Z: the notes commits; commit `n` is `n` minutes later.
 const FIRST_TIME: u64 = 1_767_225_600;
 const NOTE: &str = r#"{"channels":[null]}"#;
 
 /// Whether each tag gets a git note (as upstream stores a release's channels).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TagNotes {
-    /// A note under `refs/notes/semoxide` on every tag.
+    /// A note on every tag, each in its own `refs/notes/semoxide-<tag>`.
     OnEveryTag,
     /// No notes.
     None,
@@ -113,25 +113,20 @@ impl LargeHistory {
             );
             if self.is_tagged(commit) {
                 releases += 1;
-                let _ = write!(
-                    stream,
-                    "reset refs/tags/v1.{}.{}\nfrom :{commit}\n\n",
-                    releases / 100,
-                    releases % 100
-                );
-                tagged.push(commit);
+                let tag = format!("v1.{}.{}", releases / 100, releases % 100);
+                let _ = write!(stream, "reset refs/tags/{tag}\nfrom :{commit}\n\n");
+                tagged.push((tag, commit));
             }
         }
-        if self.notes == TagNotes::OnEveryTag && !tagged.is_empty() {
-            let time = FIRST_TIME + self.commits * 60;
-            let _ = write!(
-                stream,
-                "commit refs/notes/semoxide\ncommitter {IDENTITY} {time} +0000\ndata 5\nnotes\n"
-            );
-            for commit in tagged {
-                let _ = write!(stream, "N inline :{commit}\ndata {}\n{NOTE}\n", NOTE.len());
+        if self.notes == TagNotes::OnEveryTag {
+            for (tag, commit) in tagged {
+                let _ = write!(
+                    stream,
+                    "commit refs/notes/semoxide-{tag}\ncommitter {IDENTITY} {FIRST_TIME} +0000\n\
+                     data 5\nnotes\nN inline :{commit}\ndata {}\n{NOTE}\n\n",
+                    NOTE.len()
+                );
             }
-            stream.push('\n');
         }
         stream
     }
@@ -171,21 +166,35 @@ mod tests {
         );
     }
 
+    /// Each tag's note is the only one in its own ref, on the tag's commit.
     #[test]
     fn every_tag_has_a_note() {
         let fixture = small().build().unwrap();
+        let annotated = |tag: &str| {
+            fixture
+                .git(&["notes", "--ref", &format!("semoxide-{tag}"), "list"])
+                .unwrap()
+                .split_once(' ')
+                .map(|(_, commit)| commit.to_owned())
+        };
+        let tags = ["v1.0.1", "v1.0.2", "v1.0.3"];
+
+        assert_eq!(
+            tags.map(annotated),
+            tags.map(|tag| Some(fixture.rev_parse(tag).unwrap()))
+        );
 
         assert_eq!(
             fixture
-                .git(&["notes", "--ref", "semoxide", "list"])
-                .unwrap()
-                .lines()
-                .count(),
-            3
+                .git(&["for-each-ref", "--format=%(refname)", "refs/notes/"])
+                .unwrap(),
+            "refs/notes/semoxide-v1.0.1\n\
+             refs/notes/semoxide-v1.0.2\n\
+             refs/notes/semoxide-v1.0.3"
         );
         assert_eq!(
             fixture
-                .git(&["notes", "--ref", "semoxide", "show", "v1.0.2"])
+                .git(&["notes", "--ref", "semoxide-v1.0.2", "show", "v1.0.2"])
                 .unwrap(),
             r#"{"channels":[null]}"#
         );
@@ -209,22 +218,27 @@ mod tests {
 
     #[test]
     fn same_history_twice_has_identical_shas() {
-        let first = small().build().unwrap();
-        let second = small().build().unwrap();
+        let refs = |fixture: &GitFixture| {
+            fixture
+                .git(&["for-each-ref", "--format=%(objectname) %(refname)"])
+                .unwrap()
+        };
+        let first = refs(&small().build().unwrap());
+        let second = refs(&small().build().unwrap());
 
-        for rev in ["main", "v1.0.3", "refs/notes/semoxide"] {
-            assert_eq!(
-                first.rev_parse(rev).unwrap(),
-                second.rev_parse(rev).unwrap(),
-                "{rev}"
-            );
-        }
+        // `main`, three tags and their three notes refs.
+        assert_eq!((first.lines().count(), &first), (7, &second));
     }
 
     #[test]
     fn without_notes_no_notes_ref_exists() {
         let fixture = LargeHistory::new(20).tag_every(10).build().unwrap();
 
-        assert!(fixture.rev_parse("refs/notes/semoxide").is_err());
+        assert_eq!(
+            fixture
+                .git(&["for-each-ref", "--format=%(refname)", "refs/notes/"])
+                .unwrap(),
+            ""
+        );
     }
 }

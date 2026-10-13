@@ -1,11 +1,10 @@
-//! Benchmarks on the generated `large` history (TESTING: benchmarks).
-//!
-//! Placeholders: they time the git CLI on the fixture until semoxide-git's own log walk and
-//! notes reading exist (E-M1.6), which then replace the measured closures.
+//! Benchmarks on the generated `large` history (TESTING: benchmarks): the reads of a release
+//! since the last tag, on one open repository.
 
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
+use semoxide_git::Repo;
 use semoxide_test_support::large_history::LargeHistory;
 
 #[expect(
@@ -19,33 +18,40 @@ fn large(c: &mut Criterion) {
     let last_tag = fixture
         .git(&["describe", "--tags", "--abbrev=0", "main"])
         .expect("the history has tags");
-    let since_last_tag = format!("{last_tag}..main");
+    let repo = Repo::discover(&fixture.path()).expect("the fixture is a repository");
+    let head = repo.head().expect("HEAD is readable");
+    let head = head.commit();
+    let last_tag = repo
+        .tag_commit(&last_tag)
+        .expect("the last tag is readable")
+        .expect("the last tag exists");
+    let since = Some(last_tag.commit());
+    let tags = repo.merged_tags(head).expect("tags are readable");
+
+    // A wrong fixture would make the numbers meaningless.
+    assert_eq!(repo.log(since, head).expect("log runs").len(), 30_000);
+    assert_eq!(tags.len(), 3_500);
+    assert!(tags.iter().all(|tag| {
+        repo.tag_notes(tag)
+            .expect("notes are readable")
+            .semoxide()
+            .is_some()
+    }));
 
     let mut group = c.benchmark_group("large");
-    // Each run takes a sizeable fraction of a second; 10 samples keep `cargo bench` short.
+    // Each run takes about a second or more; 10 samples keep `cargo bench` short.
     group.sample_size(10);
     group.bench_function("log_walk", |b| {
-        b.iter(|| {
-            black_box(
-                fixture
-                    .git(&["rev-list", "--count", &since_last_tag])
-                    .expect("rev-list runs"),
-            )
-        });
+        b.iter(|| black_box(repo.log(since, head).expect("log runs")));
+    });
+    group.bench_function("merged_tags", |b| {
+        b.iter(|| black_box(repo.merged_tags(head).expect("tags are readable")));
     });
     group.bench_function("tag_notes", |b| {
         b.iter(|| {
-            black_box(
-                fixture
-                    .git(&[
-                        "log",
-                        "--tags",
-                        "--no-walk",
-                        "--notes=semoxide",
-                        "--format=%H %N",
-                    ])
-                    .expect("log runs"),
-            )
+            for tag in &tags {
+                black_box(repo.tag_notes(tag).expect("notes are readable"));
+            }
         });
     });
     group.finish();
