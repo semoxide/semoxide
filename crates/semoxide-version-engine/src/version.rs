@@ -17,8 +17,14 @@ impl fmt::Display for Version {
 impl FromStr for Version {
     type Err = VersionError;
 
-    fn from_str(_input: &str) -> Result<Self, Self::Err> {
-        Ok(Self(semver::Version::new(0, 0, 0)))
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let version = semver::Version::parse(input).map_err(|error| VersionError {
+            kind: Kind::Invalid {
+                input: input.to_owned(),
+                reason: error.to_string(),
+            },
+        })?;
+        Self::try_from(version)
     }
 }
 
@@ -26,6 +32,13 @@ impl TryFrom<semver::Version> for Version {
     type Error = VersionError;
 
     fn try_from(version: semver::Version) -> Result<Self, Self::Error> {
+        if !version.build.is_empty() {
+            return Err(VersionError {
+                kind: Kind::BuildMetadata {
+                    input: version.to_string(),
+                },
+            });
+        }
         Ok(Self(version))
     }
 }
