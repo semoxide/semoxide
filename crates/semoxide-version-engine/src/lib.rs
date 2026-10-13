@@ -3,3 +3,6 @@
 #![forbid(unsafe_code)]
 
 pub mod codes;
+mod version;
+
+pub use version::{Version, VersionError};

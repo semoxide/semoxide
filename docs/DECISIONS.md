@@ -38,6 +38,7 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **`icu_collator` for notes sorting** — the only option matching JS `localeCompare` exactly (0/36 mismatches) for +1.1 MiB. (→ [CONFIG](CONFIG.md))
 - **`git-conventional` as-is** — maintained, zero-copy, handles `!` and both breaking footers; its two known spec deviations (footer `:` without space, lowercase `breaking-change`) are cheaper to document than to patch. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
 - **`semver` crate + own bump/range** — strict SemVer 2.0.0 parsing used by cargo; it lacks bump and npm ranges, which are small to write. (→ [CODE-ARCHITECTURE](CODE-ARCHITECTURE.md))
+- **`Version` without build metadata, rejected when parsed** — identity is the version and metadata lives only in the tag, so equality, ordering and hashing can all be precedence and `Ord` can't compare metadata by mistake; rejecting rather than dropping it never changes a config value silently. (→ [RUST-PITFALLS](RUST-PITFALLS.md))
 
 ## Git
 

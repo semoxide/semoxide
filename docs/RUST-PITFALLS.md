@@ -21,5 +21,5 @@ Known Rust problems that apply to semoxide, and how we avoid them. Sources: 2025
 | 15 | Lint debt from a loose start | strict lints from day one | [quality](CODE-ARCHITECTURE.md#quality-tooling) |
 | 16 | "Library in name only": the library lags the CLI | the CLI uses only the façade | [CODE-ARCH §2](CODE-ARCHITECTURE.md#2-crate-boundaries-and-enforcement) |
 | 17 | git2 slow on huge repos | benchmarks for large-history log walks | [TESTING](TESTING.md) |
-| 18 | `semver::Version`'s `Ord` compares build metadata | use `cmp_precedence` wherever SemVer precedence is meant (latest tag, "already released") | [CODE-ARCH §1](CODE-ARCHITECTURE.md#1-workspace-layout) |
+| 18 | `semver::Version`'s `Ord` compares build metadata | the engine's `Version` carries no build metadata, so its `Eq`/`Ord` are SemVer precedence; use `cmp_precedence` on a raw `semver::Version` | [CODE-ARCH §1](CODE-ARCHITECTURE.md#1-workspace-layout) |
 | 19 | Rust `regex` `\d` matches non-ASCII digits | write `[0-9]` (or `(?-u:\d)`) in version and tag patterns | – |
