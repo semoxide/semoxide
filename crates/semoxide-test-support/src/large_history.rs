@@ -6,14 +6,14 @@ use std::fmt::Write as _;
 use crate::git_fixture::{FixtureError, GitFixture};
 
 const IDENTITY: &str = "semoxide-test <test@example.invalid>";
-/// 2026-01-01T00:00:00Z; commit `n` is `n` minutes later.
+/// 2026-01-01T00:00:00Z: the notes commits; commit `n` is `n` minutes later.
 const FIRST_TIME: u64 = 1_767_225_600;
 const NOTE: &str = r#"{"channels":[null]}"#;
 
 /// Whether each tag gets a git note (as upstream stores a release's channels).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TagNotes {
-    /// A note under `refs/notes/semoxide` on every tag.
+    /// A note on every tag, each in its own `refs/notes/semoxide-<tag>`.
     OnEveryTag,
     /// No notes.
     None,
@@ -113,25 +113,20 @@ impl LargeHistory {
             );
             if self.is_tagged(commit) {
                 releases += 1;
-                let _ = write!(
-                    stream,
-                    "reset refs/tags/v1.{}.{}\nfrom :{commit}\n\n",
-                    releases / 100,
-                    releases % 100
-                );
-                tagged.push(commit);
+                let tag = format!("v1.{}.{}", releases / 100, releases % 100);
+                let _ = write!(stream, "reset refs/tags/{tag}\nfrom :{commit}\n\n");
+                tagged.push((tag, commit));
             }
         }
-        if self.notes == TagNotes::OnEveryTag && !tagged.is_empty() {
-            let time = FIRST_TIME + self.commits * 60;
-            let _ = write!(
-                stream,
-                "commit refs/notes/semoxide\ncommitter {IDENTITY} {time} +0000\ndata 5\nnotes\n"
-            );
-            for commit in tagged {
-                let _ = write!(stream, "N inline :{commit}\ndata {}\n{NOTE}\n", NOTE.len());
+        if self.notes == TagNotes::OnEveryTag {
+            for (tag, commit) in tagged {
+                let _ = write!(
+                    stream,
+                    "commit refs/notes/semoxide-{tag}\ncommitter {IDENTITY} {FIRST_TIME} +0000\n\
+                     data 5\nnotes\nN inline :{commit}\ndata {}\n{NOTE}\n\n",
+                    NOTE.len()
+                );
             }
-            stream.push('\n');
         }
         stream
     }
