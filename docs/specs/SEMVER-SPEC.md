@@ -104,6 +104,7 @@ Edge cases:
 - **0.y.z** (§4): initial development, "anything MAY change", API not stable. Spec defines **no** bump rules for 0.y.z (rules 6–8 are scoped to `x > 0`). FAQ: start at `0.1.0`, bump minor per release. Mapping breaking→minor / feature→patch in 0.x is a *convention*, not spec.
 - **1.0.0** (§5) defines the public API; graduating to 1.0.0 is a human decision (FAQ: "used in production" / stable API ⇒ be 1.0.0).
 - Pre-release (§9): unstable, may not satisfy compatibility of its normal version. Spec defines **no** rules for incrementing pre-release identifiers (e.g. `-rc.1 → -rc.2`) — tool policy.
+- semoxide's policy (node-semver's `inc`, as upstream uses it): a bump on a pre-release only drops it when the level is already pending in the core (major on `X.0.0-*`, minor on `X.Y.0-*`, patch always), else it bumps the core; the next pre-release increments the rightmost numeric identifier (`beta.1.x → beta.2.x`), or appends `.0` when none is numeric; a line's first pre-release is `<core>-<id>.1`.
 - Build metadata (§10): no bump semantics at all.
 
 ## 5. FAQ points affecting implementation
