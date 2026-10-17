@@ -14,12 +14,6 @@ pub struct PrereleaseId {
 }
 
 impl PrereleaseId {
-    /// The identifier as written.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.id
-    }
-
     pub(crate) fn first(&self) -> &semver::Prerelease {
         &self.first
     }
