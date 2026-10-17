@@ -2,30 +2,48 @@
 
 use std::fmt;
 
+use crate::Version;
+
 /// A prerelease identifier such as `beta` or `rc.1`: valid when `1.0.0-<id>.1` is a
-/// [`Version`](crate::Version).
+/// [`Version`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PrereleaseId(String);
+pub struct PrereleaseId {
+    id: String,
+    /// `<id>.1`, the prerelease of a line's first version.
+    first: semver::Prerelease,
+}
 
 impl PrereleaseId {
     /// The identifier as written.
     #[must_use]
     pub fn as_str(&self) -> &str {
-        &self.0
+        &self.id
+    }
+
+    pub(crate) fn first(&self) -> &semver::Prerelease {
+        &self.first
     }
 }
 
 impl TryFrom<&str> for PrereleaseId {
     type Error = PrereleaseIdError;
 
-    fn try_from(_id: &str) -> Result<Self, Self::Error> {
-        Ok(Self(String::from("stub")))
+    fn try_from(id: &str) -> Result<Self, Self::Error> {
+        let version: Version = format!("1.0.0-{id}.1")
+            .parse()
+            .map_err(|_| PrereleaseIdError {
+                input: id.to_owned(),
+            })?;
+        Ok(Self {
+            id: id.to_owned(),
+            first: version.as_semver().pre.clone(),
+        })
     }
 }
 
 impl fmt::Display for PrereleaseId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.id)
     }
 }
 

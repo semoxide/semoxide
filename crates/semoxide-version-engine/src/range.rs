@@ -33,8 +33,17 @@ impl Range {
 
     /// Whether `version` is in the range.
     #[must_use]
-    pub fn contains(&self, _version: &Version) -> bool {
-        false
+    pub fn contains(&self, version: &Version) -> bool {
+        if version < &self.min {
+            return false;
+        }
+        let Some(max) = &self.max_exclusive else {
+            return true;
+        };
+        let (version_core, max_core) = (version.as_semver(), max.as_semver());
+        let same_core = (version_core.major, version_core.minor, version_core.patch)
+            == (max_core.major, max_core.minor, max_core.patch);
+        version < max && !(max_core.pre.is_empty() && same_core)
     }
 }
 

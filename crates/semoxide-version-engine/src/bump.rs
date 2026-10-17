@@ -14,8 +14,47 @@ impl Version {
     /// # Errors
     ///
     /// Returns [`BumpError`] if the bumped number would exceed `u64::MAX`.
-    pub fn bump(&self, _level: Level) -> Result<Self, BumpError> {
-        Ok(self.clone())
+    pub fn bump(&self, level: Level) -> Result<Self, BumpError> {
+        let core = self.as_semver();
+        let pending = !core.pre.is_empty()
+            && match level {
+                Level::Major => core.minor == 0 && core.patch == 0,
+                Level::Minor => core.patch == 0,
+                Level::Patch => true,
+            };
+        if pending {
+            return Ok(Self::from_parts(
+                core.major,
+                core.minor,
+                core.patch,
+                semver::Prerelease::EMPTY,
+            ));
+        }
+        let overflow = || BumpError {
+            kind: Kind::Overflow {
+                version: self.clone(),
+                level,
+            },
+        };
+        let (major, minor, patch) = match level {
+            Level::Major => (core.major.checked_add(1).ok_or_else(overflow)?, 0, 0),
+            Level::Minor => (
+                core.major,
+                core.minor.checked_add(1).ok_or_else(overflow)?,
+                0,
+            ),
+            Level::Patch => (
+                core.major,
+                core.minor,
+                core.patch.checked_add(1).ok_or_else(overflow)?,
+            ),
+        };
+        Ok(Self::from_parts(
+            major,
+            minor,
+            patch,
+            semver::Prerelease::EMPTY,
+        ))
     }
 
     /// The next prerelease of the same line: the rightmost numeric identifier plus one, at any
@@ -25,15 +64,50 @@ impl Version {
     ///
     /// Returns [`BumpError`] if this version isn't a prerelease.
     pub fn next_prerelease(&self) -> Result<Self, BumpError> {
-        Ok(self.clone())
+        let core = self.as_semver();
+        if core.pre.is_empty() {
+            return Err(BumpError {
+                kind: Kind::NotPrerelease {
+                    version: self.clone(),
+                },
+            });
+        }
+        let mut ids: Vec<String> = core.pre.split('.').map(str::to_owned).collect();
+        match ids.iter_mut().rev().find(|id| is_numeric(id)) {
+            Some(id) => *id = increment(id),
+            None => ids.push(String::from("0")),
+        }
+        let ids = ids.join(".");
+        let pre = semver::Prerelease::new(&ids).map_err(|_| BumpError {
+            kind: Kind::InvalidPrerelease { ids },
+        })?;
+        Ok(Self::from_parts(core.major, core.minor, core.patch, pre))
     }
 
     /// The first prerelease of this version's core: `1.2.3` with `beta` is `1.2.3-beta.1`. Any
     /// prerelease this version has is replaced.
     #[must_use]
-    pub fn first_prerelease(&self, _id: &PrereleaseId) -> Self {
-        self.clone()
+    pub fn first_prerelease(&self, id: &PrereleaseId) -> Self {
+        let core = self.as_semver();
+        Self::from_parts(core.major, core.minor, core.patch, id.first().clone())
     }
+}
+
+fn is_numeric(id: &str) -> bool {
+    id.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// A decimal number plus one, at any size.
+fn increment(digits: &str) -> String {
+    let mut bytes = digits.as_bytes().to_vec();
+    for byte in bytes.iter_mut().rev() {
+        if *byte != b'9' {
+            *byte += 1;
+            return String::from_utf8_lossy(&bytes).into_owned();
+        }
+        *byte = b'0';
+    }
+    format!("1{}", String::from_utf8_lossy(&bytes))
 }
 
 /// A bump that has no result.
@@ -45,8 +119,17 @@ pub struct BumpError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Kind {
-    Overflow { version: Version, level: Level },
-    NotPrerelease { version: Version },
+    Overflow {
+        version: Version,
+        level: Level,
+    },
+    NotPrerelease {
+        version: Version,
+    },
+    /// Identifiers built from valid ones are always valid; kept as an error, never a guess.
+    InvalidPrerelease {
+        ids: String,
+    },
 }
 
 impl fmt::Display for BumpError {
@@ -67,6 +150,7 @@ impl fmt::Display for BumpError {
             Kind::NotPrerelease { version } => {
                 write!(f, "`{version}` has no prerelease to increment")
             }
+            Kind::InvalidPrerelease { ids } => write!(f, "`{ids}` is not a valid prerelease"),
         }
     }
 }
