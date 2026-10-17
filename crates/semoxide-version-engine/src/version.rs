@@ -8,6 +8,19 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Version(semver::Version);
 
+impl Version {
+    /// A version from its parts, without build metadata.
+    pub(crate) fn from_parts(major: u64, minor: u64, patch: u64, pre: semver::Prerelease) -> Self {
+        let mut version = semver::Version::new(major, minor, patch);
+        version.pre = pre;
+        Self(version)
+    }
+
+    pub(crate) fn as_semver(&self) -> &semver::Version {
+        &self.0
+    }
+}
+
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
