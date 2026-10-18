@@ -14,6 +14,12 @@ pub struct PrereleaseId {
 }
 
 impl PrereleaseId {
+    /// The identifier as written.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        ""
+    }
+
     pub(crate) fn first(&self) -> &semver::Prerelease {
         &self.first
     }
@@ -92,6 +98,11 @@ mod tests {
             PrereleaseId::try_from(id).map_err(|error| error.input),
             Err(id.to_owned())
         );
+    }
+
+    #[test]
+    fn as_str_is_the_identifier_as_written() {
+        assert_eq!(PrereleaseId::try_from("rc.1").unwrap().as_str(), "rc.1");
     }
 
     #[test]

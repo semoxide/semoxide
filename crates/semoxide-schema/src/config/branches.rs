@@ -251,6 +251,12 @@ impl ReleaseRule {
     pub fn channel(&self) -> Option<&Channel> {
         self.channel.as_ref()
     }
+
+    /// Whether a branch name is this name, or matches it as a glob (`*` stops at `/`).
+    #[must_use]
+    pub fn matches(&self, _branch: &str) -> bool {
+        false
+    }
 }
 
 /// A prerelease branch rule.
@@ -278,6 +284,12 @@ impl PrereleaseRule {
     #[must_use]
     pub fn channel(&self) -> Option<&Channel> {
         self.channel.as_ref()
+    }
+
+    /// Whether a branch name is this name, or matches it as a glob (`*` stops at `/`).
+    #[must_use]
+    pub fn matches(&self, _branch: &str) -> bool {
+        false
     }
 }
 
@@ -314,6 +326,14 @@ impl MaintenanceRule {
     #[must_use]
     pub fn range(&self) -> Option<&str> {
         self.range.as_deref()
+    }
+
+    /// The range of a branch name under this rule: the part after the pattern's prefix
+    /// (`release/1.2.x` → `1.2.x`), or the explicit [`range`](Self::range) for its name; `None`
+    /// when the name doesn't fall under it.
+    #[must_use]
+    pub fn range_for<'a>(&'a self, _branch: &'a str) -> Option<&'a str> {
+        None
     }
 
     /// The channel, or `None` for the default rule (CONFIG §3).
@@ -968,6 +988,176 @@ rules = [
         assert!(
             message.contains("a release branch has no `prerelease` key"),
             "{message}"
+        );
+    }
+
+    #[rstest]
+    #[case::exact("main", "main", true)]
+    #[case::other_name("main", "main2", false)]
+    #[case::case_sensitive("main", "Main", false)]
+    #[case::star("release/*", "release/a", true)]
+    #[case::star_stops_at_slash("release/*", "release/a/b", false)]
+    #[case::double_star("release/**", "release/a/b", true)]
+    #[case::star_in_a_name("ma*", "main", true)]
+    #[case::question_mark("ma?n", "main", true)]
+    #[case::class("[mn]ain", "nain", true)]
+    #[case::alternatives("{main,next}", "next", true)]
+    #[case::escaped_brace(r"rel\\{a", "rel{a", true)]
+    #[case::escaped_star(r"rel\\*", "rel1", false)]
+    fn release_rule_matches_its_name_or_glob(
+        #[case] name: &str,
+        #[case] branch: &str,
+        #[case] matches: bool,
+    ) {
+        let config = loaded(&format!("branches.rules = [\"{name}\"]"));
+
+        let [BranchRule::Release(rule)] = config.branches().rules() else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(rule.matches(branch), matches, "{name} {branch}");
+    }
+
+    #[rstest]
+    #[case::exact("beta", true)]
+    #[case::glob_match("pre/a", true)]
+    #[case::star_stops_at_slash("pre/a/b", false)]
+    #[case::other("main", false)]
+    fn prerelease_rule_matches_its_name_or_glob(#[case] branch: &str, #[case] matches: bool) {
+        let config = loaded(
+            r#"branches.rules = [{ name = "beta", prerelease = true }, { name = "pre/*", prerelease = "rc" }]"#,
+        );
+
+        let [BranchRule::Prerelease(beta), BranchRule::Prerelease(pre)] = config.branches().rules()
+        else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(
+            beta.matches(branch) || pre.matches(branch),
+            matches,
+            "{branch}"
+        );
+    }
+
+    #[rstest]
+    #[case::major("N.x", "1.x", Some("1.x"))]
+    #[case::major_x_x("N.x", "1.x.x", Some("1.x.x"))]
+    #[case::minor("N.x", "1.2.x", Some("1.2.x"))]
+    #[case::not_range_shaped("N.x", "main", None)]
+    #[case::prefixed("release/N.x", "release/1.2.x", Some("1.2.x"))]
+    #[case::prefix_missing("release/N.x", "1.2.x", None)]
+    fn a_maintenance_pattern_takes_the_range_from_the_name(
+        #[case] pattern: &str,
+        #[case] branch: &str,
+        #[case] range: Option<&str>,
+    ) {
+        let config = loaded(&format!(
+            "branches.rules = [{{ maintenance = \"{pattern}\" }}]"
+        ));
+
+        let [BranchRule::Maintenance(rule)] = config.branches().rules() else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(rule.range_for(branch), range, "{branch}");
+    }
+
+    #[test]
+    fn a_named_maintenance_branch_has_its_explicit_range() {
+        let config = loaded(r#"branches.rules = [{ maintenance = "legacy", range = "2.x" }]"#);
+
+        let [BranchRule::Maintenance(rule)] = config.branches().rules() else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(
+            [
+                rule.range_for("legacy"),
+                rule.range_for("other"),
+                rule.range_for("Legacy")
+            ],
+            [Some("2.x"), None, None]
+        );
+    }
+
+    #[rstest]
+    #[case::zero_major("0.x", true)]
+    #[case::zero_minor("1.0.x", true)]
+    #[case::largest_major("18446744073709551615.x", true)]
+    #[case::leading_zero_major("01.x", false)]
+    #[case::leading_zero_minor("1.01.x", false)]
+    #[case::major_beyond_u64("18446744073709551616.x", false)]
+    #[case::minor_beyond_u64("1.18446744073709551616.x", false)]
+    #[case::plus_sign("+1.x", false)]
+    fn range_shaped_names_have_strict_numbers(#[case] branch: &str, #[case] matches: bool) {
+        let config = loaded("");
+
+        let [BranchRule::Maintenance(rule), ..] = config.branches().rules() else {
+            panic!("{:?}", describe_rules(&config));
+        };
+        assert_eq!(rule.matches(branch), matches, "{branch}");
+    }
+
+    #[rstest]
+    #[case::invalid_glob(
+        r#"branches.rules = ["release/["]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0]",
+        ParserOnly
+    )]
+    #[case::invalid_glob_in_a_table(
+        r#"branches.rules = [{ name = "release/[" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].name",
+        ParserOnly
+    )]
+    #[case::invalid_glob_on_a_prerelease(
+        r#"branches.rules = [{ name = "beta/{a", prerelease = "beta" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].name",
+        ParserOnly
+    )]
+    #[case::leading_zero_name(
+        r#"branches.rules = ["01.x"]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0]",
+        Rejects
+    )]
+    #[case::name_beyond_u64(
+        r#"branches.rules = ["18446744073709551616.x"]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0]",
+        Rejects
+    )]
+    #[case::leading_zero_range(
+        r#"branches.rules = [{ maintenance = "legacy", range = "01.x" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].range",
+        Rejects
+    )]
+    #[case::range_beyond_u64(
+        r#"branches.rules = [{ maintenance = "legacy", range = "18446744073709551616.x" }]"#,
+        CONFIG_INVALID_VALUE,
+        "branches.rules[0].range",
+        ParserOnly
+    )]
+    fn invalid_glob_or_range_is_rejected(
+        #[case] text: &str,
+        #[case] code: ErrorCode,
+        #[case] path: &str,
+        #[case] schema: Schema,
+    ) {
+        assert_eq!(rejection(text), Err((code, path.to_owned())));
+        assert_eq!(schema_verdict(text), schema, "{text}");
+    }
+
+    #[test]
+    fn an_invalid_glob_is_named_as_one() {
+        let message = crate::config::test_support::parse(r#"branches.rules = ["release/["]"#)
+            .map_err(|error| error.to_string());
+
+        assert!(
+            message
+                .as_ref()
+                .is_err_and(|message| message.contains("not a valid glob")),
+            "{message:?}"
         );
     }
 }
