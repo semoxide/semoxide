@@ -1169,6 +1169,28 @@ rules = [
     }
 
     #[rstest]
+    #[case::word_major("next.x")]
+    #[case::word_minor("1.y.x")]
+    #[case::empty_major(".x")]
+    fn a_name_that_only_ends_like_a_range_is_a_release_branch(#[case] name: &str) {
+        let text = format!("branches.rules = [\"{name}\"]");
+
+        assert_eq!(
+            describe_rules(&loaded(&text)),
+            [format!("release {name} channel=-")]
+        );
+        assert_eq!(schema_error_kinds(&text.parse().unwrap()), []);
+    }
+
+    #[test]
+    fn rules_with_different_names_differ() {
+        let main = loaded(r#"branches.rules = ["main"]"#);
+        let next = loaded(r#"branches.rules = ["next"]"#);
+
+        assert_ne!(main.branches().rules(), next.branches().rules());
+    }
+
+    #[rstest]
     #[case::invalid_glob(
         r#"branches.rules = ["release/["]"#,
         CONFIG_INVALID_VALUE,
