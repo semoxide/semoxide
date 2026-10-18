@@ -15,24 +15,32 @@ pub struct TagPattern {
 impl TagPattern {
     /// The pattern of `format`, which holds `{version}` exactly once.
     #[must_use]
-    pub fn new(_format: &TagFormat) -> Self {
+    pub fn new(format: &TagFormat) -> Self {
+        let format = format.as_str();
+        // The schema guarantees `{version}`; without it the whole format is a prefix.
+        let (prefix, suffix) = format.split_once("{version}").unwrap_or((format, ""));
         Self {
-            prefix: String::new(),
-            suffix: String::new(),
+            prefix: prefix.to_owned(),
+            suffix: suffix.to_owned(),
         }
     }
 
     /// The tag name of `version`, without build metadata.
     #[must_use]
-    pub fn render(&self, _version: &Version) -> String {
-        String::new()
+    pub fn render(&self, version: &Version) -> String {
+        format!("{}{version}{}", self.prefix, self.suffix)
     }
 
     /// The version a tag name holds; build metadata is dropped, so `v1.2.3+a` is 1.2.3.
     /// `None` when the name doesn't match the format.
     #[must_use]
-    pub fn parse(&self, _name: &str) -> Option<Version> {
-        Some(Version::from_parts(0, 0, 0, semver::Prerelease::EMPTY))
+    pub fn parse(&self, name: &str) -> Option<Version> {
+        let version = name
+            .strip_prefix(self.prefix.as_str())?
+            .strip_suffix(self.suffix.as_str())?;
+        let mut version = semver::Version::parse(version).ok()?;
+        version.build = semver::BuildMetadata::EMPTY;
+        Version::try_from(version).ok()
     }
 }
 
