@@ -141,9 +141,9 @@ rules = [
 
 | Kind | Forms | Fields |
 | --- | --- | --- |
-| Release | `"main"` or `{ name = "main", channel = … }` | `name`: branch name or `globset` glob (no extended globs), expanded per matching remote branch |
+| Release | `"main"` or `{ name = "main", channel = … }` | `name`: branch name or `globset` glob (no extended globs), expanded per matching remote branch; case-sensitive, `*` stops at `/` (`**` crosses it), `\` escapes on every OS |
 | Prerelease | `{ name = "beta", prerelease = true }` | `prerelease`: `true` (identifier = branch name) or a string (`"rc"`) |
-| Maintenance | `{ maintenance = "N.x" }`, `{ maintenance = "release/N.x" }`, `{ maintenance = "legacy", range = "1.x" }` | built-in matcher: the pattern ends in `N.x`, `N.x.x` or `N.N.x` (`N` = a number); each matches branch names of all three shapes (`1.x`, `1.x.x`, `1.2.x`, `x` in any case, as upstream), and the range comes from the matched name (`1.x` = `>=1.0.0 <2.0.0`, `1.2.x` = `>=1.2.0 <1.3.0`). A name without that ending needs `range` (`1.x`, `1.x.x` or `1.2.x`) |
+| Maintenance | `{ maintenance = "N.x" }`, `{ maintenance = "release/N.x" }`, `{ maintenance = "legacy", range = "1.x" }` | built-in matcher: the pattern ends in `N.x`, `N.x.x` or `N.N.x` (`N` = a number); each matches branch names of all three shapes (`1.x`, `1.x.x`, `1.2.x`, `x` in any case, numbers without leading zeros that fit in u64), and the range comes from the matched name (`1.x` = `>=1.0.0 <2.0.0`, `1.2.x` = `>=1.2.0 <1.3.0`). A name without that ending needs `range` (`1.x`, `1.x.x` or `1.2.x`) |
 
 - `channel` (any kind): unset = the default channel for the first release branch, the branch name for the others; `false` = the default channel; a non-empty string is used as given.
 - `prerelease = true` uses the branch name as the identifier; with a literal name it must be a valid SemVer identifier (`1.0.0-<id>.1` parses). Globs and `{name}` templates are checked after expansion against the actual branch names.
@@ -151,11 +151,12 @@ rules = [
 - Rejected when the config loads (`config::invalid_value` unless noted):
   - unknown keys in an entry (`config::unknown_key`); `name` with `maintenance`, `prerelease` on a maintenance entry, `range` with a pattern that already ends in `N.x` (`config::conflicting_keys`, pointing at the extra key: `maintenance` next to `name`, `prerelease` or `range` on a maintenance entry);
   - an entry without `name`/`maintenance`, or neither a string nor a table; an empty `rules`;
-  - a maintenance pattern without the `N.x` ending and no `range`; an invalid `range`;
+  - an invalid glob in `name`; a maintenance pattern without the `N.x` ending and no `range`; an invalid `range` (a leading zero, such as `01.x`, makes it invalid);
   - upstream-style maintenance entries, which would otherwise silently become release branches: a name shaped like a range (`"1.x"`, `{ name = "1.2.x" }`) or `range` on a `name` entry; the message points to `{ maintenance = … }`, and `migrate` converts them;
   - `prerelease = false` (a release branch simply has no `prerelease` key), an invalid literal prerelease identifier, `channel = true`, `channel = ""`, any placeholder other than `{name}`.
-- Checks across rules (1 to 3 release branches, unique prerelease identifiers and ranges, no duplicate names) run after glob expansion, when the remote branches are known, not when the config loads.
-- Version ranges per branch are computed by semoxide; versions compare by SemVer precedence (build metadata ignored, [specs/SEMVER-SPEC.md](specs/SEMVER-SPEC.md)).
+- Each existing branch belongs to the first rule that matches it; later rules that also match are reported as overlaps (a warning).
+- Checks across rules (1 to 3 release branches, unique prerelease identifiers, unique maintenance ranges, where `1.x` and `1.x.x` are the same range) run after glob expansion, when the remote branches are known, not when the config loads (`branch::*` codes, [errors](errors/branch/)). Every existing branch is checked, whichever branch is released.
+- Version ranges per branch are computed by semoxide ([SEMANTIC-RELEASE-SPEC §4.6](specs/SEMANTIC-RELEASE-SPEC.md#46-range-calculation-src)); the main line starts at `version.initial` until it has a release; versions compare by SemVer precedence (build metadata ignored, [specs/SEMVER-SPEC.md](specs/SEMVER-SPEC.md)).
 - Monorepo release units (`[packages.<name>]`): [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 4. Versions

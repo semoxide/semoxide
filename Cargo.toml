@@ -23,6 +23,7 @@ semoxide-test-support = { path = "crates/semoxide-test-support" }
 # External dependencies (pinned; bumped by Renovate).
 clap = { version = "=4.6.7", features = ["derive"] }
 criterion = "=0.8.2"
+globset = { version = "=0.4.20", default-features = false }
 assert_cmd = "=2.2.2"
 proptest = "=1.11.0"
 rstest = "=0.27.0"
