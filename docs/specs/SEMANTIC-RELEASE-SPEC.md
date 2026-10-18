@@ -168,7 +168,7 @@ flowchart TD
 **Release branches** `R[0..n]`:
 
 - `lastVersion` = running max of each branch's latest release, starting from `R[0]` latest or `1.0.0`.
-- `bound` = the first version on `R[i+1]` that is higher than every version on `R[0..i]`. The last branch has no bound.
+- `bound` = the first version on `R[i+1]` that is higher than every version on `R[0..i]`, prereleases included; it can be a prerelease (`<2.0.0-rc.1`). With no version on `R[0..i]`, it is the lowest non-prerelease version of `R[i+1]`. No bound when `R[i+1]` has nothing higher, and none for the last branch.
 - `range = ">=lastVersion <bound"`.
 - `accept` = release types whose diff stays below the bound. Without a bound, all types are accepted.
 - `main` = (`i == 0`).

@@ -22,7 +22,7 @@ flowchart TD
 | Crate | Holds | Heavy deps | Published |
 | --- | --- | --- | --- |
 | `semoxide-error` | `ErrorInfo` trait, error-code type (§4), error locations, "did you mean" hints (`suggest`); bottom of the graph | none | yes, internal (§5) |
-| `semoxide-schema` | `semoxide.toml` types and parsing (`Config::from_table`, coded errors), JSON Schema generation | none (toml, semver, serde_json, schemars) | yes, internal |
+| `semoxide-schema` | `semoxide.toml` types and parsing (`Config::from_table`, coded errors), JSON Schema generation | none (toml, semver, serde_json, schemars, globset) | yes, internal |
 | `semoxide-version-engine` | version engine, branch model, domain types | none: **pure, no I/O** | yes, internal |
 | `semoxide-git` | git2, SSH transports, push guards, credential rules ([ARCHITECTURE](ARCHITECTURE.md)) | git2, russh | yes, internal |
 | `semoxide-runtime` | orchestrator, config loading, CI context, plugin host integration, observability | tokio, tonic (via `semoxide-plugin-host`) | yes, internal |
@@ -40,7 +40,7 @@ Key libraries for domain logic:
 | commit parsing | `git-conventional` (in the commit-analyzer repo) | used as-is; its deviations from Conventional Commits are documented, not patched ([CONFIG](CONFIG.md)) |
 | templates | `minijinja` | notes, messages, `tags.metadata` |
 | user regexes | `fancy-regex` | with a backtrack limit |
-| globs | `globset` | `*` crosses `/` in rule values |
+| globs | `globset` | `*` crosses `/` in rule values, stops at `/` in branch names |
 | notes sorting | `icu_collator` | compiled-in data; locales covered checked when implemented |
 
 ### Modules and files
@@ -56,7 +56,7 @@ Key libraries for domain logic:
 | Crate | May depend on | Must never use |
 | --- | --- | --- |
 | `semoxide-error` | nothing | any dependency |
-| `semoxide-schema` | `error`, toml, semver, serde_json, schemars | anything with I/O |
+| `semoxide-schema` | `error`, toml, semver, serde_json, schemars, globset | anything with I/O |
 | `semoxide-version-engine` | `schema` | any I/O: `std::fs`, `std::net`, `std::process`, `std::env`, git2, tokio, printing |
 | `semoxide-git` | `version-engine` types, git2, russh | tokio outside its SSH bridge; printing |
 | `semoxide-runtime` | all above, `semoxide-plugin-host` | `std::env::var` (env snapshot only, [OBSERVABILITY](OBSERVABILITY.md)); printing |
