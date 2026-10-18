@@ -1,5 +1,6 @@
 //! [`ReleaseRanges`]: the versions each release branch may release, and the current branch.
 
+use super::error::Unsupported;
 use super::{BranchError, BranchModel, ReleaseBranch};
 use crate::Range;
 
@@ -33,12 +34,7 @@ impl<'a> ReleaseRanges<'a> {
     /// The range of a release branch; `None` for any other name.
     #[must_use]
     pub fn range(&self, branch: &str) -> Option<&Range> {
-        let index = self
-            .model
-            .release()
-            .iter()
-            .position(|release| release.name() == branch)?;
-        self.ranges.get(index)
+        self.release(branch).map(|(_, range)| range)
     }
 
     /// What `branch`, the branch being released, is.
@@ -46,8 +42,39 @@ impl<'a> ReleaseRanges<'a> {
     /// # Errors
     ///
     /// Returns [`BranchError`] for a prerelease or maintenance branch, which can't release yet.
-    pub fn current(&self, _branch: &str) -> Result<Current<'_>, BranchError> {
-        Ok(Current::NotConfigured)
+    pub fn current(&self, branch: &str) -> Result<Current<'_>, BranchError> {
+        if let Some((release, range)) = self.release(branch) {
+            return Ok(Current::Release {
+                branch: release,
+                range,
+            });
+        }
+        let kind = if self
+            .model
+            .prerelease()
+            .iter()
+            .any(|other| other.name() == branch)
+        {
+            Unsupported::Prerelease
+        } else if self
+            .model
+            .maintenance()
+            .iter()
+            .any(|other| other.name() == branch)
+        {
+            Unsupported::Maintenance
+        } else {
+            return Ok(Current::NotConfigured);
+        };
+        Err(BranchError::not_yet_supported(branch, kind))
+    }
+
+    fn release(&self, branch: &str) -> Option<(&ReleaseBranch, &Range)> {
+        self.model
+            .release()
+            .iter()
+            .zip(&self.ranges)
+            .find(|(release, _)| release.name() == branch)
     }
 }
 

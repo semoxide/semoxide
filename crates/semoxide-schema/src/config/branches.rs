@@ -35,13 +35,13 @@ impl Branches {
     pub(super) fn default_rules() -> Self {
         let release = |name: &str| {
             BranchRule::Release(ReleaseRule {
-                name: name.to_owned(),
+                name: NameMatcher::literal(name),
                 channel: None,
             })
         };
         let prerelease = |name: &str| {
             BranchRule::Prerelease(PrereleaseRule {
-                name: name.to_owned(),
+                name: NameMatcher::literal(name),
                 prerelease: Prerelease::BranchName,
                 channel: None,
             })
@@ -105,15 +105,12 @@ impl BranchRule {
     fn parse(path: &str, value: Value) -> Result<Self, ConfigError> {
         match value {
             Value::String(name) => {
-                if is_range_shaped(&name) {
-                    return Err(ConfigError::invalid(
-                        path,
-                        &Value::String(name),
-                        MAINTENANCE_HINT,
-                    ));
+                let value = Value::String(name);
+                if value.as_str().is_some_and(is_range_like) {
+                    return Err(ConfigError::invalid(path, &value, MAINTENANCE_HINT));
                 }
                 Ok(Self::Release(ReleaseRule {
-                    name,
+                    name: NameMatcher::parse(path, &value)?,
                     channel: None,
                 }))
             }
@@ -158,7 +155,7 @@ impl BranchRule {
             ));
         };
         let name = string(&name_path, &name_value)?;
-        if is_range_shaped(&name) {
+        if is_range_like(&name) {
             return Err(ConfigError::invalid(
                 &name_path,
                 &name_value,
@@ -173,12 +170,16 @@ impl BranchRule {
             ));
         }
         let channel = take_channel(&mut fields)?;
+        let matcher = NameMatcher::parse(&name_path, &name_value)?;
         let rule = match fields.take("prerelease") {
-            None => Self::Release(ReleaseRule { name, channel }),
+            None => Self::Release(ReleaseRule {
+                name: matcher,
+                channel,
+            }),
             Some((prerelease_path, prerelease_value)) => {
                 let prerelease = Prerelease::parse(&prerelease_path, &prerelease_value, &name)?;
                 Self::Prerelease(PrereleaseRule {
-                    name,
+                    name: matcher,
                     prerelease,
                     channel,
                 })
@@ -193,13 +194,13 @@ impl BranchRule {
         let channel = match self {
             Self::Release(rule) => {
                 if rule.channel.is_none() {
-                    return Value::String(rule.name.clone());
+                    return Value::String(rule.name.text.clone());
                 }
-                table.insert(String::from("name"), Value::String(rule.name.clone()));
+                table.insert(String::from("name"), Value::String(rule.name.text.clone()));
                 rule.channel.as_ref()
             }
             Self::Prerelease(rule) => {
-                table.insert(String::from("name"), Value::String(rule.name.clone()));
+                table.insert(String::from("name"), Value::String(rule.name.text.clone()));
                 let prerelease = match &rule.prerelease {
                     Prerelease::BranchName => Value::Boolean(true),
                     Prerelease::Id(id) => Value::String(id.as_str().to_owned()),
@@ -235,7 +236,7 @@ fn take_channel(fields: &mut Fields) -> Result<Option<Channel>, ConfigError> {
 /// A release branch rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReleaseRule {
-    name: String,
+    name: NameMatcher,
     channel: Option<Channel>,
 }
 
@@ -243,7 +244,7 @@ impl ReleaseRule {
     /// The branch name or glob.
     #[must_use]
     pub fn name(&self) -> &str {
-        &self.name
+        &self.name.text
     }
 
     /// The channel, or `None` for the default rule (CONFIG §3).
@@ -254,15 +255,15 @@ impl ReleaseRule {
 
     /// Whether a branch name is this name, or matches it as a glob (`*` stops at `/`).
     #[must_use]
-    pub fn matches(&self, _branch: &str) -> bool {
-        false
+    pub fn matches(&self, branch: &str) -> bool {
+        self.name.matches(branch)
     }
 }
 
 /// A prerelease branch rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrereleaseRule {
-    name: String,
+    name: NameMatcher,
     prerelease: Prerelease,
     channel: Option<Channel>,
 }
@@ -271,7 +272,7 @@ impl PrereleaseRule {
     /// The branch name or glob.
     #[must_use]
     pub fn name(&self) -> &str {
-        &self.name
+        &self.name.text
     }
 
     /// The prerelease identifier.
@@ -288,8 +289,8 @@ impl PrereleaseRule {
 
     /// Whether a branch name is this name, or matches it as a glob (`*` stops at `/`).
     #[must_use]
-    pub fn matches(&self, _branch: &str) -> bool {
-        false
+    pub fn matches(&self, branch: &str) -> bool {
+        self.name.matches(branch)
     }
 }
 
@@ -316,10 +317,7 @@ impl MaintenanceRule {
     /// [`range`](Self::range), that exact name.
     #[must_use]
     pub fn matches(&self, branch: &str) -> bool {
-        match pattern_prefix(&self.pattern) {
-            Some(prefix) => branch.strip_prefix(prefix).is_some_and(is_range_shaped),
-            None => branch == self.pattern,
-        }
+        self.range_for(branch).is_some()
     }
 
     /// The explicit range, e.g. `1.x`, for a name without `N.x`.
@@ -332,8 +330,14 @@ impl MaintenanceRule {
     /// (`release/1.2.x` → `1.2.x`), or the explicit [`range`](Self::range) for its name; `None`
     /// when the name doesn't fall under it.
     #[must_use]
-    pub fn range_for<'a>(&'a self, _branch: &'a str) -> Option<&'a str> {
-        None
+    pub fn range_for<'a>(&'a self, branch: &'a str) -> Option<&'a str> {
+        match pattern_prefix(&self.pattern) {
+            Some(prefix) => branch
+                .strip_prefix(prefix)
+                .filter(|range| is_range_shaped(range)),
+            None if branch == self.pattern => self.range.as_deref(),
+            None => None,
+        }
     }
 
     /// The channel, or `None` for the default rule (CONFIG §3).
@@ -397,9 +401,24 @@ fn pattern_prefix(pattern: &str) -> Option<&str> {
         .find_map(|ending| pattern.strip_suffix(ending))
 }
 
-/// `1.x`, `1.x.x` or `1.2.x`, `x` in any case: upstream's `^\d+(\.(\d+|x))?\.x$` (case-insensitive).
+/// `1.x`, `1.x.x` or `1.2.x`, `x` in any case, with numbers that have no leading zeros and fit
+/// in `u64`.
 fn is_range_shaped(name: &str) -> bool {
-    let is_number = |part: &str| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit());
+    has_range_shape(name, |part| {
+        part.parse::<u64>()
+            .is_ok_and(|number| number.to_string() == part)
+    })
+}
+
+/// [`is_range_shaped`] with any digits as numbers (upstream's `^\d+(\.(\d+|x))?\.x$`,
+/// case-insensitive): a name that looks like a range is never a release branch name.
+fn is_range_like(name: &str) -> bool {
+    has_range_shape(name, |part| {
+        !part.is_empty() && part.chars().all(|c| c.is_ascii_digit())
+    })
+}
+
+fn has_range_shape(name: &str, is_number: impl Fn(&str) -> bool) -> bool {
     let is_x = |part: &str| part.eq_ignore_ascii_case("x");
     let parts: Vec<&str> = name.split('.').collect();
     match parts.as_slice() {
@@ -500,11 +519,65 @@ fn is_prerelease_id(id: &str) -> bool {
 }
 
 fn is_glob(name: &str) -> bool {
-    name.contains(['*', '?', '[', '{'])
+    name.contains(['*', '?', '[', '{', '\\'])
 }
 
-/// What [`is_range_shaped`] accepts.
-const RANGE_PATTERN: &str = r"^[0-9]+(\.([0-9]+|[xX]))?\.[xX]$";
+/// A rule's branch name, or a glob over branch names: `*` stops at `/` and `\` escapes, on
+/// every OS. Compared by its text.
+#[derive(Debug, Clone)]
+struct NameMatcher {
+    text: String,
+    /// `None` for a plain name.
+    glob: Option<globset::GlobMatcher>,
+}
+
+impl NameMatcher {
+    fn literal(name: &str) -> Self {
+        Self {
+            text: name.to_owned(),
+            glob: None,
+        }
+    }
+
+    fn parse(path: &str, value: &Value) -> Result<Self, ConfigError> {
+        let text = string(path, value)?;
+        if !is_glob(&text) {
+            return Ok(Self { text, glob: None });
+        }
+        let glob = globset::GlobBuilder::new(&text)
+            .literal_separator(true)
+            .backslash_escape(true)
+            .build()
+            .map_err(|error| {
+                ConfigError::invalid(path, value, &format!("not a valid glob: {}", error.kind()))
+            })?;
+        Ok(Self {
+            text,
+            glob: Some(glob.compile_matcher()),
+        })
+    }
+
+    fn matches(&self, branch: &str) -> bool {
+        match &self.glob {
+            Some(glob) => glob.is_match(branch),
+            None => branch == self.text,
+        }
+    }
+}
+
+impl PartialEq for NameMatcher {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Eq for NameMatcher {}
+
+/// What [`is_range_like`] accepts.
+const RANGE_LIKE_PATTERN: &str = r"^[0-9]+(\.([0-9]+|[xX]))?\.[xX]$";
+
+/// What [`is_range_shaped`] accepts, apart from the `u64` limit.
+const RANGE_PATTERN: &str = r"^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*|[xX]))?\.[xX]$";
 
 /// What [`pattern_prefix`] finds.
 const RANGE_ENDING_PATTERN: &str = r"(N\.x|N\.x\.x|N\.N\.x)$";
@@ -545,7 +618,7 @@ impl JsonSchema for BranchRule {
     }
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        let name = json_schema!({ "type": "string", "not": { "pattern": RANGE_PATTERN } });
+        let name = json_schema!({ "type": "string", "not": { "pattern": RANGE_LIKE_PATTERN } });
         let channel = json_schema!({
             "anyOf": [
                 { "const": false },

@@ -5,7 +5,12 @@ use std::fmt;
 
 use semoxide_error::{ErrorCode, ErrorInfo};
 
-use crate::codes::BRANCH_RELEASE_BRANCHES;
+use super::MaintenanceLine;
+use crate::PrereleaseId;
+use crate::codes::{
+    BRANCH_DUPLICATE_MAINTENANCE_RANGES, BRANCH_DUPLICATE_PRERELEASE_IDS,
+    BRANCH_INVALID_PRERELEASE_ID, BRANCH_NOT_YET_SUPPORTED, BRANCH_RELEASE_BRANCHES,
+};
 
 /// The existing branches don't fit `branches.rules`, or the current branch can't release yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,9 +49,96 @@ pub(super) enum Unsupported {
     Maintenance,
 }
 
+impl BranchError {
+    pub(super) fn release_branches<'a>(branches: impl Iterator<Item = &'a str>) -> Self {
+        Self::new(Kind::ReleaseBranches {
+            branches: branches.map(str::to_owned).collect(),
+        })
+    }
+
+    pub(super) fn invalid_prerelease_id(branch: &str, id: &str) -> Self {
+        Self::new(Kind::InvalidPrereleaseId {
+            branch: branch.to_owned(),
+            id: id.to_owned(),
+        })
+    }
+
+    pub(super) fn duplicate_prerelease_ids(id: &PrereleaseId, branches: &[&str]) -> Self {
+        Self::new(Kind::DuplicatePrereleaseIds {
+            id: id.to_string(),
+            branches: owned(branches),
+        })
+    }
+
+    pub(super) fn duplicate_maintenance_ranges(line: MaintenanceLine, branches: &[&str]) -> Self {
+        Self::new(Kind::DuplicateMaintenanceRanges {
+            line: line.to_string(),
+            branches: owned(branches),
+        })
+    }
+
+    pub(super) fn not_yet_supported(branch: &str, kind: Unsupported) -> Self {
+        Self::new(Kind::NotYetSupported {
+            branch: branch.to_owned(),
+            kind,
+        })
+    }
+
+    fn new(kind: Kind) -> Self {
+        Self { kind }
+    }
+}
+
+fn owned(branches: &[&str]) -> Vec<String> {
+    branches.iter().map(|&branch| branch.to_owned()).collect()
+}
+
+/// The names in backticks, separated by commas.
+fn list(branches: &[String]) -> String {
+    branches
+        .iter()
+        .map(|branch| format!("`{branch}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 impl fmt::Display for BranchError {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(())
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            Kind::ReleaseBranches { branches } if branches.is_empty() => {
+                f.write_str("no release branch: no release rule matches an existing branch")
+            }
+            Kind::ReleaseBranches { branches } => write!(
+                f,
+                "{} release branches ({}); at most 3 are allowed",
+                branches.len(),
+                list(branches)
+            ),
+            Kind::InvalidPrereleaseId { branch, id } => write!(
+                f,
+                "branch `{branch}` gives the prerelease identifier `{id}`, which is not valid"
+            ),
+            Kind::DuplicatePrereleaseIds { id, branches } => write!(
+                f,
+                "branches {} share the prerelease identifier `{id}`",
+                list(branches)
+            ),
+            Kind::DuplicateMaintenanceRanges { line, branches } => write!(
+                f,
+                "branches {} maintain the same range `{line}`",
+                list(branches)
+            ),
+            Kind::NotYetSupported { branch, kind } => {
+                let kind = match kind {
+                    Unsupported::Prerelease => "prerelease",
+                    Unsupported::Maintenance => "maintenance",
+                };
+                write!(
+                    f,
+                    "releasing from the {kind} branch `{branch}` is not supported yet"
+                )
+            }
+        }
     }
 }
 
@@ -54,11 +146,38 @@ impl std::error::Error for BranchError {}
 
 impl ErrorInfo for BranchError {
     fn code(&self) -> ErrorCode {
-        BRANCH_RELEASE_BRANCHES
+        match self.kind {
+            Kind::ReleaseBranches { .. } => BRANCH_RELEASE_BRANCHES,
+            Kind::InvalidPrereleaseId { .. } => BRANCH_INVALID_PRERELEASE_ID,
+            Kind::DuplicatePrereleaseIds { .. } => BRANCH_DUPLICATE_PRERELEASE_IDS,
+            Kind::DuplicateMaintenanceRanges { .. } => BRANCH_DUPLICATE_MAINTENANCE_RANGES,
+            Kind::NotYetSupported { .. } => BRANCH_NOT_YET_SUPPORTED,
+        }
     }
 
     fn help(&self) -> Option<String> {
-        None
+        let help = match &self.kind {
+            Kind::ReleaseBranches { branches } if branches.is_empty() => {
+                "Create a branch a release rule names, such as `main`, or add a rule for an \
+                 existing branch."
+            }
+            Kind::ReleaseBranches { .. } => {
+                "Remove release rules, or make some of these branches prerelease branches."
+            }
+            Kind::InvalidPrereleaseId { .. } => {
+                "Set `prerelease` on its rule to a valid identifier (letters, digits, `-` and \
+                 `.`, no leading zeros)."
+            }
+            Kind::DuplicatePrereleaseIds { .. } => {
+                "Give each prerelease branch its own identifier with `prerelease`."
+            }
+            Kind::DuplicateMaintenanceRanges { .. } => "Keep one maintenance branch per range.",
+            Kind::NotYetSupported { .. } => {
+                "Release from a release branch; prerelease and maintenance releases come in a \
+                 later version."
+            }
+        };
+        Some(help.to_owned())
     }
 }
 
@@ -71,10 +190,6 @@ mod tests {
     use super::super::test_support::model;
     use super::*;
     use crate::Version;
-    use crate::codes::{
-        BRANCH_DUPLICATE_MAINTENANCE_RANGES, BRANCH_DUPLICATE_PRERELEASE_IDS,
-        BRANCH_INVALID_PRERELEASE_ID, BRANCH_NOT_YET_SUPPORTED,
-    };
 
     /// The code, message and help of the error, or `Ok` if there was none.
     fn failure<T>(result: Result<T, BranchError>) -> Result<(), (ErrorCode, String, String)> {
