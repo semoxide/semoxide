@@ -6,6 +6,7 @@ use std::fmt;
 
 use tracing::debug;
 
+use crate::id::to_oid;
 use crate::{CommitId, GitError, Repo};
 
 /// A path inside the repository, relative to its top and separated by `/` on every OS, as
@@ -39,7 +40,7 @@ impl Repo {
         let read = |error: git2::Error| GitError::read_failed(&error);
         let repo = self.git();
         let found = repo
-            .find_commit(commit.to_oid().map_err(read)?)
+            .find_commit(to_oid(commit).map_err(read)?)
             .map_err(read)?;
         let tree = found.tree().map_err(read)?;
         let parent = if found.parent_count() == 0 {
@@ -107,7 +108,7 @@ mod tests {
     }
 
     fn commit(fixture: &GitFixture, rev: &str) -> CommitId {
-        CommitId::from(git2::Oid::from_str(&fixture.rev_parse(rev).unwrap()).unwrap())
+        CommitId::try_from(fixture.rev_parse(rev).unwrap().as_str()).unwrap()
     }
 
     /// git's output, one path per line.
@@ -256,9 +257,7 @@ mod tests {
     #[test]
     fn an_unknown_commit_is_a_read_failure() {
         let fixture = fixture();
-        let unknown = CommitId::from(
-            git2::Oid::from_str("1111111111111111111111111111111111111111").unwrap(),
-        );
+        let unknown = CommitId::try_from("1111111111111111111111111111111111111111").unwrap();
 
         assert_eq!(
             Repo::discover(&fixture.path())

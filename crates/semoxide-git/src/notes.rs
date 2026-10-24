@@ -4,6 +4,7 @@
 
 use tracing::debug;
 
+use crate::id::to_oid;
 use crate::{GitError, ObjectId, Repo, Tag};
 
 const OURS_PREFIX: &str = "refs/notes/semoxide-";
@@ -51,7 +52,7 @@ impl Repo {
     pub fn tag_notes(&self, tag: &Tag) -> Result<TagNotes, GitError> {
         let read = |error: git2::Error| GitError::read_failed(&error);
         let name = tag.name();
-        let commit = tag.commit().to_oid().map_err(read)?;
+        let commit = to_oid(tag.commit()).map_err(read)?;
         let annotation = tag
             .annotation()
             .map(ObjectId::to_oid)

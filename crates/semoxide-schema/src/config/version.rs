@@ -234,7 +234,7 @@ mod tests {
 
     #[rstest]
     #[case::zero_x("0.1.0")]
-    #[case::prerelease("2.0.0-rc.1")]
+    #[case::all_zero("0.0.0")]
     fn initial_version(#[case] value: &str) {
         let config = loaded(&format!("version.initial = \"{value}\""));
 
@@ -284,6 +284,18 @@ mod tests {
     )]
     #[case::initial_build_metadata(
         r#"version.initial = "1.0.0+build""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        Rejects
+    )]
+    #[case::initial_prerelease(
+        r#"version.initial = "2.0.0-rc.1""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        Rejects
+    )]
+    #[case::initial_beta(
+        r#"version.initial = "2.0.0-beta.1""#,
         CONFIG_INVALID_VALUE,
         "version.initial",
         Rejects
@@ -338,5 +350,19 @@ mod tests {
     ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
         assert_eq!(schema_verdict(text), schema, "{text}");
+    }
+
+    #[test]
+    fn a_prerelease_initial_version_says_why() {
+        let message = crate::config::test_support::parse(r#"version.initial = "2.0.0-rc.1""#)
+            .map_err(|error| error.to_string());
+
+        assert!(
+            message
+                .as_ref()
+                .is_err_and(|message| message
+                    .contains("a release branch's first release is not a prerelease")),
+            "{message:?}"
+        );
     }
 }

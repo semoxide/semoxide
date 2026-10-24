@@ -2,6 +2,7 @@
 
 use tracing::debug;
 
+use crate::id::commit_id;
 use crate::{CommitId, GitError, Repo};
 
 /// Where `HEAD` is.
@@ -51,7 +52,7 @@ impl Repo {
             .strip_prefix(b"refs/heads/")
             .map(|name| String::from_utf8_lossy(name).into_owned());
         let head = Head {
-            commit: CommitId::from(commit.id()),
+            commit: commit_id(commit.id()).map_err(read)?,
             branch,
         };
         debug!(

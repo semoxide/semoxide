@@ -2,24 +2,20 @@
 
 use std::fmt;
 
-/// A commit's ID: its 40-character lowercase hex SHA.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CommitId(String);
+pub use semoxide_version_engine::CommitId;
 
 /// Any object's ID, e.g. an annotated tag's own object.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ObjectId(String);
 
-impl CommitId {
-    /// The hex SHA.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+/// The commit ID of `oid`.
+pub(crate) fn commit_id(oid: git2::Oid) -> Result<CommitId, git2::Error> {
+    CommitId::try_from(oid.to_string().as_str())
+        .map_err(|error| git2::Error::from_str(&error.to_string()))
+}
 
-    pub(crate) fn to_oid(&self) -> Result<git2::Oid, git2::Error> {
-        git2::Oid::from_str(&self.0)
-    }
+pub(crate) fn to_oid(commit: &CommitId) -> Result<git2::Oid, git2::Error> {
+    git2::Oid::from_str(commit.as_str())
 }
 
 impl ObjectId {
@@ -34,21 +30,9 @@ impl ObjectId {
     }
 }
 
-impl From<git2::Oid> for CommitId {
-    fn from(oid: git2::Oid) -> Self {
-        Self(oid.to_string())
-    }
-}
-
 impl From<git2::Oid> for ObjectId {
     fn from(oid: git2::Oid) -> Self {
         Self(oid.to_string())
-    }
-}
-
-impl fmt::Display for CommitId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
     }
 }
 
@@ -68,7 +52,7 @@ mod tests {
     fn ids_are_the_lowercase_hex_sha() {
         let oid = git2::Oid::from_str(&SHA.to_uppercase()).unwrap();
 
-        let (commit, object) = (CommitId::from(oid), ObjectId::from(oid));
+        let (commit, object) = (commit_id(oid).unwrap(), ObjectId::from(oid));
 
         assert_eq!(
             [
