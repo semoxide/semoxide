@@ -49,12 +49,46 @@ impl Releases {
     /// Returns [`ReleaseError`] when tags of the last release's version are on different
     /// commits.
     pub fn find<'a>(
-        _tags: impl IntoIterator<Item = (&'a str, &'a CommitId)>,
-        _pattern: &TagPattern,
+        tags: impl IntoIterator<Item = (&'a str, &'a CommitId)>,
+        pattern: &TagPattern,
     ) -> Result<Self, ReleaseError> {
+        let mut tags: Vec<(&str, &CommitId, Version)> = tags
+            .into_iter()
+            .filter_map(|(name, commit)| Some((name, commit, pattern.parse(name)?)))
+            .collect();
+        tags.sort_by_key(|&(name, ..)| name);
+        let (prereleases, releases): (Vec<_>, Vec<_>) = tags
+            .into_iter()
+            .partition(|(.., version)| !version.as_semver().pre.is_empty());
+        // Reversed, so the first by name wins a tie.
+        let highest_prerelease = prereleases
+            .into_iter()
+            .rev()
+            .max_by(|(.., a), (.., b)| a.cmp(b))
+            .map(|(name, _, version)| (name.to_owned(), version));
+        let Some((tag, commit, version)) =
+            releases.iter().rev().max_by(|(.., a), (.., b)| a.cmp(b))
+        else {
+            return Ok(Self {
+                last: None,
+                highest_prerelease,
+            });
+        };
+        let same: Vec<&(&str, &CommitId, Version)> = releases
+            .iter()
+            .filter(|(.., other)| other == version)
+            .collect();
+        if same.iter().any(|&&(_, other, _)| other != *commit) {
+            let names = same.iter().map(|&&(name, ..)| name.to_owned()).collect();
+            return Err(ReleaseError::duplicate_tags(version, names));
+        }
         Ok(Self {
-            last: None,
-            highest_prerelease: None,
+            last: Some(LastRelease {
+                version: version.clone(),
+                tag: (*tag).to_owned(),
+                commit: (*commit).clone(),
+            }),
+            highest_prerelease,
         })
     }
 
@@ -74,15 +108,84 @@ impl Releases {
     /// or its number would exceed `u64::MAX`.
     pub fn next(
         &self,
-        _level: Level,
-        _config: &VersionDomain,
-        _ranges: &ReleaseRanges<'_>,
-        _branch: &ReleaseBranch,
+        level: Level,
+        config: &VersionDomain,
+        ranges: &ReleaseRanges<'_>,
+        branch: &ReleaseBranch,
     ) -> Result<NextRelease, ReleaseError> {
-        Ok(NextRelease {
-            version: Version::from_parts(0, 0, 0, semver::Prerelease::EMPTY),
-            warning: None,
-        })
+        let releases: Vec<_> = ranges.releases().collect();
+        let Some((position, &(_, range))) = releases
+            .iter()
+            .enumerate()
+            .find(|(_, (release, _))| release.name() == branch.name())
+        else {
+            return Err(ReleaseError::not_release_branch(branch.name()));
+        };
+        let next = match &self.last {
+            None => self.first(config),
+            Some(last) => {
+                let level = if last.version.as_semver().major == 0 {
+                    zero_level(level, config)
+                } else {
+                    level
+                };
+                NextRelease {
+                    version: last.version.bump(level).map_err(ReleaseError::overflow)?,
+                    warning: None,
+                }
+            }
+        };
+        if range.contains(&next.version) {
+            return Ok(next);
+        }
+        if !range.contains(range.min()) {
+            let higher = releases
+                .get(position + 1)
+                .map(|(release, _)| release.name());
+            return Err(ReleaseError::empty_range(branch.name(), range, higher));
+        }
+        let fits = releases
+            .iter()
+            .find(|(release, other)| {
+                release.name() != branch.name() && other.contains(&next.version)
+            })
+            .map(|(release, _)| release.name());
+        Err(ReleaseError::out_of_range(
+            &next.version,
+            branch.name(),
+            range,
+            fits,
+        ))
+    }
+
+    /// `version.initial`, with a warning when a prerelease tag is higher.
+    fn first(&self, config: &VersionDomain) -> NextRelease {
+        let initial = config.initial();
+        let version = Version::from_parts(
+            initial.major,
+            initial.minor,
+            initial.patch,
+            initial.pre.clone(),
+        );
+        let warning = self
+            .highest_prerelease
+            .as_ref()
+            .filter(|(_, prerelease)| &version < prerelease)
+            .map(|(tag, _)| FirstReleaseWarning {
+                version: version.clone(),
+                tag: tag.clone(),
+            });
+        NextRelease { version, warning }
+    }
+}
+
+/// The level `level` gets while the version is 0.x.
+fn zero_level(level: Level, config: &VersionDomain) -> Level {
+    let zero = config.zero();
+    match level {
+        Level::Major => zero.breaking(),
+        Level::Minor => zero.feature(),
+        Level::Patch => zero.fix(),
     }
 }
 

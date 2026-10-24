@@ -83,7 +83,7 @@ Every key, generated from the code ([§12](#12-json-schema)); a key without a de
 | --- | --- | --- |
 | `config.merge` | `"deep"` | How a domain from a later layer (an `extends` source, the file) combines with an earlier one: key by key, or replacing the whole domain. One of `deep`, `shallow`. |
 | `commits.preset` | `"conventionalcommits"` | The commit convention both bundled plugins use; `conventionalcommits` marks breaking changes with `!`. One of `conventionalcommits`, `angular`. |
-| `version.initial` | `"1.0.0"` | The version of the first release: full SemVer, without build metadata. |
+| `version.initial` | `"1.0.0"` | The version of the first release: full SemVer, without prerelease or build metadata. |
 | `version.zero.breaking` | `"minor"` | The level of a breaking change on 0.x; `major` lets the first one release 1.0.0. One of `major`, `minor`, `patch`. |
 | `version.zero.feature` | `"patch"` | The level of a feature on 0.x. One of `major`, `minor`, `patch`. |
 | `version.zero.fix` | `"patch"` | The level of a fix on 0.x. One of `major`, `minor`, `patch`. |

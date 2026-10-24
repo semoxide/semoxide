@@ -56,6 +56,13 @@ impl VersionDomain {
                 "build metadata isn't allowed",
             ));
         }
+        if !initial.pre.is_empty() {
+            return Err(ConfigError::invalid(
+                "version.initial",
+                &Value::String(initial.to_string()),
+                "a release branch's first release is not a prerelease",
+            ));
+        }
         let zero = match fields.take("zero") {
             Some((path, value)) => ZeroLevels::parse(Fields::from_value(&path, value)?)?,
             None => ZeroLevels::DEFAULT,
@@ -170,8 +177,8 @@ pub enum Level {
 /// A version as `semver` parses it, build metadata included (the regex from semver.org).
 pub(super) const VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$";
 
-/// A version as `semver` parses it, without build metadata.
-const INITIAL_VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$";
+/// A version without prerelease or build metadata.
+const INITIAL_VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$";
 
 impl JsonSchema for VersionDomain {
     fn schema_name() -> Cow<'static, str> {
@@ -184,7 +191,8 @@ impl JsonSchema for VersionDomain {
             [
                 Property::new(
                     "initial",
-                    "The version of the first release: full SemVer, without build metadata.",
+                    "The version of the first release: full SemVer, without prerelease or \
+                     build metadata.",
                     json_schema!({ "type": "string", "pattern": INITIAL_VERSION_PATTERN }),
                 ),
                 Property::table("zero", generator.subschema_for::<ZeroLevels>()),

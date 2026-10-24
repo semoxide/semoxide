@@ -18,6 +18,12 @@ impl TryFrom<&str> for CommitId {
     type Error = CommitIdError;
 
     fn try_from(sha: &str) -> Result<Self, Self::Error> {
+        let is_hex = |byte: u8| matches!(byte, b'0'..=b'9' | b'a'..=b'f');
+        if sha.len() != 40 || !sha.bytes().all(is_hex) {
+            return Err(CommitIdError {
+                input: sha.to_owned(),
+            });
+        }
         Ok(Self(sha.to_owned()))
     }
 }
