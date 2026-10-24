@@ -5,6 +5,7 @@ use std::collections::HashSet;
 
 use tracing::{debug, warn};
 
+use crate::id::{commit_id, to_oid};
 use crate::{CommitId, GitError, ObjectId, Repo};
 
 const PREFIX: &str = "refs/tags/";
@@ -53,7 +54,7 @@ impl Repo {
         // One walk, then a set lookup per tag: checking each tag's ancestry separately is slow
         // with many tags.
         let mut walk = repo.revwalk().map_err(read)?;
-        walk.push(commit.to_oid().map_err(read)?).map_err(read)?;
+        walk.push(to_oid(commit).map_err(read)?).map_err(read)?;
         let reachable: HashSet<git2::Oid> = walk.collect::<Result<_, _>>().map_err(read)?;
         let mut tags = Vec::new();
         for reference in repo.references_glob(&format!("{PREFIX}*")).map_err(read)? {
@@ -74,7 +75,7 @@ impl Repo {
                 }
             };
             if let Some(tag) = tag
-                && reachable.contains(&tag.commit.to_oid().map_err(read)?)
+                && reachable.contains(&to_oid(&tag.commit).map_err(read)?)
             {
                 tags.push(tag);
             }
@@ -140,7 +141,7 @@ fn to_tag(reference: &git2::Reference<'_>) -> Result<Option<Tag>, GitError> {
         .map(ObjectId::from);
     Ok(Some(Tag {
         name: name.to_owned(),
-        commit: CommitId::from(commit),
+        commit: commit_id(commit).map_err(|error| GitError::read_failed(&error))?,
         annotation,
     }))
 }
@@ -177,7 +178,7 @@ mod tests {
     }
 
     fn commit(fixture: &GitFixture, rev: &str) -> CommitId {
-        CommitId::from(git2::Oid::from_str(&fixture.rev_parse(rev).unwrap()).unwrap())
+        CommitId::try_from(fixture.rev_parse(rev).unwrap().as_str()).unwrap()
     }
 
     fn repo(fixture: &GitFixture) -> Repo {
@@ -408,9 +409,7 @@ mod tests {
     #[test]
     fn an_unknown_commit_is_a_read_failure() {
         let fixture = fixture();
-        let unknown = CommitId::from(
-            git2::Oid::from_str("1111111111111111111111111111111111111111").unwrap(),
-        );
+        let unknown = CommitId::try_from("1111111111111111111111111111111111111111").unwrap();
 
         assert_eq!(
             repo(&fixture)

@@ -83,7 +83,7 @@ Every key, generated from the code ([§12](#12-json-schema)); a key without a de
 | --- | --- | --- |
 | `config.merge` | `"deep"` | How a domain from a later layer (an `extends` source, the file) combines with an earlier one: key by key, or replacing the whole domain. One of `deep`, `shallow`. |
 | `commits.preset` | `"conventionalcommits"` | The commit convention both bundled plugins use; `conventionalcommits` marks breaking changes with `!`. One of `conventionalcommits`, `angular`. |
-| `version.initial` | `"1.0.0"` | The version of the first release: full SemVer, without build metadata. |
+| `version.initial` | `"1.0.0"` | The version of the first release: full SemVer, without prerelease or build metadata. |
 | `version.zero.breaking` | `"minor"` | The level of a breaking change on 0.x; `major` lets the first one release 1.0.0. One of `major`, `minor`, `patch`. |
 | `version.zero.feature` | `"patch"` | The level of a feature on 0.x. One of `major`, `minor`, `patch`. |
 | `version.zero.fix` | `"patch"` | The level of a fix on 0.x. One of `major`, `minor`, `patch`. |
@@ -161,8 +161,11 @@ rules = [
 
 ## 4. Versions
 
-- `version.initial`: first release version, default `1.0.0` (e.g. `"0.1.0"`).
-- On 0.x, the analyzer's level maps as breaking → minor, feature → patch, fix → patch, so 0.x never leaves 0.x on its own (matches cargo and npm `^0.y`). Configurable via `version.zero` (`breaking`, `feature`, `fix` = `"major"|"minor"|"patch"`).
+- `version.initial`: first release version, default `1.0.0` (e.g. `"0.1.0"`); no prerelease or build metadata, `0.0.0` allowed.
+- The last release is the highest release (not prerelease) among the tags reachable from the branch; channels don't matter on a release branch. Tags of that version on different commits are an error (`version::duplicate_tags`); older duplicates are ignored.
+- Without a last release, the next version is exactly `version.initial` at any level, with a warning when an existing prerelease tag is higher. Once a release exists, `version.initial` is ignored.
+- A next version outside the branch's range is an error (`version::out_of_range`) naming the lowest other release branch whose range contains it.
+- While the last release is 0.x, the analyzer's level maps as breaking → minor, feature → patch, fix → patch, so 0.x never leaves 0.x on its own (matches cargo and npm `^0.y`). Configurable via `version.zero` (`breaking`, `feature`, `fix` = `"major"|"minor"|"patch"`).
 - Leaving 0.x is explicit: a commit footer `Release-As: 1.0.0` ([CONVENTIONAL-COMMITS-SPEC](specs/CONVENTIONAL-COMMITS-SPEC.md) footer syntax). `version.zero.breaking = "major"` instead lets the first breaking change graduate. From 1.0.0 on, breaking → major as usual.
 - `Release-As: <version>` footer, any version (manual override): strict SemVer, higher than the branch's last release and inside the branch range, else a coded error. On a prerelease branch the channel is appended (`2.0.0` on `beta` → `2.0.0-beta.1`). It releases even without other releasable commits. Several in range: the highest wins, with a warning listing all. Never shown in notes; `explain` shows it as the reason.
 

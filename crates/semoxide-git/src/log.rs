@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use tracing::debug;
 
+use crate::id::{commit_id, to_oid};
 use crate::{CommitId, GitError, ObjectId, Repo};
 
 /// A commit as `git log --format` shows it.
@@ -231,9 +232,9 @@ impl Repo {
         let repo = self.git();
         let mut walk = repo.revwalk().map_err(read)?;
         walk.set_sorting(git2::Sort::NONE).map_err(read)?;
-        walk.push(to.to_oid().map_err(read)?).map_err(read)?;
+        walk.push(to_oid(to).map_err(read)?).map_err(read)?;
         if let Some(from) = from {
-            walk.hide(from.to_oid().map_err(read)?).map_err(read)?;
+            walk.hide(to_oid(from).map_err(read)?).map_err(read)?;
         }
         let decorations = decorations(repo).map_err(read)?;
         let mut commits = Vec::new();
@@ -272,11 +273,14 @@ fn to_commit(
 ) -> Result<Commit, git2::Error> {
     let tree = commit.tree()?;
     Ok(Commit {
-        id: CommitId::from(commit.id()),
+        id: commit_id(commit.id())?,
         short_id: short(commit.as_object())?,
         tree_id: ObjectId::from(tree.id()),
         short_tree_id: short(tree.as_object())?,
-        parents: commit.parent_ids().map(CommitId::from).collect(),
+        parents: commit
+            .parent_ids()
+            .map(commit_id)
+            .collect::<Result<_, _>>()?,
         author: to_signature(&commit.author()),
         committer: to_signature(&commit.committer()),
         raw_message: lossy(commit.message_raw_bytes()),
@@ -449,7 +453,7 @@ mod tests {
     }
 
     fn commit(fixture: &GitFixture, rev: &str) -> CommitId {
-        CommitId::from(git2::Oid::from_str(&fixture.rev_parse(rev).unwrap()).unwrap())
+        CommitId::try_from(fixture.rev_parse(rev).unwrap().as_str()).unwrap()
     }
 
     fn repo(fixture: &GitFixture) -> Repo {
@@ -958,9 +962,7 @@ mod tests {
     fn an_unknown_commit_is_a_read_failure() {
         let fixture = fixture();
         let repo = repo(&fixture);
-        let unknown = CommitId::from(
-            git2::Oid::from_str("1111111111111111111111111111111111111111").unwrap(),
-        );
+        let unknown = CommitId::try_from("1111111111111111111111111111111111111111").unwrap();
         let head = commit(&fixture, "HEAD");
         let code = |result: Result<Vec<Commit>, GitError>| {
             result.map(|_| ()).map_err(|error| error.code())

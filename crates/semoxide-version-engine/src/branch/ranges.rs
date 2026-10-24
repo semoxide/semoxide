@@ -69,11 +69,13 @@ impl<'a> ReleaseRanges<'a> {
         Err(BranchError::not_yet_supported(branch, kind))
     }
 
+    /// Each release branch with its range, in order.
+    pub(crate) fn releases(&self) -> impl Iterator<Item = (&ReleaseBranch, &Range)> {
+        self.model.release().iter().zip(&self.ranges)
+    }
+
     fn release(&self, branch: &str) -> Option<(&ReleaseBranch, &Range)> {
-        self.model
-            .release()
-            .iter()
-            .zip(&self.ranges)
+        self.releases()
             .find(|(release, _)| release.name() == branch)
     }
 }

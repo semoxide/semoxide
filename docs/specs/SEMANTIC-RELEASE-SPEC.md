@@ -145,7 +145,8 @@ Branch order in the result: maintenance (sorted by range) → release (config or
 
 - Branch tags come from `git tag --merged <branch>`. A tag counts as a release if it matches the regex built from `tagFormat` (with `version` → `(.+)`) and the captured version is valid semver.
 - Channels per tag live in git notes, JSON `{"channels":[null,"next",…]}` (`null` = default channel). Current ref is `refs/notes/semantic-release-<tag>` (per tag); the legacy shared `refs/notes/semantic-release` is still read **[src]**. A tag with no note means `[null]`. **[conflict]** The [troubleshooting page](https://semantic-release.org/support/troubleshooting/) still documents only the legacy ref.
-- Last release = highest version among branch tags that are non-prerelease, or (on a prerelease branch) prereleases with this branch's id that are on this branch's channel.
+- Last release = highest version among branch tags that are non-prerelease, or (on a prerelease branch) prereleases with this branch's id that are on this branch's channel **[src]**. Highest, not newest; channels are ignored on release and maintenance branches. Tags of one version tie, and tag-name order decides. Plugins get `{version, gitTag, gitHead, channels, name}`, or `{}` without a last release.
+- No last release: the next version is `1.0.0` at any level (`FIRST_RELEASE`). A next version outside the branch range throws `EINVALIDNEXTVERSION`, before `verifyRelease` **[src]**.
 
 ### 4.5 Next version [src]
 

@@ -56,6 +56,13 @@ impl VersionDomain {
                 "build metadata isn't allowed",
             ));
         }
+        if !initial.pre.is_empty() {
+            return Err(ConfigError::invalid(
+                "version.initial",
+                &Value::String(initial.to_string()),
+                "a release branch's first release is not a prerelease",
+            ));
+        }
         let zero = match fields.take("zero") {
             Some((path, value)) => ZeroLevels::parse(Fields::from_value(&path, value)?)?,
             None => ZeroLevels::DEFAULT,
@@ -170,8 +177,8 @@ pub enum Level {
 /// A version as `semver` parses it, build metadata included (the regex from semver.org).
 pub(super) const VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$";
 
-/// A version as `semver` parses it, without build metadata.
-const INITIAL_VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$";
+/// A version without prerelease or build metadata.
+const INITIAL_VERSION_PATTERN: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$";
 
 impl JsonSchema for VersionDomain {
     fn schema_name() -> Cow<'static, str> {
@@ -184,7 +191,8 @@ impl JsonSchema for VersionDomain {
             [
                 Property::new(
                     "initial",
-                    "The version of the first release: full SemVer, without build metadata.",
+                    "The version of the first release: full SemVer, without prerelease or \
+                     build metadata.",
                     json_schema!({ "type": "string", "pattern": INITIAL_VERSION_PATTERN }),
                 ),
                 Property::table("zero", generator.subschema_for::<ZeroLevels>()),
@@ -234,7 +242,7 @@ mod tests {
 
     #[rstest]
     #[case::zero_x("0.1.0")]
-    #[case::prerelease("2.0.0-rc.1")]
+    #[case::all_zero("0.0.0")]
     fn initial_version(#[case] value: &str) {
         let config = loaded(&format!("version.initial = \"{value}\""));
 
@@ -284,6 +292,18 @@ mod tests {
     )]
     #[case::initial_build_metadata(
         r#"version.initial = "1.0.0+build""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        Rejects
+    )]
+    #[case::initial_prerelease(
+        r#"version.initial = "2.0.0-rc.1""#,
+        CONFIG_INVALID_VALUE,
+        "version.initial",
+        Rejects
+    )]
+    #[case::initial_beta(
+        r#"version.initial = "2.0.0-beta.1""#,
         CONFIG_INVALID_VALUE,
         "version.initial",
         Rejects
@@ -338,5 +358,19 @@ mod tests {
     ) {
         assert_eq!(rejection(text), Err((code, path.to_owned())));
         assert_eq!(schema_verdict(text), schema, "{text}");
+    }
+
+    #[test]
+    fn a_prerelease_initial_version_says_why() {
+        let message = crate::config::test_support::parse(r#"version.initial = "2.0.0-rc.1""#)
+            .map_err(|error| error.to_string());
+
+        assert!(
+            message
+                .as_ref()
+                .is_err_and(|message| message
+                    .contains("a release branch's first release is not a prerelease")),
+            "{message:?}"
+        );
     }
 }
