@@ -148,9 +148,33 @@ jobs:
       - name: Each feature
         run: cargo hack check --each-feature --workspace --locked
 
+  # `build`, not `check`, so libFuzzer's linking is tested too. `-s none` needs no nightly. The
+  # target is explicit: the cargo-fuzz release binary is musl and would default to musl.
+  fuzz:
+    needs: detect
+    if: needs.detect.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: github:rust-fuzz/cargo-fuzz
+      - name: Build
+        run: cargo fuzz build -s none --target x86_64-unknown-linux-gnu
+      - name: Smoke run, 10 s per target
+        run: |
+          for target in $(cargo fuzz list); do
+            cargo fuzz run -s none --target x86_64-unknown-linux-gnu "$target" -- -max_total_time=10
+          done
+
   required-checks:
     if: always()
-    needs: [quality, deny, test, msrv]
+    needs: [quality, deny, test, msrv, fuzz]
     runs-on: ubuntu-latest
     steps:
       - name: Every job succeeded or was skipped

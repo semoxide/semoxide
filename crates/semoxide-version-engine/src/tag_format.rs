@@ -59,8 +59,10 @@ impl TagPattern {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
     use rstest::rstest;
     use semoxide_schema::config::Config;
+    use semoxide_test_support::strategies;
 
     use super::*;
 
@@ -137,6 +139,13 @@ mod tests {
         );
     }
 
+    #[rstest]
+    #[case::empty_metadata("release/1.2.3+-x")]
+    #[case::two_plus("release/1.2.3+a+b-x")]
+    fn metadata_before_a_suffix_must_be_valid(#[case] name: &str) {
+        assert_eq!(pattern("release/{version}-x").parse(name), None);
+    }
+
     #[test]
     fn a_bare_format_takes_only_the_version() {
         let pattern = pattern("{version}");
@@ -172,5 +181,71 @@ mod tests {
                 .map(|version| pattern.parse(&pattern.render(&version))),
             versions.map(Some)
         );
+    }
+
+    /// The pattern of `format`, or `None` when the config rejects it.
+    fn loaded(format: &str) -> Option<TagPattern> {
+        let mut table = Config::defaults_table();
+        table["tags"]["format"] = format.into();
+        let config = Config::from_table(table).ok()?;
+        Some(TagPattern::new(config.tags().format()))
+    }
+
+    proptest! {
+        #[test]
+        fn any_rendered_tag_parses_back(
+            prefix in strategies::tag_affix(),
+            suffix in strategies::tag_affix(),
+            input in strategies::version(),
+            build in strategies::build(),
+        ) {
+            let Some(pattern) = loaded(&format!("{prefix}{{version}}{suffix}")) else {
+                return Ok(());
+            };
+            let version: Version = input.parse().unwrap();
+            let rendered = pattern.render(&version);
+
+            let with_build = format!("{prefix}{version}+{build}{suffix}");
+
+            prop_assert_eq!(&rendered, &format!("{prefix}{version}{suffix}"));
+            prop_assert_eq!(pattern.parse(&rendered), Some(version.clone()));
+            prop_assert_eq!(pattern.parse(&with_build), Some(version));
+        }
+
+        #[test]
+        fn a_tag_parses_only_as_its_render_with_optional_metadata(
+            prefix in strategies::tag_affix(),
+            suffix in strategies::tag_affix(),
+            input in strategies::version(),
+            build in proptest::option::of(strategies::build()),
+            junk in prop_oneof![
+                "\\PC{0,3}",
+                prop::sample::select(vec!["v", "V", "=", "+", "-", "+a", "."]).prop_map(str::to_owned),
+            ],
+            junk_at in 0..4_usize,
+        ) {
+            let Some(pattern) = loaded(&format!("{prefix}{{version}}{suffix}")) else {
+                return Ok(());
+            };
+            let build = build.map(|build| format!("+{build}")).unwrap_or_default();
+            // The junk goes before the name, after it, before the suffix, or nowhere.
+            let mut parts = [String::new(), String::new(), String::new()];
+            if let Some(part) = parts.get_mut(junk_at) {
+                *part = junk;
+            }
+            let [before, after, middle] = parts;
+            let name = format!("{before}{prefix}{input}{build}{middle}{suffix}{after}");
+            let Some(parsed) = pattern.parse(&name) else {
+                return Ok(());
+            };
+            let plain = pattern.render(&parsed);
+            let head = format!("{prefix}{parsed}+");
+            let with_build = name
+                .strip_prefix(head.as_str())
+                .and_then(|rest| rest.strip_suffix(suffix.as_str()))
+                .is_some_and(|build| semver::BuildMetadata::new(build).is_ok());
+
+            prop_assert!(name == plain || with_build, "{:?} parsed as {}", name, parsed);
+        }
     }
 }

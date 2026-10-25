@@ -7,3 +7,4 @@ pub mod git_fixture;
 pub mod golden_history;
 pub mod large_history;
 pub mod source_rules;
+pub mod strategies;

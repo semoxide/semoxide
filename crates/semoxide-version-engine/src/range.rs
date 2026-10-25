@@ -49,6 +49,9 @@ impl Range {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+    use semoxide_test_support::strategies;
+
     use super::*;
 
     fn version(input: &str) -> Version {
@@ -175,5 +178,34 @@ mod tests {
             (range.min(), range.max_exclusive()),
             (&version("1.0.0"), Some(&version("2.0.0")))
         );
+    }
+
+    proptest! {
+        #[test]
+        fn a_range_holds_exactly_the_versions_below_its_bound(
+            min in strategies::close_version(),
+            max in proptest::option::of(strategies::close_version()),
+            input in strategies::close_version(),
+        ) {
+            let min: Version = min.parse().unwrap();
+            let max: Option<Version> = max.map(|max| max.parse().unwrap());
+            let version: Version = input.parse().unwrap();
+            let range = Range::new(min.clone(), max.clone());
+            // A release bound also keeps out its prereleases: `<2.0.0` ends below `2.0.0-0`.
+            let bound = max.as_ref().map(|max| {
+                let semver = max.as_semver();
+                if semver.pre.is_empty() {
+                    let lowest = semver::Prerelease::new("0").unwrap();
+                    Version::from_parts(semver.major, semver.minor, semver.patch, lowest)
+                } else {
+                    max.clone()
+                }
+            });
+            let below = |version: &Version| bound.as_ref().is_none_or(|bound| version < bound);
+
+            prop_assert_eq!(range.contains(&version), version >= min && below(&version));
+            prop_assert_eq!(range.contains(&min), below(&min));
+            prop_assert!(max.is_none_or(|max| !range.contains(&max)));
+        }
     }
 }

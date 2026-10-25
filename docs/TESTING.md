@@ -24,8 +24,8 @@ Inside a crate:
 - **CLI end-to-end:** `assert_cmd`.
 - **Snapshot:** `insta` is the backbone (notes, JSON, errors, `explain`, plan).
 - **Data-driven:** `rstest` tables, incl. cases derived from upstream behaviour.
-- **Property-based:** `proptest` for parsers and the version engine (incl. semver round trip).
-- **Fuzzing:** `cargo-fuzz` for the commit, config and tag parsers.
+- **Property-based:** `proptest` laws for parsers and the version engine, inline in each module's tests. Shared generators live in `semoxide-test-support::strategies` and return strings that each test parses: a test-support crate depending on the crate under test would bring a second copy of it into the unit tests ([cargo#6765](https://github.com/rust-lang/cargo/issues/6765)). 256 cases on PRs, 10,000 nightly; `proptest-regressions/` is committed.
+- **Fuzzing:** `cargo-fuzz` targets in the root `fuzz/` crate (version and tag parsers, skip marker; the commit and config parsers come with their code). It is a workspace member with `libfuzzer-sys` only under `cfg(fuzzing)`, and each target's check is normal code in `fuzz/src/lib.rs`, so clippy and the smoke tests there cover it. Linux only: it doesn't link on Windows. A crash input becomes a smoke test.
 - **Doc tests.**
 - **Fakes, not mocks:** a fake plugin binary, `wiremock` as a fake forge. No mocking frameworks, no `trycmd`.
 - **Benchmarks:** `criterion`, per crate in `benches/` (log walks: `semoxide-git`). They run on `LargeHistory::large()` (`semoxide-test-support`), generated in one `git fast-import` stream in seconds: 100k commits, a tag every 20 commits (3,500 tags) with its note in its own `refs/notes/semoxide-<tag>`, the last 30k untagged. Sized after real reports: upstream's per-tag notes lookups slowed down from about 1k tags ([#2827](https://github.com/semantic-release/semantic-release/issues/2827)), and API-backed tools from tens of thousands of commits since the last release. Branches and monorepo units become generator parameters when their features get benchmarks.
@@ -169,7 +169,8 @@ Development phase only. A scheduled job runs a pinned semantic-release version i
 | Layer 5: git-http container | Linux | PR |
 | musl static build; aarch64 build check | Linux | PR |
 | aarch64 tests | Linux aarch64 | scheduled |
-| Fuzz (time-boxed), beta toolchain | Linux | nightly |
+| Fuzz build (`-s none`, linking included) + 10 s per target | Linux | PR |
+| Fuzz, 5 min per target, beta toolchain, `-s none`; laws at 10,000 cases | Linux | nightly |
 | Benchmarks | Linux | scheduled + on demand for log-walk PRs |
 | Dogfood dry-run with the PR's own build | Linux | PR |
 | Live E2E (sandbox), dogfood dry-run on main | Linux | nightly + manual |

@@ -287,6 +287,8 @@ mod tests {
     use crate::codes::{
         VERSION_DUPLICATE_TAGS, VERSION_OUT_OF_RANGE, VERSION_OVERFLOW, VERSION_TAGS_NOT_FOUND,
     };
+    use proptest::prelude::*;
+    use semoxide_test_support::strategies;
 
     /// A branch's tags as tag name and commit, a commit written as one hex digit.
     type Tags<'a> = &'a [(&'a str, char)];
@@ -977,5 +979,94 @@ fix = \"patch\"",
             last_with("v{version}", &[("v1.0.0-rc.1", 'a'), ("0.9.0", 'b')]),
             Ok(None)
         );
+    }
+
+    /// Tags with `tags.format = "v{version}"` on commits `a` to `c`.
+    fn generated_tags() -> impl Strategy<Value = Vec<(String, char)>> {
+        prop::collection::vec(
+            (
+                strategies::v_tag(),
+                prop::sample::select(vec!['a', 'b', 'c']),
+            ),
+            0..8,
+        )
+    }
+
+    fn borrowed(tags: &[(String, char)]) -> Vec<(&str, char)> {
+        tags.iter()
+            .map(|(name, commit)| (name.as_str(), *commit))
+            .collect()
+    }
+
+    proptest! {
+        #[test]
+        fn the_order_of_the_tags_doesnt_matter(
+            (tags, shuffled) in generated_tags()
+                .prop_flat_map(|tags| (Just(tags.clone()), Just(tags).prop_shuffle())),
+        ) {
+            let pattern = TagPattern::new(Config::default().tags().format());
+            let found = find_with(&borrowed(&tags), &pattern);
+
+            prop_assert_eq!(&find_with(&borrowed(&shuffled), &pattern), &found);
+            let Ok(Some(last)) = found.map(|releases| releases.last().cloned()) else {
+                return Ok(());
+            };
+            prop_assert_eq!(pattern.parse(last.tag()), Some(last.version().clone()));
+            prop_assert!(last.version().as_semver().pre.is_empty());
+            for (name, _) in &tags {
+                let same = pattern.parse(name).is_some_and(|version| &version == last.version());
+                prop_assert!(!same || last.tag() <= name.as_str(), "{} before {}", name, last.tag());
+                let higher = pattern.parse(name).filter(|version| {
+                    version.as_semver().pre.is_empty() && version > last.version()
+                });
+                prop_assert_eq!(higher, None);
+            }
+        }
+
+        #[test]
+        fn the_next_version_is_in_range_and_above_the_last_release(
+            main in generated_tags(),
+            next in generated_tags(),
+            level in prop::sample::select(vec![Level::Major, Level::Minor, Level::Patch]),
+            current in prop::sample::select(vec!["main", "next"]),
+        ) {
+            let config = Config::default();
+            let pattern = TagPattern::new(config.tags().format());
+            let model = BranchModel::new(config.branches().rules(), &["main", "next"]).unwrap();
+            let versions: HashMap<String, Vec<Version>> = [("main", &main), ("next", &next)]
+                .into_iter()
+                .map(|(name, tags)| {
+                    let versions = tags.iter().filter_map(|(tag, _)| pattern.parse(tag));
+                    (name.to_owned(), versions.collect())
+                })
+                .collect();
+            let initial: Version = config.version().initial().to_string().parse().unwrap();
+            let ranges = model.ranges(&versions, &initial);
+            let branch = model
+                .release()
+                .iter()
+                .find(|branch| branch.name() == current)
+                .unwrap();
+            let own = if current == "main" { &main } else { &next };
+            let Ok(releases) = find_with(&borrowed(own), &pattern) else {
+                return Ok(());
+            };
+            let next_release = releases.next(level, config.version(), &ranges, branch);
+            if versions.values().all(Vec::is_empty) {
+                let version = next_release.map(|release| release.version().clone());
+                prop_assert_eq!(version, Ok(initial));
+                return Ok(());
+            }
+            let Ok(released) = next_release else {
+                return Ok(());
+            };
+
+            prop_assert!(ranges.range(current).unwrap().contains(released.version()));
+            prop_assert!(
+                releases
+                    .last()
+                    .is_none_or(|last| released.version() > last.version())
+            );
+        }
     }
 }

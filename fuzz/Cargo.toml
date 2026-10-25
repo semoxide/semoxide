@@ -1,0 +1,48 @@
+[package]
+name = "semoxide-fuzz"
+description = "Fuzz targets for semoxide's parsers (not published)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[lints]
+workspace = true
+
+[dependencies]
+semoxide-schema.workspace = true
+semoxide-version-engine.workspace = true
+semver.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true
+
+# libFuzzer only under `cargo fuzz` (Linux): normal and Windows builds compile the checks alone.
+[target.'cfg(fuzzing)'.dependencies]
+libfuzzer-sys.workspace = true
+
+[[bin]]
+name = "version"
+path = "fuzz_targets/version.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tag"
+path = "fuzz_targets/tag.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "skip-marker"
+path = "fuzz_targets/skip_marker.rs"
+test = false
+doc = false
+bench = false

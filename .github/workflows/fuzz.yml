@@ -1,0 +1,59 @@
+# Long fuzz runs and deep property tests (docs/TESTING.md § CI): nightly and on demand, never
+# gating a PR. The PR `fuzz` job in ci.yml builds the targets and runs them briefly.
+name: fuzz
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: beta
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install beta --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: github:rust-fuzz/cargo-fuzz
+      - name: Fuzz, 5 min per target
+        run: |
+          for target in $(cargo fuzz list); do
+            cargo fuzz run -s none --target x86_64-unknown-linux-gnu "$target" -- -max_total_time=300
+          done
+      # A crash input becomes a smoke test in fuzz/src/lib.rs.
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts
+
+  laws:
+    runs-on: ubuntu-latest
+    env:
+      PROPTEST_CASES: "10000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.3
+          install_args: github:nextest-rs/nextest
+      - name: Property tests, 10,000 cases each
+        run: cargo nextest run --workspace --locked
