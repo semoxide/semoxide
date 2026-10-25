@@ -44,9 +44,12 @@ impl<C: CommitMessage> Skipped<C> {
     /// Splits `commits`, keeping their order. Each commit is judged by its own message.
     #[must_use]
     pub fn filter(commits: Vec<C>) -> Self {
+        let (skipped, kept): (Vec<C>, Vec<C>) = commits
+            .into_iter()
+            .partition(|commit| has_marker(commit.message()));
         Self {
-            kept: commits,
-            skipped: Vec::new(),
+            kept,
+            skipped: skipped.iter().map(|commit| commit.id().clone()).collect(),
         }
     }
 }
@@ -70,7 +73,15 @@ impl<C> Skipped<C> {
     ///
     /// Returns [`NoRelease`] when the range has no commits, or every commit is skipped.
     pub fn to_analyze(&self) -> Result<&[C], NoRelease> {
-        Ok(&self.kept)
+        if !self.kept.is_empty() {
+            return Ok(&self.kept);
+        }
+        if self.skipped.is_empty() {
+            return Err(NoRelease::NoCommitsSince);
+        }
+        Err(NoRelease::AllCommitsSkipped {
+            skipped: self.skipped.clone(),
+        })
     }
 
     /// The level to release at, from the analyzer's verdict on [`Self::to_analyze`].
@@ -79,7 +90,9 @@ impl<C> Skipped<C> {
     ///
     /// Returns [`NoRelease::NoRelevantCommits`] when the analyzer found no bump.
     pub fn level(&self, analyzed: Option<Level>) -> Result<Level, NoRelease> {
-        Ok(analyzed.unwrap_or(Level::Patch))
+        analyzed.ok_or_else(|| NoRelease::NoRelevantCommits {
+            skipped: self.skipped.clone(),
+        })
     }
 }
 
@@ -87,14 +100,33 @@ impl NoRelease {
     /// The skipped commits; empty when the range has none.
     #[must_use]
     pub fn skipped(&self) -> &[CommitId] {
-        &[]
+        match self {
+            Self::NoCommitsSince => &[],
+            Self::AllCommitsSkipped { skipped } | Self::NoRelevantCommits { skipped } => skipped,
+        }
     }
 }
 
 /// Whether `message` holds `[skip release]` or `[release skip]`: anywhere, in any ASCII case,
 /// with any whitespace between the words.
-fn has_marker(_message: &str) -> bool {
-    false
+fn has_marker(message: &str) -> bool {
+    message
+        .to_ascii_lowercase()
+        .split('[')
+        .skip(1)
+        .any(|rest| words_at(rest, "skip", "release") || words_at(rest, "release", "skip"))
+}
+
+/// Whether `rest` starts with `first`, whitespace, `second` and `]`.
+fn words_at(rest: &str, first: &str, second: &str) -> bool {
+    let Some(after) = rest.strip_prefix(first) else {
+        return false;
+    };
+    let words = after.trim_start();
+    words.len() < after.len()
+        && words
+            .strip_prefix(second)
+            .is_some_and(|tail| tail.starts_with(']'))
 }
 
 #[cfg(test)]

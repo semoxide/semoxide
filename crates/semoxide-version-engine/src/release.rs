@@ -52,10 +52,16 @@ impl Releases {
         tags: impl IntoIterator<Item = (&'a str, &'a CommitId)>,
         pattern: &TagPattern,
     ) -> Result<Self, ReleaseError> {
-        let mut tags: Vec<(&str, &CommitId, Version)> = tags
-            .into_iter()
-            .filter_map(|(name, commit)| Some((name, commit, pattern.parse(name)?)))
+        let all: Vec<(&str, &CommitId)> = tags.into_iter().collect();
+        let mut tags: Vec<(&str, &CommitId, Version)> = all
+            .iter()
+            .filter_map(|&(name, commit)| Some((name, commit, pattern.parse(name)?)))
             .collect();
+        if tags.is_empty()
+            && let Some(error) = tags_not_found(all.iter().map(|&(name, _)| name), pattern)
+        {
+            return Err(error);
+        }
         tags.sort_by_key(|&(name, ..)| name);
         let (prereleases, releases): (Vec<_>, Vec<_>) = tags
             .into_iter()
@@ -177,6 +183,33 @@ impl Releases {
             });
         NextRelease { version, warning }
     }
+}
+
+/// The error for tags that would be releases in the bare or `v`-prefixed format; `None` when
+/// none would.
+fn tags_not_found<'a>(
+    names: impl Iterator<Item = &'a str>,
+    pattern: &TagPattern,
+) -> Option<ReleaseError> {
+    let formats = [TagPattern::with_prefix(""), TagPattern::with_prefix("v")];
+    let mut misses: Vec<(&str, Version, &TagPattern)> = names
+        .filter_map(|name| {
+            formats
+                .iter()
+                .find_map(|format| Some((name, format.parse(name)?, format)))
+        })
+        .collect();
+    misses.sort_by_key(|&(name, ..)| name);
+    // Reversed, so the first by name wins a tie.
+    let (.., suggested) = misses
+        .iter()
+        .rev()
+        .max_by(|(_, a, _), (_, b, _)| a.cmp(b))?;
+    Some(ReleaseError::tags_not_found(
+        pattern.format(),
+        misses.iter().map(|&(name, ..)| name.to_owned()).collect(),
+        suggested.format(),
+    ))
 }
 
 /// The level `level` gets while the version is 0.x.

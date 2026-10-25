@@ -127,7 +127,7 @@ impl CommitMessage for Commit {
     }
 
     fn message(&self) -> &str {
-        ""
+        Self::message(self)
     }
 }
 
