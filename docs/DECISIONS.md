@@ -91,6 +91,8 @@ Why each non-obvious choice was made. The rules themselves live in the linked do
 - **"No release" is exit 0 with a typed reason** — making it an error is a common complaint (go-semrel #8, cocogitto #457), and silence makes it undebuggable. (→ [CLI](CLI.md), [OBSERVABILITY](OBSERVABILITY.md))
 - **`fail` always runs** — plugins can report unexpected errors too, not only known ones. (→ [OBSERVABILITY](OBSERVABILITY.md))
 - **Skip marker excludes commits from notes too** — fixes upstream's notes bug (release-notes-generator #531). (→ [CONFIG](CONFIG.md))
+- **A marker on a merge skips only that commit** — no tool skips a merged branch and no user asks for it; hiding a branch's `feat:` without a marker on it would surprise. (→ [CONFIG](CONFIG.md#7-commit-analysis))
+- **Version tags in another format are an error** — upstream ignores them and makes the first release again; a wrong `tags.format` is a config mistake, and only bare and `v` forms count, so unrelated tags rarely block. (→ [CONFIG](CONFIG.md#5-tags))
 - **`version` prints nothing when there is no release** — the upstream workaround (#1647) writes no file in that case and users script around it; empty stdout is a documented signal, a "current version" would be ambiguous. (→ [CLI](CLI.md))
 - **`$GITHUB_OUTPUT` uses the cycjimmy action's names** — migrated workflows keep their `steps.*.outputs` conditions unchanged. (→ [OBSERVABILITY](OBSERVABILITY.md))
 - **Outside CI: `NotCi` plus the would-be result** — answers both "why wasn't it released" and "what would CI do". (→ [OBSERVABILITY](OBSERVABILITY.md#7-no-release-reasons))

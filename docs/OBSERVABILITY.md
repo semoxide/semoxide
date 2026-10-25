@@ -125,9 +125,8 @@ Untrusted text (plugin output, commit subjects, notes) starting with `::` is esc
 | `PullRequest` | detected CI context |
 | `BranchNotConfigured` | closest configured branch glob |
 | `NoCommitsSince` | last release tag |
-| `NoRelevantCommits` | per-commit verdicts at `-v` |
-| `AllCommitsSkipped` | every relevant commit carries the [skip marker](CONFIG.md) |
-| `TagsNotFound` | shallow clone, `tags.format` near-misses |
+| `NoRelevantCommits` | per-commit verdicts at `-v`, skipped commits |
+| `AllCommitsSkipped` | every commit carries the [skip marker](CONFIG.md#7-commit-analysis) |
 | `PathFiltered` | the monorepo unit's path filter ([ARCHITECTURE.md](ARCHITECTURE.md)) |
 
 ## 8. Errors

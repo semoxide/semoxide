@@ -174,6 +174,7 @@ rules = [
 - `tags.format`: own syntax with a single placeholder `{version}`, so versions parse back out of tags. Default `v{version}`.
 - Not a template: no expressions.
 - Tags are matched by version, not by name: `v1.2.3+anything` is 1.2.3, and build metadata is ignored for precedence and for "already released".
+- When no tag matches `tags.format`, bare or `v`-prefixed version tags (`1.0.0` for `v{version}`) are an error, [`version::tags_not_found`](errors/version/tags-not-found.md), so the first release isn't made again.
 - `tags.metadata` (optional minijinja template over the run context, e.g. `"{{ commit.short_sha }}"`): appended as `+<metadata>` to the **git tag only**. Versions passed to plugins never carry `+`. `Release-As:` rejects metadata.
 
 ## 6. Templates
@@ -199,7 +200,7 @@ rules = [
 - All commits in the range are parsed, merges included (as upstream), so a merge whose header is conventional (e.g. the PR title) counts. Unparsable merge commits and `fixup!` / `squash!` / `amend!` commits are exempt from `strict` and shown in `explain` as skipped. `[plugins.commit-analyzer] strict_merges = true` (default `false`) removes the exemption for merge commits.
 - Reverts: a revert whose target is in the range cancels both (no bump, neither in notes); a revert of an earlier release's commit bumps patch. Detected forms: git's `Revert "<header>"` + `This reverts commit <sha>`, and `revert: <header>` with a `Refs: <sha>` footer. The SHA matches by unique prefix (≥ 7 chars).
 - `[plugins.commit-analyzer] release_rules`: ordered list of rules overriding the table. Values are globs in which `*` also matches `/`.
-- Skip marker: a commit containing `[skip release]` or `[release skip]` (any case) is excluded from the bump decision and from the notes.
+- Skip marker: a commit whose message contains `[skip release]` or `[release skip]` (anywhere, any ASCII case, any whitespace between the words, line breaks included) is left out of the analysis and the notes: it never bumps, never fails `strict`, and its `Release-As:` footer is ignored. `explain` lists it as skipped. A revert of a skipped commit is dropped with it. A marker on a merge commit skips only that commit, not the commits it brings in; squash-merge to skip a whole branch.
 - User regexes (e.g. parser patterns): `fancy-regex`, so lookaround and backreferences work. Patterns without them run in linear time; backtracking patterns run under a backtrack limit, and exceeding it is an error naming the pattern and the commit.
 - Asset and path globs are standard file globs.
 
