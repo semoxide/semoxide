@@ -17,6 +17,8 @@ pub const BRANCH_DUPLICATE_MAINTENANCE_RANGES: ErrorCode =
 pub const BRANCH_NOT_YET_SUPPORTED: ErrorCode = ErrorCode::from_static("branch::not_yet_supported");
 /// Tags of the last release's version on different commits.
 pub const VERSION_DUPLICATE_TAGS: ErrorCode = ErrorCode::from_static("version::duplicate_tags");
+/// No tag matches `tags.format`, but some look like releases in another format.
+pub const VERSION_TAGS_NOT_FOUND: ErrorCode = ErrorCode::from_static("version::tags_not_found");
 /// A next version outside the range of the branch being released.
 pub const VERSION_OUT_OF_RANGE: ErrorCode = ErrorCode::from_static("version::out_of_range");
 /// A next version whose number would exceed `u64::MAX`.
@@ -30,6 +32,7 @@ pub const ALL: &[ErrorCode] = &[
     BRANCH_DUPLICATE_MAINTENANCE_RANGES,
     BRANCH_NOT_YET_SUPPORTED,
     VERSION_DUPLICATE_TAGS,
+    VERSION_TAGS_NOT_FOUND,
     VERSION_OUT_OF_RANGE,
     VERSION_OVERFLOW,
 ];

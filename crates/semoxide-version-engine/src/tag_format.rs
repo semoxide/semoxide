@@ -25,6 +25,19 @@ impl TagPattern {
         }
     }
 
+    /// The pattern `<prefix>{version}`.
+    pub(crate) fn with_prefix(prefix: &str) -> Self {
+        Self {
+            prefix: prefix.to_owned(),
+            suffix: String::new(),
+        }
+    }
+
+    /// The format as written, e.g. `v{version}`.
+    pub(crate) fn format(&self) -> String {
+        format!("{}{{version}}{}", self.prefix, self.suffix)
+    }
+
     /// The tag name of `version`, without build metadata.
     #[must_use]
     pub fn render(&self, version: &Version) -> String {

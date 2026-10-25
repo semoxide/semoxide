@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use semoxide_version_engine::CommitMessage;
 use tracing::debug;
 
 use crate::id::{commit_id, to_oid};
@@ -117,6 +118,16 @@ impl Commit {
     #[must_use]
     pub fn committer_date(&self) -> String {
         iso_date(self.committer.time)
+    }
+}
+
+impl CommitMessage for Commit {
+    fn id(&self) -> &CommitId {
+        &self.id
+    }
+
+    fn message(&self) -> &str {
+        Self::message(self)
     }
 }
 
@@ -419,6 +430,7 @@ fn format_decorations(list: Option<&[Decoration]>) -> String {
 mod tests {
     use semoxide_error::ErrorInfo;
     use semoxide_test_support::git_fixture::{GitFixture, Merge};
+    use semoxide_version_engine::Skipped;
 
     use super::*;
     use crate::codes::GIT_READ_FAILED;
@@ -458,6 +470,32 @@ mod tests {
 
     fn repo(fixture: &GitFixture) -> Repo {
         Repo::discover(&fixture.path()).unwrap()
+    }
+
+    #[test]
+    fn the_skip_filter_reads_the_whole_message() {
+        let fixture = GitFixture::builder()
+            .commit("feat: first")
+            .commit("fix: kept")
+            .commit("fix: skipped\n\nbody\n[skip\nrelease]")
+            .commit("fix: subject [skip release]")
+            .build()
+            .unwrap();
+        let commits = repo(&fixture)
+            .log(None, &commit(&fixture, "HEAD"))
+            .unwrap_or_default();
+        let split = Skipped::filter(commits);
+
+        assert_eq!(
+            (
+                split.kept().iter().map(Commit::subject).collect::<Vec<_>>(),
+                split.skipped().to_vec()
+            ),
+            (
+                vec![String::from("fix: kept"), String::from("feat: first")],
+                vec![commit(&fixture, "HEAD"), commit(&fixture, "HEAD~1")]
+            )
+        );
     }
 
     fn ids(commits: &[Commit]) -> Vec<String> {

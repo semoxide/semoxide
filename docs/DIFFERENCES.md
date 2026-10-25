@@ -32,7 +32,7 @@ Every row is intentional. The linked doc owns the full rule.
 
 | Area | semantic-release | semoxide | Details |
 | --- | --- | --- | --- |
-| Skip marker | `[skip release]` / `[release skip]` excludes from the bump only; commit still appears in notes | Excluded from bump **and** notes; all-skipped yields no-release reason `AllCommitsSkipped` | [CONFIG.md](CONFIG.md) |
+| Skip marker | `[skip release]` / `[release skip]` excludes from the bump only; commit still appears in notes | Excluded from bump **and** notes, ignored by `strict` and `Release-As:`; all-skipped yields no-release reason `AllCommitsSkipped` | [CONFIG.md](CONFIG.md#7-commit-analysis) |
 | Reverts | pair cancelled only on exact full hash (short hash never cancels); git `Revert "…"` form only | unique-prefix hash match; also `revert:` + `Refs:` footer | [CONFIG.md](CONFIG.md) |
 | Rule globs | micromatch; `*` stops at `/` in `releaseRules` values | `globset`; `*` also matches `/` in bump-rule values | [CONFIG.md](CONFIG.md) |
 | Extended globs | micromatch extglob (`+(…)`, `?(…)`) | Not supported; `migrate` rewrites recognised patterns and reports the rest | [CONFIG.md](CONFIG.md) |
@@ -54,6 +54,7 @@ Every row is intentional. The linked doc owns the full rule.
 | Overlapping branch rules | the first rule that matches a branch takes it, silently | the same, and each overlap is reported as a warning | [CONFIG.md](CONFIG.md#3-branches) |
 | Release range floor | the main line starts at `1.0.0` | it starts at `version.initial` | [CONFIG.md](CONFIG.md#3-branches) |
 | First release | always `1.0.0` | exactly `version.initial` (no prerelease), with a warning when an existing prerelease tag is higher | [CONFIG.md](CONFIG.md#4-versions) |
+| Version tags in another format | ignored, so the first release is made again | `version::tags_not_found` when no tag matches `tags.format` but bare or `v`-prefixed version tags exist | [CONFIG.md](CONFIG.md#5-tags) |
 | Tags of one version on different commits | the first by tag name is the last release, so later commits can be released again | an error when they hold the last release; older duplicates are ignored | [CONFIG.md](CONFIG.md#4-versions) |
 | Out-of-range next version | `EINVALIDNEXTVERSION` lists the commits and "valid branches" from `accept` (on an empty range it names the current branch, with no release it lists every commit) | `version::out_of_range` names the range and the lowest other release branch that fits; an empty range says so and suggests merging the next branch | [CONFIG.md](CONFIG.md#4-versions) |
 | Range bound over untagged branches | when the lower release branches have no version, the bound is the next branch's lowest non-prerelease version | its lowest version, prereleases included (`<1.0.0-beta.1`) | [SEMANTIC-RELEASE-SPEC §4.6](specs/SEMANTIC-RELEASE-SPEC.md#46-range-calculation-src) |

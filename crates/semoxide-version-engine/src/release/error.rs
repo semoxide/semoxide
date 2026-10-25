@@ -1,13 +1,17 @@
-//! [`ReleaseError`]: the last release is ambiguous, or the next version can't be released.
+//! [`ReleaseError`]: the last release is ambiguous or hidden, or the next version can't be
+//! released.
 
 use std::fmt;
 
 use semoxide_error::{ErrorCode, ErrorInfo};
 
-use crate::codes::{VERSION_DUPLICATE_TAGS, VERSION_OUT_OF_RANGE, VERSION_OVERFLOW};
+use crate::codes::{
+    VERSION_DUPLICATE_TAGS, VERSION_OUT_OF_RANGE, VERSION_OVERFLOW, VERSION_TAGS_NOT_FOUND,
+};
 use crate::{BumpError, Range, Version};
 
-/// The last release is ambiguous, or the next version can't be released from the branch.
+/// The last release is ambiguous or hidden, or the next version can't be released from the
+/// branch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReleaseError {
     kind: Kind,
@@ -18,6 +22,12 @@ enum Kind {
     DuplicateTags {
         version: Version,
         tags: Vec<String>,
+    },
+    TagsNotFound {
+        format: String,
+        tags: Vec<String>,
+        /// The format the highest near-miss matches.
+        suggested: String,
     },
     Overflow {
         bump: BumpError,
@@ -45,6 +55,14 @@ impl ReleaseError {
         Self::new(Kind::DuplicateTags {
             version: version.clone(),
             tags,
+        })
+    }
+
+    pub(super) fn tags_not_found(format: String, tags: Vec<String>, suggested: String) -> Self {
+        Self::new(Kind::TagsNotFound {
+            format,
+            tags,
+            suggested,
         })
     }
 
@@ -104,6 +122,14 @@ impl fmt::Display for ReleaseError {
                     tags.join(", ")
                 )
             }
+            Kind::TagsNotFound { format, tags, .. } => {
+                let tags: Vec<String> = tags.iter().map(|tag| format!("`{tag}`")).collect();
+                write!(
+                    f,
+                    "no tag matches `tags.format` `{format}`; tags {} look like releases",
+                    tags.join(", ")
+                )
+            }
             Kind::Overflow { bump } => bump.fmt(f),
             Kind::OutOfRange {
                 version,
@@ -134,6 +160,7 @@ impl ErrorInfo for ReleaseError {
     fn code(&self) -> ErrorCode {
         match self.kind {
             Kind::DuplicateTags { .. } => VERSION_DUPLICATE_TAGS,
+            Kind::TagsNotFound { .. } => VERSION_TAGS_NOT_FOUND,
             Kind::Overflow { .. } => VERSION_OVERFLOW,
             Kind::OutOfRange { .. } | Kind::EmptyRange { .. } | Kind::NotReleaseBranch { .. } => {
                 VERSION_OUT_OF_RANGE
@@ -146,6 +173,10 @@ impl ErrorInfo for ReleaseError {
             Kind::DuplicateTags { version, .. } => {
                 format!("Delete the tags on the wrong commits, so one commit holds `{version}`.")
             }
+            Kind::TagsNotFound { suggested, .. } => format!(
+                "Set `tags.format = \"{suggested}\"` to use them, or delete or rename them if they \
+                 aren't releases."
+            ),
             Kind::Overflow { .. } => {
                 String::from("No higher version exists at this level; release a lower level.")
             }
