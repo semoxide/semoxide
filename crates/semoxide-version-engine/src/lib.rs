@@ -9,6 +9,7 @@ mod commit_id;
 mod prerelease_id;
 mod range;
 mod release;
+mod skip;
 mod tag_format;
 mod version;
 
@@ -21,5 +22,6 @@ pub use commit_id::{CommitId, CommitIdError};
 pub use prerelease_id::{PrereleaseId, PrereleaseIdError};
 pub use range::Range;
 pub use release::{FirstReleaseWarning, LastRelease, NextRelease, ReleaseError, Releases};
+pub use skip::{CommitMessage, NoRelease, Skipped};
 pub use tag_format::TagPattern;
 pub use version::{Version, VersionError};

@@ -47,7 +47,7 @@ impl Releases {
     /// # Errors
     ///
     /// Returns [`ReleaseError`] when tags of the last release's version are on different
-    /// commits.
+    /// commits, or when no tag matches `pattern` but some are bare or `v`-prefixed versions.
     pub fn find<'a>(
         tags: impl IntoIterator<Item = (&'a str, &'a CommitId)>,
         pattern: &TagPattern,
@@ -251,7 +251,9 @@ mod tests {
 
     use super::*;
     use crate::BranchModel;
-    use crate::codes::{VERSION_DUPLICATE_TAGS, VERSION_OUT_OF_RANGE, VERSION_OVERFLOW};
+    use crate::codes::{
+        VERSION_DUPLICATE_TAGS, VERSION_OUT_OF_RANGE, VERSION_OVERFLOW, VERSION_TAGS_NOT_FOUND,
+    };
 
     /// A branch's tags as tag name and commit, a commit written as one hex digit.
     type Tags<'a> = &'a [(&'a str, char)];
@@ -837,6 +839,110 @@ fix = \"patch\"",
             Err(String::from(
                 "the release `1.0.1` on branch `next` is outside its range `>=1.5.0`"
             ))
+        );
+    }
+
+    /// The last release's tag among `tags` with `tags.format = format`.
+    fn last_with(format: &str, tags: Tags<'_>) -> Result<Option<String>, Failure> {
+        let mut table = Config::defaults_table();
+        table["tags"]["format"] = format.into();
+        let pattern = TagPattern::new(Config::from_table(table).unwrap().tags().format());
+        let releases = failure(find_with(tags, &pattern))?;
+        Ok(releases.last().map(|last| last.tag().to_owned()))
+    }
+
+    fn tags_not_found(message: &str, help: &str) -> Result<Option<String>, Failure> {
+        Err((VERSION_TAGS_NOT_FOUND, message.to_owned(), help.to_owned()))
+    }
+
+    #[test]
+    fn near_misses_without_a_matching_tag_are_an_error() {
+        assert_eq!(
+            last_with("v{version}", &[("1.1.0", 'a'), ("1.0.0", 'b')]),
+            tags_not_found(
+                "no tag matches `tags.format` `v{version}`; tags `1.0.0`, `1.1.0` look like releases",
+                "Set `tags.format = \"{version}\"` to use them, or delete or rename them if they \
+                 aren't releases."
+            )
+        );
+    }
+
+    #[test]
+    fn a_v_prefix_is_a_near_miss_of_a_bare_format() {
+        assert_eq!(
+            last_with("{version}", &[("v1.0.0", 'a')]),
+            tags_not_found(
+                "no tag matches `tags.format` `{version}`; tags `v1.0.0` look like releases",
+                "Set `tags.format = \"v{version}\"` to use them, or delete or rename them if they \
+                 aren't releases."
+            )
+        );
+    }
+
+    #[rstest]
+    #[case::prerelease(&[("1.0.0-rc.1", 'a')])]
+    #[case::build_metadata(&[("1.0.0+b", 'a')])]
+    fn prereleases_and_build_metadata_are_near_misses(#[case] tags: Tags<'_>) {
+        assert_eq!(
+            last_with("v{version}", tags).map_err(|(code, ..)| code),
+            Err(VERSION_TAGS_NOT_FOUND)
+        );
+    }
+
+    /// The suggested format of near-misses `tags` with `tags.format = "release-{version}"`.
+    fn suggested(tags: Tags<'_>) -> Result<Option<String>, String> {
+        last_with("release-{version}", tags).map_err(|(_, _, help)| help)
+    }
+
+    fn suggests(format: &str) -> Result<Option<String>, String> {
+        Err(format!(
+            "Set `tags.format = \"{format}\"` to use them, or delete or rename them if they aren't \
+             releases."
+        ))
+    }
+
+    #[rstest]
+    #[case::highest_is_v(&[("1.0.0", 'a'), ("v2.0.0", 'b')], "v{version}")]
+    #[case::highest_is_bare(&[("v1.0.0", 'a'), ("2.0.0", 'b')], "{version}")]
+    #[case::by_precedence(&[("1.9.0", 'a'), ("v1.10.0", 'b')], "v{version}")]
+    #[case::tie_first_by_name(&[("v1.0.0", 'a'), ("1.0.0", 'b')], "{version}")]
+    #[case::prerelease_below_release(&[("v1.0.0", 'a'), ("1.0.0-rc.1", 'b')], "v{version}")]
+    fn the_suggestion_follows_the_highest_near_miss(#[case] tags: Tags<'_>, #[case] format: &str) {
+        assert_eq!(suggested(tags), suggests(format));
+    }
+
+    #[test]
+    fn all_near_misses_are_listed_by_name() {
+        assert_eq!(
+            last_with(
+                "release-{version}",
+                &[("v2.0.0", 'a'), ("1.0.0", 'b'), ("foo", 'c')]
+            )
+            .map_err(|(_, message, _)| message),
+            Err(String::from(
+                "no tag matches `tags.format` `release-{version}`; tags `1.0.0`, `v2.0.0` look \
+                 like releases"
+            ))
+        );
+    }
+
+    #[rstest]
+    #[case::custom_prefix(&[("release-1.0.0", 'a')])]
+    #[case::double_v(&[("vv1.0.0", 'a')])]
+    #[case::uppercase_v(&[("V1.0.0", 'a')])]
+    #[case::partial(&[("1.0", 'a')])]
+    #[case::leading_zero(&[("01.0.0", 'a')])]
+    #[case::suffix(&[("1.0.0-", 'a')])]
+    #[case::text(&[("foo", 'a')])]
+    fn other_tags_are_not_near_misses(#[case] tags: Tags<'_>) {
+        assert_eq!(last_with("v{version}", tags), Ok(None));
+    }
+
+    #[test]
+    fn a_matching_prerelease_turns_the_check_off() {
+        assert_eq!(
+            last_with("v{version}", &[("v1.0.0-rc.1", 'a'), ("0.9.0", 'b')]),
+            Ok(None)
         );
     }
 }
