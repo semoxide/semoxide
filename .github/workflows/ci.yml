@@ -148,7 +148,8 @@ jobs:
       - name: Each feature
         run: cargo hack check --each-feature --workspace --locked
 
-  # `build`, not `check`, so libFuzzer's linking is tested too. `-s none` needs no nightly.
+  # `build`, not `check`, so libFuzzer's linking is tested too. `-s none` needs no nightly. The
+  # target is explicit: the cargo-fuzz release binary is musl and would default to musl.
   fuzz:
     needs: detect
     if: needs.detect.outputs.rust == 'true'
@@ -164,11 +165,11 @@ jobs:
           version: 2026.10.3
           install_args: github:rust-fuzz/cargo-fuzz
       - name: Build
-        run: cargo fuzz build -s none
+        run: cargo fuzz build -s none --target x86_64-unknown-linux-gnu
       - name: Smoke run, 10 s per target
         run: |
           for target in $(cargo fuzz list); do
-            cargo fuzz run -s none "$target" -- -max_total_time=10
+            cargo fuzz run -s none --target x86_64-unknown-linux-gnu "$target" -- -max_total_time=10
           done
 
   required-checks:

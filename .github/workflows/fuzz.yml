@@ -32,7 +32,7 @@ jobs:
       - name: Fuzz, 5 min per target
         run: |
           for target in $(cargo fuzz list); do
-            cargo fuzz run -s none "$target" -- -max_total_time=300
+            cargo fuzz run -s none --target x86_64-unknown-linux-gnu "$target" -- -max_total_time=300
           done
       # A crash input becomes a smoke test in fuzz/src/lib.rs.
       - if: failure()
