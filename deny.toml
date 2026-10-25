@@ -24,6 +24,8 @@ allow = [
   "CC0-1.0",
 ]
 confidence-threshold = 0.8
+# libFuzzer's license; only the unpublished `fuzz` crate uses it, under `cargo fuzz`.
+exceptions = [{ crate = "libfuzzer-sys", allow = ["NCSA"] }]
 
 [licenses.private]
 ignore = true
