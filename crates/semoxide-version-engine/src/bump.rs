@@ -159,7 +159,9 @@ impl std::error::Error for BumpError {}
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
     use rstest::rstest;
+    use semoxide_test_support::strategies;
 
     use super::*;
 
@@ -300,5 +302,115 @@ mod tests {
         let id = PrereleaseId::try_from(id).unwrap();
 
         assert_eq!(version(input).first_prerelease(&id), version(expected));
+    }
+
+    fn level() -> impl Strategy<Value = Level> {
+        prop::sample::select(vec![Level::Major, Level::Minor, Level::Patch])
+    }
+
+    fn release(major: u64, minor: u64, patch: u64) -> Version {
+        Version::from_parts(major, minor, patch, semver::Prerelease::EMPTY)
+    }
+
+    /// The least release above `version` whose parts below `level` are zero; `None` past
+    /// `u64::MAX`.
+    fn least_release_above(version: &Version, level: Level) -> Option<Version> {
+        let semver::Version {
+            major,
+            minor,
+            patch,
+            pre,
+            ..
+        } = version.as_semver();
+        let pre = !pre.is_empty();
+        let candidates = match level {
+            Level::Major => [
+                (pre && *minor == 0 && *patch == 0).then(|| release(*major, 0, 0)),
+                major.checked_add(1).map(|major| release(major, 0, 0)),
+            ],
+            Level::Minor => [
+                (pre && *patch == 0).then(|| release(*major, *minor, 0)),
+                minor.checked_add(1).map(|minor| release(*major, minor, 0)),
+            ],
+            Level::Patch => [
+                pre.then(|| release(*major, *minor, *patch)),
+                patch
+                    .checked_add(1)
+                    .map(|patch| release(*major, *minor, patch)),
+            ],
+        };
+        candidates
+            .into_iter()
+            .flatten()
+            .filter(|candidate| candidate > version)
+            .min()
+    }
+
+    /// `digits` plus one, carried digit by digit.
+    fn plus_one(digits: &str) -> String {
+        let mut bytes = digits.as_bytes().to_vec();
+        for digit in bytes.iter_mut().rev() {
+            if *digit == b'9' {
+                *digit = b'0';
+            } else {
+                *digit += 1;
+                return String::from_utf8(bytes).unwrap();
+            }
+        }
+        format!("1{}", String::from_utf8(bytes).unwrap())
+    }
+
+    proptest! {
+        #[test]
+        fn a_bump_is_the_least_release_above_at_its_level(
+            input in strategies::version(),
+            level in level(),
+        ) {
+            let version: Version = input.parse().unwrap();
+
+            prop_assert_eq!(version.bump(level).ok(), least_release_above(&version, level));
+        }
+
+        #[test]
+        fn a_higher_version_never_bumps_lower(
+            a in strategies::close_version(),
+            b in strategies::close_version(),
+            level in level(),
+        ) {
+            let (a, b): (Version, Version) = (a.parse().unwrap(), b.parse().unwrap());
+            let (lower, higher) = if a <= b { (a, b) } else { (b, a) };
+
+            prop_assert!(lower.bump(level).unwrap() <= higher.bump(level).unwrap());
+        }
+
+        #[test]
+        fn a_prerelease_bump_raises_its_rightmost_number(input in strategies::version()) {
+            let version: Version = input.parse().unwrap();
+            let semver = version.as_semver();
+            let next = version.next_prerelease();
+            if semver.pre.is_empty() {
+                prop_assert!(next.is_err());
+                return Ok(());
+            }
+            let next = next.unwrap();
+            let mut ids: Vec<String> = semver.pre.split('.').map(str::to_owned).collect();
+            let rightmost = ids
+                .iter_mut()
+                .rev()
+                .find(|id| id.bytes().all(|byte| byte.is_ascii_digit()));
+            match rightmost {
+                Some(id) => *id = plus_one(id),
+                None => ids.push(String::from("0")),
+            }
+            let bumped = next.as_semver();
+
+            prop_assert_eq!(bumped.pre.as_str(), ids.join("."));
+            prop_assert_eq!(
+                (bumped.major, bumped.minor, bumped.patch),
+                (semver.major, semver.minor, semver.patch)
+            );
+            prop_assert!(next > version);
+            prop_assert!(next < release(semver.major, semver.minor, semver.patch));
+        }
     }
 }

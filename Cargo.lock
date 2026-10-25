@@ -1655,6 +1655,7 @@ dependencies = [
 name = "semoxide-test-support"
 version = "0.0.0"
 dependencies = [
+ "proptest",
  "rstest",
  "semoxide-error",
  "tempfile",
@@ -1665,9 +1666,12 @@ dependencies = [
 name = "semoxide-version-engine"
 version = "0.0.0"
 dependencies = [
+ "proptest",
+ "regex",
  "rstest",
  "semoxide-error",
  "semoxide-schema",
+ "semoxide-test-support",
  "semver",
 ]
 

@@ -131,7 +131,12 @@ fn words_at(rest: &str, first: &str, second: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
+    use proptest::prelude::*;
+    use regex::Regex;
     use rstest::rstest;
+    use semoxide_test_support::strategies;
 
     use super::*;
 
@@ -184,6 +189,8 @@ mod tests {
     #[case::line_break("fix: x [skip\nrelease]")]
     #[case::crlf("fix: x [release\r\nskip]")]
     #[case::no_break_space("fix: x [skip\u{a0}release]")]
+    #[case::ideographic_space("fix: x [skip\u{3000}release]")]
+    #[case::next_line("fix: x [release\u{85}skip]")]
     #[case::alone("[skip release]")]
     #[case::after_another_bracket("fix: x [ci] [skip release]")]
     #[case::before_another_bracket("fix: x [skip release] [ci]")]
@@ -201,6 +208,7 @@ mod tests {
     #[case::space_before_closing_bracket("fix: x [skip release ]")]
     #[case::longer_word("fix: x [release skips]")]
     #[case::non_ascii_letter("fix: x [\u{17f}kip release]")]
+    #[case::kelvin_sign("fix: x [s\u{212a}ip release]")]
     #[case::missing_opening_bracket("skip release] x")]
     #[case::empty("")]
     fn anything_else_is_not_a_marker(#[case] message: &str) {
@@ -297,5 +305,64 @@ mod tests {
         #[case] expected: Vec<CommitId>,
     ) {
         assert_eq!(reason.skipped(), expected.as_slice());
+    }
+
+    /// The marker grammar as a regex: ASCII case for the words, Unicode whitespace between them.
+    static MARKER: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\[(?:(?i-u:skip)\s+(?i-u:release)|(?i-u:release)\s+(?i-u:skip))\]").unwrap()
+    });
+
+    /// A commit with a generated message.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct Generated {
+        id: CommitId,
+        message: String,
+    }
+
+    impl CommitMessage for Generated {
+        fn id(&self) -> &CommitId {
+            &self.id
+        }
+
+        fn message(&self) -> &str {
+            &self.message
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn the_marker_follows_its_grammar(
+            message in strategies::message(),
+            before in "\\PC{0,4}",
+            after in "\\PC{0,4}",
+        ) {
+            let marked = has_marker(&message);
+            let wrapped = format!("{before}{message}{after}");
+
+            prop_assert_eq!(marked, MARKER.is_match(&message), "{:?}", message);
+            prop_assert_eq!(marked, has_marker(&message.to_ascii_uppercase()));
+            prop_assert!(!marked || has_marker(&wrapped));
+        }
+
+        #[test]
+        fn the_filter_splits_commits_by_the_marker_in_order(
+            messages in prop::collection::vec(strategies::message(), 0..8),
+        ) {
+            let commits: Vec<Generated> = messages
+                .into_iter()
+                .enumerate()
+                .map(|(index, message)| Generated {
+                    id: CommitId::try_from(format!("{index:040x}").as_str()).unwrap(),
+                    message,
+                })
+                .collect();
+            let (marked, unmarked): (Vec<&Generated>, Vec<&Generated>) =
+                commits.iter().partition(|commit| has_marker(&commit.message));
+            let skipped: Vec<CommitId> = marked.iter().map(|commit| commit.id.clone()).collect();
+            let split = Skipped::filter(commits.clone());
+
+            prop_assert_eq!(split.kept().iter().collect::<Vec<_>>(), unmarked);
+            prop_assert_eq!(split.skipped(), skipped.as_slice());
+        }
     }
 }

@@ -93,7 +93,11 @@ impl std::error::Error for VersionError {}
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering;
+
+    use proptest::prelude::*;
     use rstest::rstest;
+    use semoxide_test_support::strategies;
 
     use super::*;
 
@@ -245,5 +249,78 @@ mod tests {
             (true, false),
             "{lower} < {higher}"
         );
+    }
+
+    /// `SemVer` 2.0.0 §11 precedence of two prerelease identifiers; numbers of any length.
+    fn reference_id_order(a: &str, b: &str) -> Ordering {
+        let numeric = |id: &str| id.bytes().all(|byte| byte.is_ascii_digit());
+        match (numeric(a), numeric(b)) {
+            (true, true) => a.len().cmp(&b.len()).then_with(|| a.cmp(b)),
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            (false, false) => a.cmp(b),
+        }
+    }
+
+    /// `SemVer` 2.0.0 §11 precedence, written without the `semver` crate's ordering.
+    fn reference_order(a: &Version, b: &Version) -> Ordering {
+        let (a, b) = (a.as_semver(), b.as_semver());
+        let core = (a.major, a.minor, a.patch).cmp(&(b.major, b.minor, b.patch));
+        core.then_with(|| match (a.pre.is_empty(), b.pre.is_empty()) {
+            (true, true) => Ordering::Equal,
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            (false, false) => {
+                let (left, right): (Vec<&str>, Vec<&str>) =
+                    (a.pre.split('.').collect(), b.pre.split('.').collect());
+                left.iter()
+                    .zip(&right)
+                    .map(|(x, y)| reference_id_order(x, y))
+                    .find(|order| order.is_ne())
+                    .unwrap_or_else(|| left.len().cmp(&right.len()))
+            }
+        })
+    }
+
+    proptest! {
+        #[test]
+        fn a_version_displays_as_written(input in strategies::version()) {
+            let version: Version = input.parse().unwrap();
+            let shown = version.to_string();
+
+            prop_assert_eq!(&shown, &input);
+            prop_assert_eq!(shown.parse::<Version>().unwrap(), version);
+        }
+
+        #[test]
+        fn versions_order_by_semver_precedence(
+            a in strategies::close_version(),
+            b in strategies::close_version(),
+        ) {
+            let (a, b): (Version, Version) = (a.parse().unwrap(), b.parse().unwrap());
+
+            prop_assert_eq!(a.cmp(&b), reference_order(&a, &b));
+            prop_assert_eq!(a == b, a.cmp(&b).is_eq());
+            prop_assert_eq!(a == b, a.to_string() == b.to_string());
+        }
+
+        #[test]
+        fn prereleases_of_one_core_order_by_semver_precedence(
+            (a, b) in strategies::same_core_versions(),
+        ) {
+            let (a, b): (Version, Version) = (a.parse().unwrap(), b.parse().unwrap());
+
+            prop_assert_eq!(a.cmp(&b), reference_order(&a, &b));
+        }
+
+        #[test]
+        fn any_versions_order_by_semver_precedence(
+            a in strategies::version(),
+            b in strategies::version(),
+        ) {
+            let (a, b): (Version, Version) = (a.parse().unwrap(), b.parse().unwrap());
+
+            prop_assert_eq!(a.cmp(&b), reference_order(&a, &b));
+        }
     }
 }

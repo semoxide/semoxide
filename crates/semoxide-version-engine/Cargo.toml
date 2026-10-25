@@ -16,4 +16,7 @@ semoxide-schema.workspace = true
 semver.workspace = true
 
 [dev-dependencies]
+proptest.workspace = true
+regex.workspace = true
 rstest.workspace = true
+semoxide-test-support.workspace = true
